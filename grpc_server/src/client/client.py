@@ -3,6 +3,7 @@ from ytmusicapi import  YTMusic, LikeStatus
 from yt_dlp import YoutubeDL
 
 from .types import (
+    GetStreamURLResponse,
     YTSong,
     YTLikedSongsResponse,
     YTHomeSection,
@@ -24,7 +25,7 @@ class MusicClient:
 
     def __init__(self, auth_file: str) -> None:
         self.client = YTMusic(auth=auth_file)
-    def get_stream_url(self, video_id:str) -> str:
+    def get_stream_url_and_duration(self, video_id:str)  -> GetStreamURLResponse:
         full_url: str = "https://www.youtube.com/watch?v=" + video_id
         options = {
             "format": "bestaudio[abr>=120][abr<=250]/bestaudio",
@@ -37,9 +38,13 @@ class MusicClient:
                 download=False,
             )
         url = info.get("url")
-        if not isinstance(url, str):
+        duration: int | None = info.get("duration") 
+        if not isinstance(url, str):        
             raise RuntimeError("Unable to extract stream URL")
-        return url
+        return {
+            "url":url,
+            "duration" : duration,
+        }
 
     def get_home(self) -> list[YTHomeSection]:
         res: object = self.client.get_home(limit=10)
@@ -83,12 +88,13 @@ class MusicClient:
         if not isinstance(video_details, dict):
             return cast(YTSongResponse, cast(object, {}))
         track: YTSongResponse = cast(YTSongResponse, cast(object, video_details))
-        stream_url = ''
         track_video_id = track.get('videoId')
         if isinstance(track_video_id, str):
-                stream_url = self.get_stream_url(video_id=track_video_id)
+                stream_url_and_duration = self.get_stream_url_and_duration(video_id=track_video_id)
+                track['url'] = stream_url_and_duration.get('url')
+                if stream_url_and_duration.get('duration') != None:
+                    track['lengthSeconds'] = str(stream_url_and_duration.get('duration'))
         
-        track['url'] = stream_url
         return track
 
     def get_album_tracks(self, browse_id: str) -> YTAlbumResponse:

@@ -3,7 +3,6 @@ from types import FrameType
 import grpc
 import os
 import sys
-from pathlib import Path
 from typing import Callable, override
 import signal
 from dotenv import load_dotenv
@@ -144,14 +143,26 @@ def _to_proto_followed_artist(artist: YTLibraryArtist) -> music_pb2.FollowedArti
 
 def _to_proto_podcast(podcast: YTLibraryPlaylist) -> music_pb2.Podcast:
     author_name = ""
-    author_val = podcast.get("author")
-    if isinstance(author_val, list) and len(author_val) > 0:
-        author_name = author_val[0].get("name") or ""
-    elif isinstance(author_val, str):
-        author_name = author_val
+    channel = podcast.get("channel")
+    if isinstance(channel, dict):
+        author_name = channel.get("name") or ""
+
+    if not author_name:
+        author_val = podcast.get("author")
+        if isinstance(author_val, list) and len(author_val) > 0:
+            author_name = author_val[0].get("name") or ""
+        elif isinstance(author_val, str):
+            author_name = author_val
+
+    podcast_id = (
+        podcast.get("podcastId")
+        or podcast.get("playlistId")
+        or podcast.get("browseId")
+        or ""
+    )
 
     podcast_msg = music_pb2.Podcast(
-        podcast_id=podcast.get("playlistId") or podcast.get("browseId") or "",
+        podcast_id=podcast_id,
         title=podcast.get("title") or "",
         author=author_name,
     )
@@ -164,7 +175,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     """gRPC Servicer implementing the MusicService interface, mapping requests to MusicClient."""
 
     def __init__(self, auth_file: str) -> None:
-        print(auth_file)
         self.client: MusicClient = MusicClient(auth_file)
     
     @override
@@ -298,7 +308,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     def GetSearchResults(self, request: music_pb2.GetSearchResultsRequest, context: grpc.ServicerContext) -> music_pb2.GetSearchResultsResponse:
         limit = request.limit if request.limit > 0 else 50
         filter_val: YTSearchFilter | None = None
-        if request.filter in ("songs", "videos", "albums", "artists", "playlists", "podcasts"):
+        if request.filter in ("songs", "videos", "albums", "artists", "playlists", "podcasts", "episodes"):
             filter_val = request.filter
         
         raw_results: list[YTSearchResult] = self.client.get_search_results(query=request.query, filter_type=filter_val, limit=limit)
@@ -506,10 +516,12 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         _ = self.client.unlike_song(request.video_id)
         return music_pb2.UnlikeSongResponse()
     @override
-    def GetVideoStreamURL(self, request: music_pb2.GetVideoStreamURLRequest, context:grpc.ServicerContext) -> music_pb2.GetVideoStreamURLResponse:
-        stream_url: str = self.client.get_stream_url(request.videoId)
-        return music_pb2.GetVideoStreamURLResponse(
-            url=stream_url
+    def GetVideoStreamURL(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, context:grpc.ServicerContext) -> music_pb2.GetVideoStreamURLAndDurationResponse:
+        stream_url_and_duration= self.client.get_stream_url_and_duration(request.videoId)
+        duration = stream_url_and_duration.get('duration')
+        return  music_pb2.GetVideoStreamURLAndDurationResponse(
+            url=stream_url_and_duration.get('url'),
+            duration= "" if duration is None else str(duration)
         )
     @override
     def GetHomePage(self, request: music_pb2.GetHomePageRequest, context: grpc.ServicerContext) -> music_pb2.GetHomePageResponse:

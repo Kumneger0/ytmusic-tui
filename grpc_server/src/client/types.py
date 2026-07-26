@@ -3,7 +3,7 @@
 from typing import TypedDict, Literal
 
 # Search filters supported by ytmusicapi
-YTSearchFilter = Literal["songs", "videos", "albums", "artists", "playlists", "podcasts"]
+YTSearchFilter = Literal["songs", "videos", "albums", "artists", "playlists", "podcasts", "episodes"]
 
 
 class YTThumbnail(TypedDict, total=False):
@@ -97,6 +97,10 @@ class YTLibraryResponse(TypedDict, total=False):
     channels: list[YTLibraryChannel]
     artists: list[YTLibraryArtist]
     podcasts: list[YTLibraryPlaylist]
+
+class GetStreamURLResponse(TypedDict, total=False):
+    url:str
+    duration: int | None
 
 
 class YTAlbumResponse(TypedDict, total=False):
