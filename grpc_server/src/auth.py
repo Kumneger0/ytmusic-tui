@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 from ytmusicapi import YTMusic, setup
@@ -315,6 +316,7 @@ class ReuseHTTPServer(HTTPServer):
 def process_raw_headers_via_ytmusicapi(raw_headers: str, filepath: Path | None = None) -> tuple[bool, str, Path]:
     """
     Passes raw_headers directly to ytmusicapi.setup(filepath, headers_raw) and tests authentication.
+    Writes credentials to a temporary sibling file, tests authentication, and atomically replaces target_path on success.
     Returns (success, message, target_path).
     """
     target_path = filepath if filepath is not None else get_browser_json_path()
@@ -323,17 +325,26 @@ def process_raw_headers_via_ytmusicapi(raw_headers: str, filepath: Path | None =
     if not raw_headers or not raw_headers.strip():
         return False, "No headers provided. Please paste your request headers into the box.", target_path
 
+    temp_file = tempfile.NamedTemporaryFile(dir=target_path.parent, prefix="browser_", suffix=".json", delete=False)
+    temp_path = Path(temp_file.name)
+    temp_file.close()
+
     try:
         sanitized = sanitize_headers_for_ytmusicapi(raw_headers)
-        setup(filepath=str(target_path), headers_raw=sanitized)
-    except Exception as e:
-        return False, str(e), target_path
+        setup(filepath=str(temp_path), headers_raw=sanitized)
 
-    success, err_msg = test_authentication(target_path)
-    if success:
-        return True, "Login successful", target_path
-    else:
-        return False, f"Authentication failed: {err_msg}", target_path
+        success, err_msg = test_authentication(temp_path)
+        if success:
+            temp_path.replace(target_path)
+            return True, "Login successful", target_path
+        else:
+            if temp_path.exists():
+                temp_path.unlink()
+            return False, f"Authentication failed: {err_msg}", target_path
+    except Exception as e:
+        if temp_path.exists():
+            temp_path.unlink()
+        return False, str(e), target_path
 
 
 class WebLoginHandler(BaseHTTPRequestHandler):
