@@ -516,7 +516,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         _ = self.client.unlike_song(request.video_id)
         return music_pb2.UnlikeSongResponse()
     @override
-    def GetVideoStreamURL(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, context:grpc.ServicerContext) -> music_pb2.GetVideoStreamURLAndDurationResponse:
+    def GetVideoStreamURLAndDuration(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, context:grpc.ServicerContext) -> music_pb2.GetVideoStreamURLAndDurationResponse:
         stream_url_and_duration= self.client.get_stream_url_and_duration(request.videoId)
         duration = stream_url_and_duration.get('duration')
         return  music_pb2.GetVideoStreamURLAndDurationResponse(
