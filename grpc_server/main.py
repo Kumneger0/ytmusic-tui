@@ -65,10 +65,10 @@ def _to_proto_song(song: YTSong) -> music_pb2.Song:
         is_explicit=bool(song.get("isExplicit")),
     )
 
-    for artist in song.get("artists", []):
+    for artist in (song.get("artists") or []):
         song_msg.artists.append(_to_proto_artist(artist))
 
-    for thumbnail in song.get("thumbnails", []):
+    for thumbnail in (song.get("thumbnails") or []):
         song_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
 
     return song_msg
@@ -82,9 +82,9 @@ def _to_proto_album(album: YTLibraryAlbum) -> music_pb2.Album:
         is_explicit=bool(album.get("isExplicit")),
         type=album.get("type") or "",
     )
-    for artist in album.get("artists", []):
+    for artist in (album.get("artists") or []):
         album_msg.artists.append(_to_proto_artist(artist))
-    for thumbnail in album.get("thumbnails", []):
+    for thumbnail in (album.get("thumbnails") or []):
         album_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
     return album_msg
 
@@ -114,7 +114,7 @@ def _to_proto_playlist(playlist: YTLibraryPlaylist) -> music_pb2.Playlist:
         count=count_int,
         author=author_name,
     )
-    for thumbnail in playlist.get("thumbnails", []):
+    for thumbnail in (playlist.get("thumbnails") or []):
         playlist_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
     return playlist_msg
 
@@ -125,7 +125,7 @@ def _to_proto_channel(channel: YTLibraryChannel) -> music_pb2.LibraryChannel:
         name=channel.get("artist") or "",
         subscribers=channel.get("subscribers") or "",
     )
-    for thumbnail in channel.get("thumbnails", []):
+    for thumbnail in (channel.get("thumbnails") or []):
         channel_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
     return channel_msg
 
@@ -136,7 +136,7 @@ def _to_proto_followed_artist(artist: YTLibraryArtist) -> music_pb2.FollowedArti
         name=artist.get("artist") or "",
         subscribers=artist.get("subscribers") or "",
     )
-    for thumbnail in artist.get("thumbnails", []):
+    for thumbnail in (artist.get("thumbnails") or []):
         artist_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
     return artist_msg
 
@@ -166,7 +166,7 @@ def _to_proto_podcast(podcast: YTLibraryPlaylist) -> music_pb2.Podcast:
         title=podcast.get("title") or "",
         author=author_name,
     )
-    for thumbnail in podcast.get("thumbnails", []):
+    for thumbnail in (podcast.get("thumbnails") or []):
         podcast_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
     return podcast_msg
 
@@ -261,7 +261,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def GetAlbumTracks(self, request: music_pb2.GetAlbumTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetAlbumTracksResponse:
-        album_data = self.client.get_album_tracks(browse_id=request.browse_id)
+        album_data = self.client.get_album_tracks(browse_id=request.browse_id) or {}
         
         response = music_pb2.GetAlbumTracksResponse(
             title=album_data.get("title") or "",
@@ -269,11 +269,11 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             total=album_data.get("trackCount") or 0,
             description=album_data.get("description") or "",
         )
-        for artist in album_data.get("artists", []):
+        for artist in (album_data.get("artists") or []):
             response.artists.append(_to_proto_artist(artist))
-        for thumbnail in album_data.get("thumbnails", []):
+        for thumbnail in (album_data.get("thumbnails") or []):
             response.thumbnails.append(_to_proto_thumbnail(thumbnail))
-        for track in album_data.get("tracks", []):
+        for track in (album_data.get("tracks") or []):
             response.tracks.append(_to_proto_song(track))
         
         return response
@@ -281,7 +281,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetPlaylistItems(self, request: music_pb2.GetPlaylistItemsRequest, context: grpc.ServicerContext) -> music_pb2.GetPlaylistItemsResponse:
         limit = request.limit if request.limit > 0 else 100
-        playlist_data = self.client.get_playlist_items(playlist_id=request.playlist_id, limit=limit)
+        playlist_data = self.client.get_playlist_items(playlist_id=request.playlist_id, limit=limit) or {}
         
         author_name = ""
         author_val = playlist_data.get("author")
@@ -297,9 +297,9 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             year=playlist_data.get("year") or "",
             track_count=playlist_data.get("trackCount") or 0,
         )
-        for thumbnail in playlist_data.get("thumbnails", []):
+        for thumbnail in (playlist_data.get("thumbnails") or []):
             response.thumbnails.append(_to_proto_thumbnail(thumbnail))
-        for track in playlist_data.get("tracks", []):
+        for track in (playlist_data.get("tracks") or []):
             response.tracks.append(_to_proto_song(track))
             
         return response
@@ -332,9 +332,9 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 elif isinstance(album_info, str):
                     song_item.album = album_info
 
-                for artist in result.get("artists", []):
+                for artist in (result.get("artists") or []):
                     song_item.artists.append(_to_proto_artist(artist))
-                for thumbnail in result.get("thumbnails", []):
+                for thumbnail in (result.get("thumbnails") or []):
                     song_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.songs.append(song_item)
                 
@@ -346,9 +346,9 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     type=result.get("type") or "",
                     is_explicit=bool(result.get("isExplicit")),
                 )
-                for artist in result.get("artists", []):
+                for artist in (result.get("artists") or []):
                     album_item.artists.append(_to_proto_artist(artist))
-                for thumbnail in result.get("thumbnails", []):
+                for thumbnail in (result.get("thumbnails") or []):
                     album_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.albums.append(album_item)
                 
@@ -358,7 +358,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     name=result.get("artist") or "",
                     subscribers=result.get("subscribers") or "",
                 )
-                for thumbnail in result.get("thumbnails", []):
+                for thumbnail in (result.get("thumbnails") or []):
                     artist_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.artists.append(artist_item)
                 
@@ -369,7 +369,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     author=result.get("author") or "",
                     item_count=result.get("itemCount") or "",
                 )
-                for thumbnail in result.get("thumbnails", []):
+                for thumbnail in (result.get("thumbnails") or []):
                     playlist_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.playlists.append(playlist_item)
 
@@ -386,7 +386,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     title=result.get("title") or "",
                     author=author_str,
                 )
-                for thumbnail in result.get("thumbnails", []):
+                for thumbnail in (result.get("thumbnails") or []):
                     podcast_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.podcasts.append(podcast_item)
 
@@ -407,7 +407,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     podcast_id=podcast_id,
                     date=result.get("date") or "",
                 )
-                for thumbnail in result.get("thumbnails", []):
+                for thumbnail in (result.get("thumbnails") or []):
                     episode_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.episodes.append(episode_item)
 
@@ -427,9 +427,9 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 elif isinstance(album_info, str):
                     song_item.album = album_info
 
-                for artist in result.get("artists", []):
+                for artist in (result.get("artists") or []):
                     song_item.artists.append(_to_proto_artist(artist))
-                for thumbnail in result.get("thumbnails", []):
+                for thumbnail in (result.get("thumbnails") or []):
                     song_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.songs.append(song_item)
 
@@ -437,18 +437,18 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def GetArtistTopTracks(self, request: music_pb2.GetArtistTopTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetArtistTopTracksResponse:
-        artist_data = self.client.get_artist_top_tracks(channel_id=request.channel_id)
+        artist_data = self.client.get_artist_top_tracks(channel_id=request.channel_id) or {}
         
         response = music_pb2.GetArtistTopTracksResponse(
             name=artist_data.get("name") or "",
             subscribers=artist_data.get("subscribers") or "",
         )
-        for thumbnail in artist_data.get("thumbnails", []):
+        for thumbnail in (artist_data.get("thumbnails") or []):
             response.thumbnails.append(_to_proto_thumbnail(thumbnail))
             
         songs_sec = artist_data.get("songs") or {}
         if songs_sec:
-            for song in songs_sec.get("results", []):
+            for song in (songs_sec.get("results") or []):
                 response.tracks.append(_to_proto_song(song))
                 
         return response
@@ -456,7 +456,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetFollowedArtists(self, request: music_pb2.GetFollowedArtistsRequest, context: grpc.ServicerContext) -> music_pb2.GetFollowedArtistsResponse:
         limit = request.limit if request.limit > 0 else 25
-        artists_data = self.client.get_followed_artists(limit=limit)
+        artists_data = self.client.get_followed_artists(limit=limit) or []
         
         response = music_pb2.GetFollowedArtistsResponse(total=len(artists_data))
         for artist in artists_data:
@@ -465,7 +465,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 name=artist.get("artist") or "",
                 subscribers=artist.get("subscribers") or "",
             )
-            for thumbnail in artist.get("thumbnails", []):
+            for thumbnail in (artist.get("thumbnails") or []):
                 artist_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
             response.artists.append(artist_msg)
             
