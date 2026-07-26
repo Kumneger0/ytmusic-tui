@@ -69,7 +69,7 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 					fmt.Fprintf(os.Stderr, "Warning: could not write PID to lock file: %v\n", err)
 				}
 			}
-			return runRoot(cmd)
+			return runRoot(cmd, debug)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if memFile != "" && debug {
@@ -132,7 +132,17 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 	fmt.Fprintf(os.Stderr, "Another instance of clispot is already running (PID: %d).\n", pid)
 }
 
-func runRoot(cmd *cobra.Command) error {
+func startPythonBackend(debug bool) (*exec.Cmd, error) {
+	fmt.Println("is debug", debug)
+	fmt.Println("is debug", debug)
+	fmt.Println("is debug", debug)
+	if debug {
+		return nil, nil
+	}
+	return backend.StartBackend(backend.PythonBacked)
+}
+
+func runRoot(cmd *cobra.Command, debug bool) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
 	configFromFile := config.GetUserConfig(runtime.GOOS)
 
@@ -264,7 +274,7 @@ func runRoot(cmd *cobra.Command) error {
 		slog.Error(err.Error())
 	}
 
-	backendCmd, err := backend.StartBackend(backend.PythonBacked)
+	backendCmd, err := startPythonBackend(debug)
 	if err != nil {
 		slog.Error(err.Error())
 		log.Fatal(err)

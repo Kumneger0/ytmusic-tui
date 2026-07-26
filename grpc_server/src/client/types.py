@@ -74,6 +74,30 @@ class YTLibraryPlaylist(TypedDict, total=False):
     author: list[YTArtist] | str | None
 
 
+class YTLibraryChannel(TypedDict, total=False):
+    """A channel item as returned by get_library_channels."""
+    browseId: str
+    artist: str
+    subscribers: str | None
+    thumbnails: list[YTThumbnail]
+
+
+class YTLibraryArtist(TypedDict, total=False):
+    """An artist item as returned by get_library_subscriptions."""
+    browseId: str
+    artist: str
+    subscribers: str | None
+    thumbnails: list[YTThumbnail]
+
+
+class YTLibraryResponse(TypedDict, total=False):
+    """Return type of get_library bundling albums, playlists, channels, and artists."""
+    albums: list[YTLibraryAlbum]
+    playlists: list[YTLibraryPlaylist]
+    channels: list[YTLibraryChannel]
+    artists: list[YTLibraryArtist]
+
+
 class YTAlbumResponse(TypedDict, total=False):
     """Return type of get_album."""
     title: str
@@ -102,14 +126,6 @@ class YTArtistResponse(TypedDict, total=False):
     subscribers: str | None
     thumbnails: list[YTThumbnail]
     songs: YTArtistSongsSection
-
-
-class YTLibraryArtist(TypedDict, total=False):
-    """An artist item as returned by get_library_subscriptions."""
-    browseId: str
-    artist: str
-    subscribers: str | None
-    thumbnails: list[YTThumbnail]
 
 
 class YTAccountInfo(TypedDict, total=False):

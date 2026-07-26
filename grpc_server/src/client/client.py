@@ -1,5 +1,5 @@
 from typing import cast
-from ytmusicapi import YTMusic, LikeStatus
+from ytmusicapi import  YTMusic, LikeStatus
 from yt_dlp import YoutubeDL
 
 from .types import (
@@ -8,6 +8,8 @@ from .types import (
     YTHomeSection,
     YTLibraryAlbum,
     YTLibraryPlaylist,
+    YTLibraryChannel,
+    YTLibraryResponse,
     YTAlbumResponse,
     YTLibraryArtist,
     YTAccountInfo,
@@ -21,8 +23,7 @@ class MusicClient:
     client: YTMusic
 
     def __init__(self, auth_file: str) -> None:
-        self.client = YTMusic(auth_file)
-    
+        self.client = YTMusic(auth=auth_file)
     def get_stream_url(self, video_id:str) -> str:
         full_url: str = "https://www.youtube.com/watch?v=" + video_id
         options  = {
@@ -40,11 +41,21 @@ class MusicClient:
         return url
 
     def get_home(self) -> list[YTHomeSection]:
-        res: object = self.client.get_home()
+        res: object = self.client.get_home(limit=10)
         return cast(list[YTHomeSection], res)
 
-    def get_library(self, limit: int = 25) -> list[YTSong]:
-        return self.get_user_saved_tracks(limit)
+    def get_library(self, limit: int = 25) -> YTLibraryResponse:
+        albums = cast(list[YTLibraryAlbum], self.client.get_library_albums(limit))
+        playlists = cast(list[YTLibraryPlaylist], self.client.get_library_playlists(limit))
+        channels = cast(list[YTLibraryChannel], self.client.get_library_channels(limit))
+        artists = cast(list[YTLibraryArtist], self.client.get_library_subscriptions(limit))
+        return {
+            "albums": albums,
+            "playlists": playlists,
+            "channels": channels,
+            "artists": artists,
+        }
+    
 
     def get_user_saved_tracks(self, limit: int = 100) -> list[YTSong]:
         raw_songs: object = self.client.get_liked_songs(limit)
@@ -67,8 +78,8 @@ class MusicClient:
         song_dict = cast(dict[str, object], raw_song)
         video_details = song_dict.get("videoDetails")
         if not isinstance(video_details, dict):
-            return cast(YTSongResponse, {})
-        track: YTSongResponse = cast(YTSongResponse, video_details)
+            return cast(YTSongResponse, cast(object, {}))
+        track: YTSongResponse = cast(YTSongResponse, cast(object, video_details))
         stream_url = ''
         track_video_id = track.get('videoId')
         if isinstance(track_video_id, str):
@@ -98,15 +109,8 @@ class MusicClient:
         return cast(list[YTLibraryArtist], raw_artists)
 
     def get_user_profile(self) -> YTAccountInfo:
-        try:
             raw_info: object = self.client.get_account_info()
             return cast(YTAccountInfo, cast(object, raw_info))
-        except Exception:
-            return {
-                "accountName": "YouTube Music User",
-                "channelHandle": "@ytmusic_user",
-                "accountPhotoUrl": ""
-            }
 
     def get_user_top_items(self) -> list[YTSong]:
         raw_history: object = self.client.get_history()

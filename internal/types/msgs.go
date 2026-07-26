@@ -122,3 +122,8 @@ type PlaylistDetailMsg struct {
 	Playlist *musicpb.GetPlaylistItemsResponse
 	Err      error
 }
+
+type GetLibraryMsg struct {
+	Result *musicpb.GetLibraryResponse
+	Err    error
+}
