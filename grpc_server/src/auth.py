@@ -4,8 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-
-from ytmusicapi import YTMusic
+from ytmusicapi import YTMusic, setup
 
 
 def get_config_dir() -> Path:
@@ -44,168 +43,6 @@ def get_browser_json_path() -> Path:
     return primary_path
 
 
-# Standard required header mapping (lowercase -> target casing)
-REQUIRED_HEADER_MAPPING = {
-    "accept": "Accept",
-    "authorization": "Authorization",
-    "content-type": "Content-Type",
-    "x-goog-authuser": "X-Goog-AuthUser",
-    "x-origin": "x-origin",
-    "cookie": "Cookie",
-}
-
-DEFAULT_HEADER_VALUES = {
-    "Accept": "*/*",
-    "Content-Type": "application/json",
-    "X-Goog-AuthUser": "0",
-    "x-origin": "https://music.youtube.com",
-}
-
-
-def parse_raw_headers(raw_headers: str) -> dict[str, str]:
-    """
-    Parses raw header string copied from browser DevTools, cURL, or JSON.
-    Supports single-line Key: Value, multi-line DevTools formats (key on line 1, value on line 2),
-    cURL -H lines, and HTTP/2 pseudo-headers (e.g. :authority).
-    Returns dictionary with lowercase keys.
-    """
-    raw_str = raw_headers.strip()
-    parsed: dict[str, str] = {}
-
-    # Try parsing as JSON object
-    if raw_str.startswith("{") and raw_str.endswith("}"):
-        try:
-            data = json.loads(raw_str)
-            if isinstance(data, dict):
-                return {str(k).lower(): str(v) for k, v in data.items()}
-        except Exception:
-            pass
-
-    # Try parsing cURL command flags (-H 'Header: Value' or --header "Header: Value")
-    curl_matches = re.findall(r"(?:-H|--header)\s+['\"]([^'\"]+)['\"]", raw_str)
-    if curl_matches:
-        for h in curl_matches:
-            if ": " in h:
-                k, v = h.split(": ", 1)
-                parsed[k.strip().lstrip(":").strip("'\"").lower()] = v.strip().strip("'\"")
-            elif ":" in h:
-                k, v = h.split(":", 1)
-                parsed[k.strip().lstrip(":").strip("'\"").lower()] = v.strip().strip("'\"")
-        if "authorization" in parsed or "cookie" in parsed:
-            if "x-origin" not in parsed and "origin" in parsed:
-                parsed["x-origin"] = parsed["origin"]
-            return parsed
-
-    lines = raw_str.splitlines()
-    current_key: str | None = None
-
-    for line in lines:
-        line_str = line.strip()
-        if not line_str:
-            continue
-
-        # Strip trailing backslashes and whitespace from cURL command line continuations
-        line_str = line_str.rstrip(" \\").strip()
-
-        # Handle cURL header flags e.g. -H 'Header: Value' or --header "Header: Value"
-        if line_str.startswith(("-H ", "--header ")):
-            h_val = line_str.split(" ", 1)[1].strip()
-            if (h_val.startswith("'") and h_val.endswith("'")) or (h_val.startswith('"') and h_val.endswith('"')):
-                h_val = h_val[1:-1].strip()
-            line_str = h_val
-
-        # Skip HTTP request line or cURL command line
-        if line_str.startswith(("POST ", "GET ", "OPTIONS ", "HEAD ", "PUT ", "DELETE ", "curl ")):
-            continue
-
-        # If current_key is waiting for a value:
-        if current_key is not None:
-            # Check if this line is actually another key (e.g. consecutive key without value)
-            if ":" not in line_str and " " not in line_str and line_str.lower() in (
-                "accept", "accept-encoding", "accept-language", "authorization", 
-                "content-encoding", "content-length", "content-type", "cookie", 
-                "origin", "referer", "user-agent", "x-goog-authuser", "x-origin"
-            ):
-                current_key = line_str.lstrip(":").lower()
-                continue
-
-            parsed[current_key] = line_str.strip("'\"")
-            current_key = None
-            continue
-
-        if ": " in line_str:
-            key, val = line_str.split(": ", 1)
-            key_lower = key.strip().lstrip(":").strip("'\"").lower()
-            parsed[key_lower] = val.strip().strip("'\"")
-            current_key = None
-        elif ":" in line_str and not line_str.endswith(":") and not line_str.startswith(":"):
-            key, val = line_str.split(":", 1)
-            key_lower = key.strip().lstrip(":").strip("'\"").lower()
-            parsed[key_lower] = val.strip().strip("'\"")
-            current_key = None
-        elif line_str.endswith(":"):
-            current_key = line_str[:-1].strip().lstrip(":").lower()
-        else:
-            # Key on separate line (Chrome DevTools format e.g. "authorization", "cookie", ":authority")
-            if " " not in line_str:
-                current_key = line_str.lstrip(":").lower()
-
-    # Fallback: if x-origin is not present but origin is present, use origin
-    if "x-origin" not in parsed and "origin" in parsed:
-        parsed["x-origin"] = parsed["origin"]
-
-    return parsed
-
-
-def extract_and_validate_headers(raw_headers: str) -> tuple[dict[str, str], list[str]]:
-    """
-    Extracts only the required header fields and ignores all others.
-    Validates presence of essential credentials (Authorization and Cookie).
-    Returns (extracted_headers_dict, list_of_missing_headers).
-    """
-    parsed = parse_raw_headers(raw_headers)
-    extracted: dict[str, str] = {}
-
-    # Extract required fields from parsed headers
-    for key_lower, target_key in REQUIRED_HEADER_MAPPING.items():
-        if key_lower in parsed and parsed[key_lower]:
-            extracted[target_key] = parsed[key_lower]
-
-    # Fill default values for non-credential required fields if missing
-    for target_key, default_val in DEFAULT_HEADER_VALUES.items():
-        if target_key not in extracted or not extracted[target_key]:
-            extracted[target_key] = default_val
-
-    # Validate essential fields
-    missing: list[str] = []
-    for required_key in ["Authorization", "Cookie"]:
-        if required_key not in extracted or not extracted[required_key]:
-            missing.append(required_key)
-
-    # Check if any required field is completely missing
-    for target_key in REQUIRED_HEADER_MAPPING.values():
-        if target_key not in extracted:
-            missing.append(target_key)
-
-    return extracted, sorted(list(set(missing)))
-
-
-def save_browser_json(headers: dict[str, str], filepath: Path | None = None) -> Path:
-    """
-    Saves or replaces browser.json with extracted headers in application config directory.
-    """
-    target_path = filepath if filepath is not None else get_browser_json_path()
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Order keys cleanly: Accept, Authorization, Content-Type, X-Goog-AuthUser, x-origin, Cookie
-    key_order = ["Accept", "Authorization", "Content-Type", "X-Goog-AuthUser", "x-origin", "Cookie"]
-    ordered_headers = {k: headers[k] for k in key_order if k in headers}
-
-    with open(target_path, "w", encoding="utf-8") as f:
-        json.dump(ordered_headers, f, indent=4, ensure_ascii=True)
-
-    return target_path
-
 
 def test_authentication(filepath: Path) -> tuple[bool, str]:
     """
@@ -213,7 +50,6 @@ def test_authentication(filepath: Path) -> tuple[bool, str]:
     """
     try:
         yt = YTMusic(auth=str(filepath))
-        # Test authentication with a lightweight request
         _ = yt.get_library_subscriptions(limit=1)
         return True, ""
     except Exception as e:
@@ -439,8 +275,65 @@ def get_free_port(default_port: int = 8989) -> int:
     return default_port
 
 
+def sanitize_headers_for_ytmusicapi(raw: str) -> str:
+    """
+    Sanitizes raw headers copied from DevTools or cURL commands.
+    Strips pseudo-headers (:authority, :path, :method, :scheme, :status),
+    URL paths, and cURL command wrappers before passing to ytmusicapi.setup.
+    """
+    # If input is a cURL command, extract header flags (-H / --header)
+    curl_matches = re.findall(r"(?:-H|--header)\s+['\"]([^'\"]+)['\"]", raw)
+    if curl_matches:
+        return "\n".join(curl_matches)
+
+    lines = raw.splitlines()
+    cleaned: list[str] = []
+    skip_next = False
+
+    for line in lines:
+        l = line.strip()
+        if not l:
+            continue
+        if skip_next:
+            skip_next = False
+            continue
+        if l.startswith(":"):
+            if ":" not in l[1:]:
+                skip_next = True
+            continue
+        if l.startswith(("/", "POST ", "GET ", "OPTIONS ", "HEAD ", "PUT ", "DELETE ", "curl ", "HTTP/")):
+            continue
+        cleaned.append(l)
+
+    return "\n".join(cleaned)
+
+
 class ReuseHTTPServer(HTTPServer):
     allow_reuse_address = True
+
+
+def process_raw_headers_via_ytmusicapi(raw_headers: str, filepath: Path | None = None) -> tuple[bool, str, Path]:
+    """
+    Passes raw_headers directly to ytmusicapi.setup(filepath, headers_raw) and tests authentication.
+    Returns (success, message, target_path).
+    """
+    target_path = filepath if filepath is not None else get_browser_json_path()
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not raw_headers or not raw_headers.strip():
+        return False, "No headers provided. Please paste your request headers into the box.", target_path
+
+    try:
+        sanitized = sanitize_headers_for_ytmusicapi(raw_headers)
+        setup(filepath=str(target_path), headers_raw=sanitized)
+    except Exception as e:
+        return False, str(e), target_path
+
+    success, err_msg = test_authentication(target_path)
+    if success:
+        return True, "Login successful", target_path
+    else:
+        return False, f"Authentication failed: {err_msg}", target_path
 
 
 class WebLoginHandler(BaseHTTPRequestHandler):
@@ -468,27 +361,17 @@ class WebLoginHandler(BaseHTTPRequestHandler):
             except Exception:
                 raw_headers = body
 
-            extracted, missing = extract_and_validate_headers(raw_headers)
-            if missing:
-                resp = {
-                    "success": False,
-                    "error": f"Missing required headers: {', '.join(missing)}. Make sure you copied all request headers from a logged-in YouTube Music request.",
-                }
-                self._send_json(400, resp)
-                return
-
-            browser_json_path = save_browser_json(extracted)
-            success, err_msg = test_authentication(browser_json_path)
+            success, err_msg, browser_json_path = process_raw_headers_via_ytmusicapi(raw_headers)
 
             if success:
                 resp = {"success": True, "message": "Login successful"}
                 self._send_json(200, resp)
-                print("\nLogin successful")
+                print(f"\nLogin successful! Saved credentials to: {browser_json_path}")
                 threading.Thread(target=self.server.shutdown).start()
             else:
                 resp = {
                     "success": False,
-                    "error": f"Authentication failed: {err_msg}. The pasted headers may be invalid or expired.",
+                    "error": err_msg,
                 }
                 self._send_json(400, resp)
         else:
@@ -558,16 +441,7 @@ def _process_login_headers(raw_headers: str) -> None:
         print("[Error] No headers provided.")
         sys.exit(1)
 
-    extracted, missing = extract_and_validate_headers(raw_headers)
-    if missing:
-        print(f"[Error] Missing required headers: {', '.join(missing)}")
-        sys.exit(1)
-
-    browser_json_path = save_browser_json(extracted)
-    print(f"Saved credentials to: {browser_json_path}")
-    print("Testing authentication with YouTube Music API...")
-
-    success, err_msg = test_authentication(browser_json_path)
+    success, err_msg, browser_json_path = process_raw_headers_via_ytmusicapi(raw_headers)
     if success:
         print("\n================================================================================")
         print("  AUTHENTICATION SUCCESSFUL!")
@@ -576,5 +450,5 @@ def _process_login_headers(raw_headers: str) -> None:
         print("  your program normally without the --login flag!")
         print("================================================================================\n")
     else:
-        print(f"\n[Error] Authentication failed: {err_msg}")
+        print(f"\n[Error] {err_msg}")
         sys.exit(1)
