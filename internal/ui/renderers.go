@@ -71,6 +71,26 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			if a, ok := item.(types.Album); ok {
 				subtitle = fmt.Sprintf("%s • %s", a.Type, a.Year)
 			}
+		case types.SearchResultPodcast:
+			icon = "📻"
+			if p, ok := item.(types.Podcast); ok {
+				if p.Author != "" {
+					subtitle = fmt.Sprintf("%s — podcast", p.Author)
+				} else {
+					subtitle = "Podcast Show"
+				}
+			}
+		case types.SearchResultEpisode:
+			icon = "🎙"
+			if ep, ok := item.(types.Episode); ok {
+				if ep.PodcastName != "" && ep.Date != "" {
+					subtitle = fmt.Sprintf("%s • %s", ep.PodcastName, ep.Date)
+				} else if ep.PodcastName != "" {
+					subtitle = ep.PodcastName
+				} else {
+					subtitle = "Podcast Episode"
+				}
+			}
 		}
 	case types.PlaylistTrackObject:
 		icon = "♫"

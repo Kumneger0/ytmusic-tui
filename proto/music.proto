@@ -4,57 +4,38 @@ package clispot.music.v1;
 
 option go_package = "github.com/kumneger0/clispot/core/gen;musicpb";
 
-// ─────────────────────────────────────────────────────
-// Service
-// ─────────────────────────────────────────────────────
-
 service MusicService {
-  // Auth
   rpc Login(LoginRequest) returns (LoginResponse);
 
-  // Library / saved content
   rpc GetLibrary(GetLibraryRequest) returns (GetLibraryResponse);
   rpc GetUserSavedTracks(GetUserSavedTracksRequest) returns (GetUserSavedTracksResponse);
   rpc GetUserSavedAlbums(GetUserSavedAlbumsRequest) returns (GetUserSavedAlbumsResponse);
   rpc GetUserPlaylists(GetUserPlaylistsRequest) returns (GetUserPlaylistsResponse);
 
-  // Single-item lookups
   rpc GetTrack(GetTrackRequest) returns (GetTrackResponse);
   rpc GetAlbumTracks(GetAlbumTracksRequest) returns (GetAlbumTracksResponse);
   rpc GetPlaylistItems(GetPlaylistItemsRequest) returns (GetPlaylistItemsResponse);
 
-  // Search
   rpc GetSearchResults(GetSearchResultsRequest) returns (GetSearchResultsResponse);
 
-  // Artist
   rpc GetArtistTopTracks(GetArtistTopTracksRequest) returns (GetArtistTopTracksResponse);
   rpc GetFollowedArtists(GetFollowedArtistsRequest) returns (GetFollowedArtistsResponse);
 
-  // User
   rpc GetUserProfile(GetUserProfileRequest) returns (GetUserProfileResponse);
   rpc GetUserTopItems(GetUserTopItemsRequest) returns (GetUserTopItemsResponse);
 
-  // Track save / like
   rpc CheckUserSavedTrack(CheckUserSavedTrackRequest) returns (CheckUserSavedTrackResponse);
   rpc SaveRemoveTrack(SaveRemoveTrackRequest) returns (SaveRemoveTrackResponse);
 
-  // Like / unlike (existing, kept for backward compat)
   rpc LikeSong(LikeSongRequest) returns (LikeSongResponse);
   rpc UnlikeSong(UnlikeSongRequest) returns (UnlikeSongResponse);
 
-  // Legacy search (kept for backward compat)
   rpc SearchSongs(SearchSongsRequest) returns (SearchSongsResponse);
   rpc GetVideoStreamURL(GetVideoStreamURLRequest) returns (GetVideoStreamURLResponse);
 
-  // Home Page
   rpc GetHomePage(GetHomePageRequest) returns (GetHomePageResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
-
-// ─────────────────────────────────────────────────────
-// Shared / reusable messages
-// ─────────────────────────────────────────────────────
-
 
 message HealthCheckRequest {}
 message HealthCheckResponse {
@@ -92,7 +73,7 @@ message Album {
   string year = 4;
   repeated Thumbnail thumbnails = 5;
   bool is_explicit = 6;
-  string type = 7; // "Album", "Single", "EP"
+  string type = 7;
 }
 
 message LibraryChannel {
@@ -106,7 +87,7 @@ message Playlist {
   string playlist_id = 1;
   string title = 2;
   string description = 3;
-  int32 count = 4; // number of tracks
+  int32 count = 4;
   repeated Thumbnail thumbnails = 5;
   string author = 6;
 }
@@ -117,23 +98,22 @@ message UserProfile {
   repeated Thumbnail thumbnails = 3;
 }
 
-// ─────────────────────────────────────────────────────
-// Login
-// ─────────────────────────────────────────────────────
-
 message LoginRequest {}
 
 message LoginResponse {
   bool authenticated = 1;
 }
 
-// ─────────────────────────────────────────────────────
-// GetLibrary  (liked songs — legacy endpoint)
-// ─────────────────────────────────────────────────────
-
 message GetLibraryRequest {
   int32 limit = 1;
   string continuation = 2;
+}
+
+message Podcast {
+  string podcast_id = 1;
+  string title = 2;
+  string author = 3;
+  repeated Thumbnail thumbnails = 4;
 }
 
 message GetLibraryResponse {
@@ -142,11 +122,8 @@ message GetLibraryResponse {
   repeated Playlist playlists = 4;
   repeated LibraryChannel channels = 5;
   repeated FollowedArtist artists = 6;
+  repeated Podcast podcasts = 7;
 }
-
-// ─────────────────────────────────────────────────────
-// GetUserSavedTracks  →  ytmusicapi.get_liked_songs()
-// ─────────────────────────────────────────────────────
 
 message GetUserSavedTracksRequest {
   int32 limit = 1;
@@ -157,10 +134,6 @@ message GetUserSavedTracksResponse {
   int32 total = 2;
 }
 
-// ─────────────────────────────────────────────────────
-// GetUserSavedAlbums  →  ytmusicapi.get_library_albums()
-// ─────────────────────────────────────────────────────
-
 message GetUserSavedAlbumsRequest {
   int32 limit = 1;
 }
@@ -169,10 +142,6 @@ message GetUserSavedAlbumsResponse {
   repeated Album albums = 1;
   int32 total = 2;
 }
-
-// ─────────────────────────────────────────────────────
-// GetUserPlaylists  →  ytmusicapi.get_library_playlists()
-// ─────────────────────────────────────────────────────
 
 message GetUserPlaylistsRequest {
   int32 limit = 1;
@@ -183,10 +152,6 @@ message GetUserPlaylistsResponse {
   int32 total = 2;
 }
 
-// ─────────────────────────────────────────────────────
-// GetTrack  →  ytmusicapi.get_song(videoId)
-// ─────────────────────────────────────────────────────
-
 message GetTrackRequest {
   string video_id = 1;
 }
@@ -195,12 +160,8 @@ message GetTrackResponse {
   Song track = 1;
 }
 
-// ─────────────────────────────────────────────────────
-// GetAlbumTracks  →  ytmusicapi.get_album(browseId)
-// ─────────────────────────────────────────────────────
-
 message GetAlbumTracksRequest {
-  string browse_id = 1; // YouTube Music album browse ID
+  string browse_id = 1;
 }
 
 message GetAlbumTracksResponse {
@@ -212,10 +173,6 @@ message GetAlbumTracksResponse {
   int32 total = 6;
   string description = 7;
 }
-
-// ─────────────────────────────────────────────────────
-// GetPlaylistItems  →  ytmusicapi.get_playlist(playlistId)
-// ─────────────────────────────────────────────────────
 
 message GetPlaylistItemsRequest {
   string playlist_id = 1;
@@ -232,14 +189,9 @@ message GetPlaylistItemsResponse {
   repeated Song tracks = 7;
 }
 
-// ─────────────────────────────────────────────────────
-// GetSearchResults  →  ytmusicapi.search(query)
-//   Returns results across songs, albums, artists, playlists
-// ─────────────────────────────────────────────────────
-
 message GetSearchResultsRequest {
   string query = 1;
-  string filter = 2; // optional: "songs", "albums", "artists", "playlists", or empty for top results
+  string filter = 2;
   int32 limit = 3;
 }
 
@@ -256,13 +208,12 @@ message SearchResultSong {
   string url = 10;
 }
 
-
 message SearchResultAlbum {
   string browse_id = 1;
   string title = 2;
   repeated Artist artists = 3;
   string year = 4;
-  string type = 5; // "Album", "Single", "EP"
+  string type = 5;
   repeated Thumbnail thumbnails = 6;
   bool is_explicit = 7;
 }
@@ -270,7 +221,7 @@ message SearchResultAlbum {
 message SearchResultArtist {
   string browse_id = 1;
   string name = 2;
-  string subscribers = 3; // e.g. "1.5M"
+  string subscribers = 3;
   repeated Thumbnail thumbnails = 4;
 }
 
@@ -278,8 +229,24 @@ message SearchResultPlaylist {
   string browse_id = 1;
   string title = 2;
   string author = 3;
-  string item_count = 4; // e.g. "50 songs"
+  string item_count = 4;
   repeated Thumbnail thumbnails = 5;
+}
+
+message SearchResultPodcast {
+  string browse_id = 1;
+  string title = 2;
+  string author = 3;
+  repeated Thumbnail thumbnails = 4;
+}
+
+message SearchResultEpisode {
+  string video_id = 1;
+  string title = 2;
+  string podcast_name = 3;
+  string podcast_id = 4;
+  string date = 5;
+  repeated Thumbnail thumbnails = 6;
 }
 
 message GetSearchResultsResponse {
@@ -287,14 +254,12 @@ message GetSearchResultsResponse {
   repeated SearchResultAlbum albums = 2;
   repeated SearchResultArtist artists = 3;
   repeated SearchResultPlaylist playlists = 4;
+  repeated SearchResultPodcast podcasts = 5;
+  repeated SearchResultEpisode episodes = 6;
 }
 
-// ─────────────────────────────────────────────────────
-// GetArtistTopTracks  →  ytmusicapi.get_artist(channelId)
-// ─────────────────────────────────────────────────────
-
 message GetArtistTopTracksRequest {
-  string channel_id = 1; // YouTube Music artist channel ID
+  string channel_id = 1;
 }
 
 message GetArtistTopTracksResponse {
@@ -303,10 +268,6 @@ message GetArtistTopTracksResponse {
   string subscribers = 3;
   repeated Song tracks = 4;
 }
-
-// ─────────────────────────────────────────────────────
-// GetFollowedArtists  →  ytmusicapi.get_library_subscriptions()
-// ─────────────────────────────────────────────────────
 
 message GetFollowedArtistsRequest {
   int32 limit = 1;
@@ -324,10 +285,6 @@ message GetFollowedArtistsResponse {
   int32 total = 2;
 }
 
-// ─────────────────────────────────────────────────────
-// GetUserProfile  →  ytmusicapi.get_account_info()
-// ─────────────────────────────────────────────────────
-
 message GetUserProfileRequest {}
 
 message GetUserProfileResponse {
@@ -335,12 +292,6 @@ message GetUserProfileResponse {
   string name = 2;
   repeated Thumbnail thumbnails = 3;
 }
-
-// ─────────────────────────────────────────────────────
-// GetUserTopItems  →  ytmusicapi.get_home() or get_history()
-//   YouTube Music doesn't have a direct "top items" API,
-//   so we map this to recently played / history.
-// ─────────────────────────────────────────────────────
 
 message GetUserTopItemsRequest {
   int32 limit = 1;
@@ -351,10 +302,6 @@ message GetUserTopItemsResponse {
   int32 total = 2;
 }
 
-// ─────────────────────────────────────────────────────
-// CheckUserSavedTrack  →  check if track likeStatus == "LIKE"
-// ─────────────────────────────────────────────────────
-
 message CheckUserSavedTrackRequest {
   string video_id = 1;
 }
@@ -363,20 +310,12 @@ message CheckUserSavedTrackResponse {
   bool is_saved = 1;
 }
 
-// ─────────────────────────────────────────────────────
-// SaveRemoveTrack  →  ytmusicapi.rate_song(videoId, LIKE/INDIFFERENT)
-// ─────────────────────────────────────────────────────
-
 message SaveRemoveTrackRequest {
   repeated string video_ids = 1;
-  bool is_remove = 2; // true = unlike (INDIFFERENT), false = like (LIKE)
+  bool is_remove = 2;
 }
 
 message SaveRemoveTrackResponse {}
-
-// ─────────────────────────────────────────────────────
-// Legacy: LikeSong / UnlikeSong (kept for backward compat)
-// ─────────────────────────────────────────────────────
 
 message LikeSongRequest {
   string video_id = 1;
@@ -390,10 +329,6 @@ message UnlikeSongRequest {
 
 message UnlikeSongResponse {}
 
-// ─────────────────────────────────────────────────────
-// Legacy: SearchSongs (kept for backward compat)
-// ─────────────────────────────────────────────────────
-
 message SearchSongsRequest {
   string query = 1;
   int32 limit = 2;
@@ -402,10 +337,6 @@ message SearchSongsRequest {
 message SearchSongsResponse {
   repeated Song songs = 1;
 }
-
-// ─────────────────────────────────────────────────────
-// Home Page
-// ─────────────────────────────────────────────────────
 
 message GetHomePageRequest {}
 
@@ -425,11 +356,9 @@ message HomePageContent {
   string description = 4;
 }
 
-
 message GetVideoStreamURLRequest {
   string videoId = 1;
 }
-
 
 message GetVideoStreamURLResponse {
   string url = 1;

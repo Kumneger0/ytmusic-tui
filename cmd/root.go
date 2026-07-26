@@ -92,6 +92,7 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 	cmd.AddCommand(clispotLog())
 	cmd.AddCommand(ManCmd(cmd))
 	cmd.AddCommand(installDeps())
+	cmd.AddCommand(newLoginCmd())
 	return cmd
 }
 
