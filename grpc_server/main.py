@@ -6,12 +6,16 @@ import sys
 from pathlib import Path
 from typing import Callable, override
 import signal
+from dotenv import load_dotenv
+_= load_dotenv()
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 
 from grpc_server.gen import music_pb2, music_pb2_grpc  # pyright: ignore[reportImplicitRelativeImport]
 
+from grpc_server.src.auth import get_browser_json_path, run_login_flow  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.client import MusicClient  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]
     YTHomeSection,
@@ -21,6 +25,8 @@ from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRela
     YTArtist,
     YTLibraryAlbum,
     YTLibraryPlaylist,
+    YTLibraryChannel,
+    YTLibraryArtist,
     YTSearchFilter
 )
 
@@ -114,11 +120,37 @@ def _to_proto_playlist(playlist: YTLibraryPlaylist) -> music_pb2.Playlist:
     return playlist_msg
 
 
+def _to_proto_channel(channel: YTLibraryChannel) -> music_pb2.LibraryChannel:
+    channel_msg = music_pb2.LibraryChannel(
+        browse_id=channel.get("browseId") or "",
+        name=channel.get("artist") or "",
+        subscribers=channel.get("subscribers") or "",
+    )
+    for thumbnail in channel.get("thumbnails", []):
+        channel_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+    return channel_msg
+
+
+def _to_proto_followed_artist(artist: YTLibraryArtist) -> music_pb2.FollowedArtist:
+    artist_msg = music_pb2.FollowedArtist(
+        channel_id=artist.get("browseId") or "",
+        name=artist.get("artist") or "",
+        subscribers=artist.get("subscribers") or "",
+    )
+    for thumbnail in artist.get("thumbnails", []):
+        artist_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+    return artist_msg
+
+
+
 class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     """gRPC Servicer implementing the MusicService interface, mapping requests to MusicClient."""
 
     def __init__(self, auth_file: str) -> None:
+        print(auth_file)
         self.client: MusicClient = MusicClient(auth_file)
+        user_profile = self.client.get_user_profile()
+        print(user_profile)
     
     @override
     def HealthCheck(self, request:music_pb2.HealthCheckRequest, context:grpc.ServicerContext) -> music_pb2.HealthCheckResponse:
@@ -132,9 +164,18 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetLibrary(self, request: music_pb2.GetLibraryRequest, context: grpc.ServicerContext) -> music_pb2.GetLibraryResponse:
         limit = request.limit if request.limit > 0 else 25
-        songs_data = self.client.get_library(limit=limit)
-        songs_list = [_to_proto_song(song) for song in songs_data]
-        return music_pb2.GetLibraryResponse(songs=songs_list, continuation="")
+        library_data = self.client.get_library(limit=limit)
+        albums_list = [_to_proto_album(album) for album in library_data.get("albums", [])]
+        playlists_list = [_to_proto_playlist(playlist) for playlist in library_data.get("playlists", [])]
+        channels_list = [_to_proto_channel(channel) for channel in library_data.get("channels", [])]
+        artists_list = [_to_proto_followed_artist(artist) for artist in library_data.get("artists", [])]
+        library = music_pb2.GetLibraryResponse(
+            albums=albums_list,
+            playlists=playlists_list,
+            channels=channels_list,
+            artists=artists_list,
+        )
+        return library
 
     @override
     def GetUserSavedTracks(self, request: music_pb2.GetUserSavedTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetUserSavedTracksResponse:
@@ -455,7 +496,7 @@ def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:
 def serve() -> None:
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    auth_file = str(Path.home() / ".config" / "ytmusic-tui" / "browser.json")
+    auth_file = str(get_browser_json_path())
     servicer = MusicService(auth_file)
     music_pb2_grpc.add_MusicServiceServicer_to_server(servicer, server) # type: ignore  # pyright: ignore[reportUnknownMemberType]
 
@@ -467,6 +508,15 @@ def serve() -> None:
     _ = server.wait_for_termination()
 
 
-if __name__ == "__main__":  
-    serve()
 
+
+if __name__ == "__main__":  
+    if len(sys.argv) > 1 and "--login" in sys.argv:
+        file_arg = None
+        args = sys.argv[1:]
+        login_idx = args.index("--login")
+        if login_idx + 1 < len(args) and not args[login_idx + 1].startswith("-"):
+            file_arg = args[login_idx + 1]
+        run_login_flow(file_path=file_arg)
+    else:
+        serve()

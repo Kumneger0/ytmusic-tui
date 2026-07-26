@@ -38,7 +38,7 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 
 	switch item := item.(type) {
 	case types.SearchResultItem:
-		isSelected = d.Model != nil && (d.Model.FocusedOn == SearchResult) && m.Index() == index
+		isSelected = d.Model != nil && (d.Model.FocusedOn == SearchResult || d.Model.FocusedOn == MainView) && m.Index() == index
 		title = item.Title()
 		switch item.Kind() {
 		case types.SearchResultTrack:

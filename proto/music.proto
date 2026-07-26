@@ -95,6 +95,13 @@ message Album {
   string type = 7; // "Album", "Single", "EP"
 }
 
+message LibraryChannel {
+  string browse_id = 1;
+  string name = 2;
+  string subscribers = 3;
+  repeated Thumbnail thumbnails = 4;
+}
+
 message Playlist {
   string playlist_id = 1;
   string title = 2;
@@ -131,7 +138,10 @@ message GetLibraryRequest {
 
 message GetLibraryResponse {
   repeated Song songs = 1;
-  string continuation = 2;
+  repeated Album albums = 3;
+  repeated Playlist playlists = 4;
+  repeated LibraryChannel channels = 5;
+  repeated FollowedArtist artists = 6;
 }
 
 // ─────────────────────────────────────────────────────
