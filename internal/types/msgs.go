@@ -72,9 +72,10 @@ type LikeUnlikeTrackMsg struct {
 }
 
 type SearchAndDownloadMusicMsg struct {
-	Player  *Player
-	VideoID string
-	Err     error
+	Player   *Player
+	VideoID  string
+	Err      error
+	Duration string
 }
 
 type Player struct {

@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -166,6 +167,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && msg.VideoID != m.SelectedTrack.Track.Track.ID {
 			_ = msg.Player.Close()
 			return m, nil
+		}
+		if m.SelectedTrack.Track.Track.DurationMS == 0 && msg.Duration != "" {
+			if duration, err := strconv.ParseInt(msg.Duration, 10, 64); err == nil {
+				m.SelectedTrack.Track.Track.DurationMS = int(duration) * 1000
+			} else {
+				slog.Error(err.Error())
+			}
 		}
 		likedCmd := func() tea.Msg {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -1286,14 +1294,14 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	playCtx, cancel := context.WithCancel(context.Background())
 	m.playbackCancel = cancel
 
-	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.ID, m.CoreDepsPath, func() (string, error) {
-		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURL(context.Background(), &musicpb.GetVideoStreamURLRequest{
+	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.ID, m.CoreDepsPath, func() (*musicpb.GetVideoStreamURLAndDurationResponse, error) {
+		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURL(context.Background(), &musicpb.GetVideoStreamURLAndDurationRequest{
 			VideoId: selectedMusic.Track.ID,
 		})
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		return getStreamURLResponse.Url, nil
+		return getStreamURLResponse, nil
 	})
 
 	cmds = append(cmds, cmd)

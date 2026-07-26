@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ebitengine/oto/v3"
+	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/command"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/types"
@@ -45,7 +46,7 @@ func SearchAndDownloadMusic(
 	ctx context.Context,
 	videoID string,
 	coreDepsPath *CoreDepsPath,
-	getStreamURL func() (string, error),
+	getStreamURL func() (*musicpb.GetVideoStreamURLAndDurationResponse, error),
 ) tea.Cmd {
 	return func() tea.Msg {
 		if ctx.Err() != nil {
@@ -60,7 +61,7 @@ func SearchAndDownloadMusic(
 			}
 		}
 		streamURL, err := getStreamURL()
-		if err != nil {
+		if err != nil || streamURL == nil {
 			if ctx.Err() != nil {
 				return nil
 			}
@@ -78,9 +79,10 @@ func SearchAndDownloadMusic(
 		if err != nil {
 			slog.Error(err.Error())
 			return types.SearchAndDownloadMusicMsg{
-				Player:  nil,
-				VideoID: videoID,
-				Err:     err,
+				Player:   nil,
+				VideoID:  videoID,
+				Duration: "",
+				Err:      err,
 			}
 		}
 
@@ -91,7 +93,7 @@ func SearchAndDownloadMusic(
 			"-reconnect_delay_max", "5",
 			"-reconnect_on_network_error", "1",
 			"-reconnect_on_http_error", "1",
-			"-i", streamURL,
+			"-i", streamURL.Url,
 			"-f", "s16le",
 			"-ac", "2",
 			"-ar", "44100",
@@ -102,9 +104,10 @@ func SearchAndDownloadMusic(
 			_ = ffStderr.Close()
 			slog.Error(err.Error())
 			return types.SearchAndDownloadMusicMsg{
-				Player:  nil,
-				VideoID: videoID,
-				Err:     err,
+				Player:   nil,
+				VideoID:  videoID,
+				Duration: streamURL.Duration,
+				Err:      err,
 			}
 		}
 
@@ -123,9 +126,10 @@ func SearchAndDownloadMusic(
 				return nil
 			}
 			return types.SearchAndDownloadMusicMsg{
-				Player:  nil,
-				VideoID: videoID,
-				Err:     err,
+				Player:   nil,
+				VideoID:  videoID,
+				Duration: streamURL.Duration,
+				Err:      err,
 			}
 		}
 
@@ -153,9 +157,10 @@ func SearchAndDownloadMusic(
 				return nil
 			}
 			return types.SearchAndDownloadMusicMsg{
-				Player:  nil,
-				VideoID: videoID,
-				Err:     err,
+				Player:   nil,
+				Duration: streamURL.Duration,
+				VideoID:  videoID,
+				Err:      err,
 			}
 		}
 		if ready != nil {
@@ -208,8 +213,9 @@ func SearchAndDownloadMusic(
 				ByteCounterReader: counter,
 				Close:             cleanup,
 			},
-			VideoID: videoID,
-			Err:     nil,
+			VideoID:  videoID,
+			Duration: streamURL.Duration,
+			Err:      nil,
 		}
 	}
 }

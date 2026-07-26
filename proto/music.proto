@@ -31,7 +31,7 @@ service MusicService {
   rpc UnlikeSong(UnlikeSongRequest) returns (UnlikeSongResponse);
 
   rpc SearchSongs(SearchSongsRequest) returns (SearchSongsResponse);
-  rpc GetVideoStreamURL(GetVideoStreamURLRequest) returns (GetVideoStreamURLResponse);
+  rpc GetVideoStreamURL(GetVideoStreamURLAndDurationRequest) returns (GetVideoStreamURLAndDurationResponse);
 
   rpc GetHomePage(GetHomePageRequest) returns (GetHomePageResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
@@ -356,10 +356,11 @@ message HomePageContent {
   string description = 4;
 }
 
-message GetVideoStreamURLRequest {
+message GetVideoStreamURLAndDurationRequest {
   string videoId = 1;
 }
 
-message GetVideoStreamURLResponse {
+message GetVideoStreamURLAndDurationResponse {
   string url = 1;
+  string duration = 2;
 }
