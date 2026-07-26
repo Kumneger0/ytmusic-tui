@@ -26,10 +26,11 @@ class MusicClient:
         self.client = YTMusic(auth=auth_file)
     def get_stream_url(self, video_id:str) -> str:
         full_url: str = "https://www.youtube.com/watch?v=" + video_id
-        options  = {
-            "format": "bestaudio[abr<=128]/bestaudio",
-            "quiet": True,
-        }
+        options = {
+            "format": "bestaudio[abr>=120][abr<=250]/bestaudio",
+              "format_sort": ["abr"],
+             "quiet": True,
+         }
         with YoutubeDL(options) as ydl:  # pyright: ignore[reportArgumentType]
             info = ydl.extract_info(
                 full_url,
@@ -49,11 +50,13 @@ class MusicClient:
         playlists = cast(list[YTLibraryPlaylist], self.client.get_library_playlists(limit))
         channels = cast(list[YTLibraryChannel], self.client.get_library_channels(limit))
         artists = cast(list[YTLibraryArtist], self.client.get_library_subscriptions(limit))
+        podcasts = cast(list[YTLibraryPlaylist], self.client.get_library_podcasts(limit))
         return {
             "albums": albums,
             "playlists": playlists,
             "channels": channels,
             "artists": artists,
+            "podcasts": podcasts,
         }
     
 

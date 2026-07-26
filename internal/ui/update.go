@@ -73,6 +73,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Images: types.MapThumbnailsToImages(c.Thumbnails),
 				})
 			}
+			for _, pod := range msg.Result.Podcasts {
+				items = append(items, types.Podcast{
+					ID:     pod.PodcastId,
+					Name:   pod.Title,
+					Author: pod.Author,
+					Images: types.MapThumbnailsToImages(pod.Thumbnails),
+				})
+			}
 			m.SelectedPlayListItems = list.New(items, CustomDelegate{Model: &m}, 10, 20)
 			removeListDefaults(&m.SelectedPlayListItems)
 			m.MainViewMode = NormalMode
@@ -751,6 +759,9 @@ func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
 			return &m.HomePageList
 		}
 	}
+	if focusedOn == MainView && m.MainViewMode == SearchResultMode {
+		return &m.SearchResult
+	}
 	if focusedOn == MainView && m.MainViewMode == NormalMode {
 		return &m.SelectedPlayListItems
 	}
@@ -888,6 +899,25 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			m.FocusedOn = MainView
 			updateDelegate(&m)
 			return m, tea.Batch(cmd, loadingCmd)
+
+		case types.Podcast:
+			loadingCmd := SendLoadingCmd()
+			cmd := m.getPlaylistItems(selectedItem.ID)
+			m.MainViewMode = NormalMode
+			m.FocusedOn = MainView
+			updateDelegate(&m)
+			return m, tea.Batch(cmd, loadingCmd)
+
+		case types.Episode:
+			return m.PlaySelectedMusic(types.PlaylistTrackObject{
+				Track: types.Track{
+					ID:   selectedItem.ID,
+					Name: selectedItem.TitleName,
+					Artists: []types.Artist{
+						{Name: selectedItem.PodcastName},
+					},
+				},
+			})
 		}
 	}
 
@@ -948,6 +978,26 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 					Type:    al.Type,
 				}
 				items = append(items, album)
+			}
+			for _, pod := range searchResults.Podcasts {
+				podcast := types.Podcast{
+					ID:     pod.BrowseId,
+					Name:   pod.Title,
+					Author: pod.Author,
+					Images: types.MapThumbnailsToImages(pod.Thumbnails),
+				}
+				items = append(items, podcast)
+			}
+			for _, ep := range searchResults.Episodes {
+				episode := types.Episode{
+					ID:          ep.VideoId,
+					TitleName:   ep.Title,
+					PodcastName: ep.PodcastName,
+					PodcastID:   ep.PodcastId,
+					Date:        ep.Date,
+					Images:      types.MapThumbnailsToImages(ep.Thumbnails),
+				}
+				items = append(items, episode)
 			}
 
 			searchResult := &types.SearchResponse{
@@ -1023,7 +1073,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			}
 		}
 	}
-	if m.FocusedOn == SearchResult {
+	if m.FocusedOn == SearchResult || m.MainViewMode == SearchResultMode {
 		if selectedItem, ok := m.SearchResult.SelectedItem().(types.SearchResultItem); ok {
 			switch selectedItem.Kind() {
 			case types.SearchResultTrack:
@@ -1071,6 +1121,33 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 				m.FocusedOn = MainView
 				updateDelegate(&m)
 				return m, tea.Batch(cmd, loadingCmd)
+			case types.SearchResultPodcast:
+				podcast, ok := selectedItem.(types.Podcast)
+				if !ok {
+					slog.Error("failed to cast the selected item to types.Podcast")
+					return m, nil
+				}
+				loadingCmd := SendLoadingCmd()
+				cmd := m.getPlaylistItems(podcast.ID)
+				m.MainViewMode = NormalMode
+				m.FocusedOn = MainView
+				updateDelegate(&m)
+				return m, tea.Batch(cmd, loadingCmd)
+			case types.SearchResultEpisode:
+				ep, ok := selectedItem.(types.Episode)
+				if !ok {
+					slog.Error("failed to cast the selected item to types.Episode")
+					return m, nil
+				}
+				return m.PlaySelectedMusic(types.PlaylistTrackObject{
+					Track: types.Track{
+						ID:   ep.ID,
+						Name: ep.TitleName,
+						Artists: []types.Artist{
+							{Name: ep.PodcastName},
+						},
+					},
+				})
 			}
 		}
 	}
@@ -1340,6 +1417,9 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 		switch m.MainViewMode {
 		case NormalMode:
 			m.SelectedPlayListItems, cmd = m.SelectedPlayListItems.Update(msg)
+			cmds = append(cmds, cmd)
+		case SearchResultMode:
+			m.SearchResult, cmd = m.SearchResult.Update(msg)
 			cmds = append(cmds, cmd)
 		}
 	case SearchResult:

@@ -109,7 +109,7 @@ server-run: ## run the python gRPC server
 .PHONY: server-login
 server-login: ## spin up http server for login
 	@echo "Starting gRPC server..."
-	@.venv/bin/python grpc_server/main.py --login
+	.venv/bin/python grpc_server/main.py --login
 
 .PHONY: server-ui
 server-ui: ## open interactive gRPC web UI using grpcui

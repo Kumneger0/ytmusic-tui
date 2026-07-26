@@ -142,6 +142,23 @@ def _to_proto_followed_artist(artist: YTLibraryArtist) -> music_pb2.FollowedArti
     return artist_msg
 
 
+def _to_proto_podcast(podcast: YTLibraryPlaylist) -> music_pb2.Podcast:
+    author_name = ""
+    author_val = podcast.get("author")
+    if isinstance(author_val, list) and len(author_val) > 0:
+        author_name = author_val[0].get("name") or ""
+    elif isinstance(author_val, str):
+        author_name = author_val
+
+    podcast_msg = music_pb2.Podcast(
+        podcast_id=podcast.get("playlistId") or podcast.get("browseId") or "",
+        title=podcast.get("title") or "",
+        author=author_name,
+    )
+    for thumbnail in podcast.get("thumbnails", []):
+        podcast_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+    return podcast_msg
+
 
 class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     """gRPC Servicer implementing the MusicService interface, mapping requests to MusicClient."""
@@ -149,8 +166,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     def __init__(self, auth_file: str) -> None:
         print(auth_file)
         self.client: MusicClient = MusicClient(auth_file)
-        user_profile = self.client.get_user_profile()
-        print(user_profile)
     
     @override
     def HealthCheck(self, request:music_pb2.HealthCheckRequest, context:grpc.ServicerContext) -> music_pb2.HealthCheckResponse:
@@ -169,11 +184,13 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         playlists_list = [_to_proto_playlist(playlist) for playlist in library_data.get("playlists", [])]
         channels_list = [_to_proto_channel(channel) for channel in library_data.get("channels", [])]
         artists_list = [_to_proto_followed_artist(artist) for artist in library_data.get("artists", [])]
+        podcasts_list = [_to_proto_podcast(podcast) for podcast in library_data.get("podcasts", [])]
         library = music_pb2.GetLibraryResponse(
             albums=albums_list,
             playlists=playlists_list,
             channels=channels_list,
             artists=artists_list,
+            podcasts=podcasts_list,
         )
         return library
 
@@ -281,7 +298,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     def GetSearchResults(self, request: music_pb2.GetSearchResultsRequest, context: grpc.ServicerContext) -> music_pb2.GetSearchResultsResponse:
         limit = request.limit if request.limit > 0 else 50
         filter_val: YTSearchFilter | None = None
-        if request.filter in ("songs", "videos", "albums", "artists", "playlists"):
+        if request.filter in ("songs", "videos", "albums", "artists", "playlists", "podcasts"):
             filter_val = request.filter
         
         raw_results: list[YTSearchResult] = self.client.get_search_results(query=request.query, filter_type=filter_val, limit=limit)
@@ -345,6 +362,44 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 for thumbnail in result.get("thumbnails", []):
                     playlist_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.playlists.append(playlist_item)
+
+            elif result_type == "podcast":
+                author_val = result.get("author")
+                author_str = ""
+                if isinstance(author_val, dict):
+                    author_str = author_val.get("name") or ""
+                elif isinstance(author_val, str):
+                    author_str = author_val
+
+                podcast_item = music_pb2.SearchResultPodcast(
+                    browse_id=result.get("browseId") or "",
+                    title=result.get("title") or "",
+                    author=author_str,
+                )
+                for thumbnail in result.get("thumbnails", []):
+                    podcast_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                response.podcasts.append(podcast_item)
+
+            elif result_type == "episode":
+                podcast_info = result.get("podcast")
+                podcast_name = ""
+                podcast_id = ""
+                if isinstance(podcast_info, dict):
+                    podcast_name = podcast_info.get("name") or ""
+                    podcast_id = podcast_info.get("id") or ""
+                elif isinstance(podcast_info, str):
+                    podcast_name = podcast_info
+
+                episode_item = music_pb2.SearchResultEpisode(
+                    video_id=result.get("videoId") or "",
+                    title=result.get("title") or "",
+                    podcast_name=podcast_name,
+                    podcast_id=podcast_id,
+                    date=result.get("date") or "",
+                )
+                for thumbnail in result.get("thumbnails", []):
+                    episode_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                response.episodes.append(episode_item)
 
             elif result_type == "video":
                 song_item = music_pb2.SearchResultSong(

@@ -80,6 +80,8 @@ const (
 	SearchResultArtist
 	SearchResultPlaylist
 	SearchResultAlbum
+	SearchResultPodcast
+	SearchResultEpisode
 )
 
 type SearchResultItem interface {
