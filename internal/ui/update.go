@@ -1295,7 +1295,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	m.playbackCancel = cancel
 
 	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.ID, m.CoreDepsPath, func() (*musicpb.GetVideoStreamURLAndDurationResponse, error) {
-		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURL(context.Background(), &musicpb.GetVideoStreamURLAndDurationRequest{
+		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURLAndDuration(playCtx, &musicpb.GetVideoStreamURLAndDurationRequest{
 			VideoId: selectedMusic.Track.ID,
 		})
 		if err != nil {
