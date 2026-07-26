@@ -134,9 +134,6 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 }
 
 func startPythonBackend(debug bool) (*exec.Cmd, error) {
-	fmt.Println("is debug", debug)
-	fmt.Println("is debug", debug)
-	fmt.Println("is debug", debug)
 	if debug {
 		return nil, nil
 	}
