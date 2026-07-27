@@ -1084,7 +1084,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			}
 		}
 	}
-	if m.MainViewMode == SearchResultMode {
+	if m.FocusedOn == MainView && m.MainViewMode == SearchResultMode {
 		if selectedItem, ok := m.SearchResult.SelectedItem().(types.SearchResultItem); ok {
 			switch selectedItem.Kind() {
 			case types.SearchResultTrack:
