@@ -211,7 +211,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, alertCmd)
 		}
 		if msg.Result != nil {
-			m.FocusedOn = SearchResult
+			m.FocusedOn = MainView
 			m.MainViewMode = SearchResultMode
 			model, cmd := m.getSearchResultModel(msg.Result)
 			m = model
@@ -660,16 +660,19 @@ func (m Model) handleMusicChange(isForward, shouldRemoveTheCacheFile bool) (Mode
 func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 	var itemToAdd list.Item
 	var currentlyPlayingTrackID string
-	if m.FocusedOn == MainView && m.MainViewMode == NormalMode {
+	if m.FocusedOn != MainView {
+		return m, nil
+	}
+
+	if m.MainViewMode == NormalMode {
 		itemToAdd = m.SelectedPlayListItems.SelectedItem()
-	} else if m.FocusedOn == SearchResult && m.MainViewMode == SearchResultMode {
+	}
+	if m.MainViewMode == SearchResultMode {
 		if len(m.SearchResult.Items()) > 0 {
 			if track, ok := m.SearchResult.SelectedItem().(types.Track); ok {
 				itemToAdd = types.PlaylistTrackObject{Track: track}
 			}
 		}
-	} else {
-		return m, nil
 	}
 
 	if _, ok := itemToAdd.(types.PlaylistTrackObject); !ok {
@@ -1081,7 +1084,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			}
 		}
 	}
-	if m.FocusedOn == SearchResult || m.MainViewMode == SearchResultMode {
+	if m.MainViewMode == SearchResultMode {
 		if selectedItem, ok := m.SearchResult.SelectedItem().(types.SearchResultItem); ok {
 			switch selectedItem.Kind() {
 			case types.SearchResultTrack:
@@ -1350,13 +1353,6 @@ func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
 	case SideView:
 		next, prev = MainView, Player
 	case MainView:
-		if m.MainViewMode == SearchResultMode {
-			next = SearchResult
-		} else {
-			next = QueueList
-		}
-		prev = SideView
-	case SearchResult:
 		next = QueueList
 		prev = SideView
 	case QueueList:
@@ -1430,9 +1426,6 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 			m.SearchResult, cmd = m.SearchResult.Update(msg)
 			cmds = append(cmds, cmd)
 		}
-	case SearchResult:
-		m.SearchResult, cmd = m.SearchResult.Update(msg)
-		cmds = append(cmds, cmd)
 	default:
 	}
 	return *m, tea.Batch(cmds...)
