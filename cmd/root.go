@@ -306,7 +306,7 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		headless.StartServer(&safeModel, messageChan)
 		return nil
 	}
-	sideBarItems := []struct{ name, icon string }{{name: "Home", icon: "⌂"}, {name: "Library", icon: ""}}
+	sideBarItems := []struct{ name, icon string }{{name: "Home", icon: "⌂"}, {name: "Library", icon: "🔖"}}
 	var SideBarMenuList []list.Item
 	for _, item := range sideBarItems {
 		SideBarMenuList = append(SideBarMenuList, types.SidebarItem{

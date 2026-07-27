@@ -184,6 +184,13 @@ func (m Model) View() string {
 	m.SelectedPlayListItems.SetShowTitle(false)
 	m.HomePageList.SetShowTitle(false)
 	dimensions := calculateLayoutDimensions(&m)
+	m.SideBarList.SetSize(dimensions.sidebarWidth, dimensions.contentHeight)
+	m.SelectedPlayListItems.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
+	m.SearchResult.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
+	m.HomePageList.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
+	if m.MusicQueueList != nil {
+		m.MusicQueueList.Model.SetSize(dimensions.sidebarWidth, dimensions.contentHeight)
+	}
 	sideBarView := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, SideView, false).Render(m.SideBarList.View())
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
 	breadcrumb := renderBreadcrumbs(m.BreadcrumbItems)
@@ -194,16 +201,10 @@ func (m Model) View() string {
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, loadingText),
 		)
 	} else if m.MainViewMode == SearchResultMode {
-		height := dimensions.contentHeight - (dimensions.contentHeight * 10 / 100)
-		width := dimensions.mainWidth - (dimensions.mainWidth * 10 / 100)
-		searchView := getStyle(&m, height, width, MainView, true).Render(m.SearchResult.View())
 		resultHeader := titleStyle.Render("  Search Results")
-		searchResultView := lipgloss.JoinVertical(lipgloss.Top,
-			searchBar,
-			resultHeader,
-			lipgloss.JoinHorizontal(lipgloss.Top, searchView),
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, resultHeader, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.SearchResult.View())),
 		)
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(searchResultView)
 	} else if m.MainViewMode == LyricsMode {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, m.LyricsView.View()),
@@ -257,7 +258,10 @@ type layoutDimensions struct {
 func calculateLayoutDimensions(m *Model) layoutDimensions {
 	sidebarWidth := m.Width * 22 / 100
 	inputHeight := min(max(m.Height*10/100, 2), 3)
-	mainCenterArea := (m.Width - (sidebarWidth * 2))
+	mainCenterArea := m.Width - (sidebarWidth * 2) - 2
+	if mainCenterArea < 10 {
+		mainCenterArea = 10
+	}
 
 	return layoutDimensions{
 		sidebarWidth:  sidebarWidth,

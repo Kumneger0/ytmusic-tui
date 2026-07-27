@@ -56,6 +56,9 @@ func (h HomePageSectionItem) Title() string {
 type HomePageContentItem struct {
 	ItemTitle   string
 	PlaylistID  string
+	VideoID     string
+	BrowseID    string
+	ContentType string
 	Description string
 }
 

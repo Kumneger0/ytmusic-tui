@@ -10,7 +10,7 @@ check the [docs](https://ytmusic-tui.kumneger.dev) for the full lowdown on how t
 - [x] home page
 - [x] search with filters
 - [x] queue management
-- [ ] library support
+- [x] library support
 - [ ] like/unlike songs
 - [ ] add to playlist
 - [ ] playlist management

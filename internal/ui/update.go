@@ -145,6 +145,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			items = append(items, types.HomePageContentItem{
 				ItemTitle:   content.Title,
 				PlaylistID:  content.PlaylistId,
+				VideoID:     content.VideoId,
+				BrowseID:    content.BrowseId,
+				ContentType: content.ContentType,
 				Description: content.Description,
 			})
 		}
@@ -845,11 +848,59 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			if !ok {
 				return m, nil
 			}
+			if item.VideoID != "" || item.ContentType == "song" || item.ContentType == "video" {
+				trackID := item.VideoID
+				if trackID == "" {
+					trackID = item.PlaylistID
+				}
+				playlistTrack := types.PlaylistTrackObject{
+					Track: types.Track{
+						ID:   trackID,
+						Name: item.ItemTitle,
+					},
+				}
+				var items []list.Item
+				for _, item := range m.HomePageList.Items() {
+					homePageContent, ok := item.(types.HomePageContentItem)
+					if !ok || homePageContent.VideoID == "" {
+						continue
+					}
+					playlistTrack := types.PlaylistTrackObject{
+						Track: types.Track{
+							ID:   homePageContent.VideoID,
+							Name: homePageContent.ItemTitle,
+						},
+						IsItFromQueue: true,
+					}
+					items = append(items, playlistTrack)
+				}
+				if m.MusicQueueList == nil {
+					return m, nil
+				}
+				m.MusicQueueList.Model.SetItems(items)
+				m.MusicQueueList.Model.Select(m.MusicQueueList.GlobalIndex())
+				return m.PlaySelectedMusic(playlistTrack)
+			} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseID, "MPRE") {
+				browseID := item.BrowseID
+				if browseID == "" {
+					browseID = item.PlaylistID
+				}
+				loadingCmd := SendLoadingCmd()
+				cmd := m.getAlbumTracks(browseID)
+				m.MainViewMode = NormalMode
+				m.FocusedOn = MainView
+				updateDelegate(&m)
+				return m, tea.Batch(cmd, loadingCmd)
+			}
+			playlistID := item.PlaylistID
+			if playlistID == "" {
+				playlistID = item.BrowseID
+			}
 			playlistDetailMsg := func() tea.Msg {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				playlistItems, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
-					PlaylistId: item.PlaylistID,
+					PlaylistId: playlistID,
 				})
 				return types.PlaylistDetailMsg{
 					Playlist: playlistItems,
@@ -1059,6 +1110,9 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 					items = append(items, types.HomePageContentItem{
 						ItemTitle:   content.Title,
 						PlaylistID:  content.PlaylistId,
+						VideoID:     content.VideoId,
+						BrowseID:    content.BrowseId,
+						ContentType: content.ContentType,
 						Description: content.Description,
 					})
 				}
@@ -1074,9 +1128,36 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 				slog.Error("failed to cast the selected item to types.HomePageContentItem")
 				return m, nil
 			}
-			if selectedItem.PlaylistID != "" {
+			if selectedItem.VideoID != "" || selectedItem.ContentType == "song" || selectedItem.ContentType == "video" {
+				trackID := selectedItem.VideoID
+				if trackID == "" {
+					trackID = selectedItem.PlaylistID
+				}
+				playlistTrack := types.PlaylistTrackObject{
+					Track: types.Track{
+						ID:   trackID,
+						Name: selectedItem.ItemTitle,
+					},
+				}
+				return m.PlaySelectedMusic(playlistTrack)
+			} else if selectedItem.ContentType == "album" || strings.HasPrefix(selectedItem.BrowseID, "MPRE") {
+				browseID := selectedItem.BrowseID
+				if browseID == "" {
+					browseID = selectedItem.PlaylistID
+				}
 				loadingCmd := SendLoadingCmd()
-				cmd := m.getPlaylistItems(selectedItem.PlaylistID)
+				cmd := m.getAlbumTracks(browseID)
+				m.MainViewMode = NormalMode
+				m.FocusedOn = MainView
+				updateDelegate(&m)
+				return m, tea.Batch(cmd, loadingCmd)
+			} else if selectedItem.PlaylistID != "" || selectedItem.BrowseID != "" {
+				playlistID := selectedItem.PlaylistID
+				if playlistID == "" {
+					playlistID = selectedItem.BrowseID
+				}
+				loadingCmd := SendLoadingCmd()
+				cmd := m.getPlaylistItems(playlistID)
 				m.MainViewMode = NormalMode
 				m.FocusedOn = MainView
 				updateDelegate(&m)

@@ -47,7 +47,7 @@ func getBorderColor(isFocused bool) lipgloss.Color {
 }
 
 func getPlayerStyles(m *Model, dims layoutDimensions) lipgloss.Style {
-	width := dims.mainWidth + (dims.sidebarWidth*2 + 2)
+	width := dims.mainWidth + (dims.sidebarWidth*2 + 4)
 	inputStyle := getStyle(m, dims.inputHeight, width, Player, false)
 	return inputStyle
 }
