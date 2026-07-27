@@ -25,12 +25,11 @@ import (
 type FocusedOn string
 
 const (
-	SideView     FocusedOn = "SIDE_VIEW"
-	MainView     FocusedOn = "MAIN_VIEW"
-	Player       FocusedOn = "PLAYER"
-	SearchBar    FocusedOn = "SEARCH_BAR"
-	QueueList    FocusedOn = "QUEUE_LIST"
-	SearchResult FocusedOn = "SEARCH_RESULT"
+	SideView  FocusedOn = "SIDE_VIEW"
+	MainView  FocusedOn = "MAIN_VIEW"
+	Player    FocusedOn = "PLAYER"
+	SearchBar FocusedOn = "SEARCH_BAR"
+	QueueList FocusedOn = "QUEUE_LIST"
 )
 
 type MainViewMode string
@@ -185,36 +184,36 @@ func (m Model) View() string {
 	m.SelectedPlayListItems.SetShowTitle(false)
 	m.HomePageList.SetShowTitle(false)
 	dimensions := calculateLayoutDimensions(&m)
-	sideBarView := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, SideView).Render(m.SideBarList.View())
+	sideBarView := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, SideView, false).Render(m.SideBarList.View())
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
 	breadcrumb := renderBreadcrumbs(m.BreadcrumbItems)
 	var mainView string
 	if m.IsSearchLoading {
 		loadingText := dimmerStyle.Render("  ⟳ Loading...")
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, loadingText),
 		)
 	} else if m.MainViewMode == SearchResultMode {
 		height := dimensions.contentHeight - (dimensions.contentHeight * 10 / 100)
 		width := dimensions.mainWidth - (dimensions.mainWidth * 10 / 100)
-		searchView := getStyle(&m, height, width, SearchResult).Render(m.SearchResult.View())
+		searchView := getStyle(&m, height, width, MainView, true).Render(m.SearchResult.View())
 		resultHeader := titleStyle.Render("  Search Results")
 		searchResultView := lipgloss.JoinVertical(lipgloss.Top,
 			searchBar,
 			resultHeader,
 			lipgloss.JoinHorizontal(lipgloss.Top, searchView),
 		)
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(searchResultView)
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(searchResultView)
 	} else if m.MainViewMode == LyricsMode {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, m.LyricsView.View()),
 		)
 	} else if m.MainViewMode == HomePageMode {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.HomePageList.View())),
 		)
 	} else {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).
 			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.SelectedPlayListItems.View())))
 	}
 
@@ -233,7 +232,7 @@ func (m Model) View() string {
 	playing := getPlayerStyles(&m, dimensions).
 		Foreground(playerFg).
 		Render(playingCombined)
-	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList).Render(m.MusicQueueList.View())
+	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList, false).Render(m.MusicQueueList.View())
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.JoinHorizontal(lipgloss.Top, sideBarView, mainView, queueList),
 		playing,
