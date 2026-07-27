@@ -121,7 +121,13 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			isSelected = m.Index() == index
 		}
 	case types.HomePageContentItem:
-		icon = "☰"
+		if item.VideoID != "" || item.ContentType == "song" || item.ContentType == "video" {
+			icon = "♫"
+		} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseID, "MPRE") {
+			icon = "◉"
+		} else {
+			icon = "☰"
+		}
 		title = item.ItemTitle
 		subtitle = item.Description
 		if d.Model != nil && d.Model.FocusedOn == MainView && d.Model.MainViewMode == HomePageMode {
@@ -145,17 +151,42 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	if availableWidth <= 0 {
 		availableWidth = 40
 	}
+
+	prefix := fmt.Sprintf(" %s %s", icon, title)
+	prefixWidth := lipgloss.Width(prefix)
+
 	var rendered string
-	if subtitle != "" && availableWidth > len(title)+5 {
-		if isSelected {
-			rendered = selectedStyle.Render(fmt.Sprintf(" %s %s", icon, title)) +
-				selectedStyle.Foreground(lipgloss.Color("#D4D4D8")).Render(fmt.Sprintf(" · %s ", subtitle))
+	if subtitle != "" && availableWidth >= prefixWidth+8 {
+		sep := " · "
+		sepWidth := lipgloss.Width(sep)
+		maxSubWidth := availableWidth - prefixWidth - sepWidth - 1
+		if maxSubWidth > 3 {
+			sub := truncateText(subtitle, maxSubWidth)
+			if isSelected {
+				rendered = selectedStyle.Render(prefix) +
+					selectedStyle.Foreground(lipgloss.Color("#D4D4D8")).Render(sep+sub+" ")
+			} else {
+				rendered = normalStyle.Render(prefix) +
+					dimStyle.Render(sep+sub+" ")
+			}
 		} else {
-			rendered = normalStyle.Render(fmt.Sprintf(" %s %s", icon, title)) +
-				dimStyle.Render(fmt.Sprintf(" · %s ", subtitle))
+			str := prefix + " "
+			if isSelected {
+				rendered = selectedStyle.Render(str)
+			} else {
+				rendered = normalStyle.Render(str)
+			}
 		}
 	} else {
-		str := fmt.Sprintf(" %s %s ", icon, title)
+		if prefixWidth > availableWidth-1 {
+			iconWidth := lipgloss.Width(fmt.Sprintf(" %s ", icon))
+			maxTitleWidth := availableWidth - iconWidth - 1
+			if maxTitleWidth > 3 {
+				title = truncateText(title, maxTitleWidth)
+				prefix = fmt.Sprintf(" %s %s", icon, title)
+			}
+		}
+		str := prefix + " "
 		if isSelected {
 			rendered = selectedStyle.Render(str)
 		} else {
@@ -164,6 +195,23 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	}
 
 	fmt.Fprint(w, rendered)
+}
+
+func truncateText(s string, maxW int) string {
+	if maxW <= 0 {
+		return ""
+	}
+	if lipgloss.Width(s) <= maxW {
+		return s
+	}
+	runes := []rune(s)
+	for len(runes) > 0 && lipgloss.Width(string(runes)+"…") > maxW {
+		runes = runes[:len(runes)-1]
+	}
+	if len(runes) == 0 {
+		return ""
+	}
+	return string(runes) + "…"
 }
 
 func renderSearchBar(m *Model, width int) string {

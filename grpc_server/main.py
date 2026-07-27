@@ -535,14 +535,33 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             )
             
             for content in section.get("contents", []):
+                playlist_id = content.get("playlistId") or ""
+                video_id = content.get("videoId") or ""
+                browse_id = content.get("browseId") or ""
+                content_type = "playlist"
+                if video_id:
+                    content_type = "song"
+                elif browse_id and browse_id.startswith("MPRE"):
+                    content_type = "album"
+                elif browse_id and (browse_id.startswith("UC") or browse_id.startswith("FKYt")):
+                    content_type = "artist"
+                elif playlist_id:
+                    content_type = "playlist"
+                elif browse_id:
+                    playlist_id = browse_id
+                    content_type = "playlist"
+
                 content_msg = music_pb2.HomePageContent(
-                    title=content.get("title") or "",  # pyright: ignore[reportArgumentType]
-                    playlist_id=content.get("playlistId") or "",  # pyright: ignore[reportArgumentType]
-                    description=content.get("description") or ""  # pyright: ignore[reportArgumentType]
+                    title=content.get("title") or "",
+                    playlist_id=playlist_id,
+                    video_id=video_id,
+                    browse_id=browse_id,
+                    content_type=content_type,
+                    description=content.get("description") or ""
                 )
                 
-                for thumbnail in content.get("thumbnails", []):  # pyright: ignore[reportGeneralTypeIssues, reportUnknownVariableType]
-                    content_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))  # pyright: ignore[reportUnknownArgumentType]
+                for thumbnail in content.get("thumbnails", []):
+                    content_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 
                 section_msg.contents.append(content_msg)
             
