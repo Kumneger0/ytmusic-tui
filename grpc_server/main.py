@@ -175,8 +175,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     """gRPC Servicer implementing the MusicService interface, mapping requests to MusicClient."""
 
     def __init__(self, auth_file: str) -> None:
-        self.client: MusicClient = MusicClient(auth_file)
-    
+            self.client: MusicClient = MusicClient(auth_file)
+
     @override
     def HealthCheck(self, request:music_pb2.HealthCheckRequest, context:grpc.ServicerContext) -> music_pb2.HealthCheckResponse:
         return music_pb2.HealthCheckResponse(
