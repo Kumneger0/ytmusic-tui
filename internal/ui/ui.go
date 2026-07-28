@@ -227,7 +227,7 @@ func (m Model) View() string {
 		playingView = renderNowPlaying(&m, currentPosition, total)
 	}
 
-	controls := renderPlayerControls()
+	controls := renderPlayerControls(&m)
 	playingCombined := strings.TrimSpace(playingView) + "\n" + controls
 
 	playing := getPlayerStyles(&m, dimensions).
@@ -278,4 +278,8 @@ func removeListDefaults(listToRemoveDefaults *list.Model) {
 		listToRemoveDefaults.SetShowHelp(false)
 		listToRemoveDefaults.SetShowStatusBar(false)
 	}
+}
+
+func (m *Model) IsPlaying() bool {
+	return m != nil && m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer != nil && m.PlayerProcess.OtoPlayer.IsPlaying()
 }

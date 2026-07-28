@@ -24,7 +24,10 @@ class MusicClient:
     client: YTMusic
 
     def __init__(self, auth_file: str) -> None:
-        self.client = YTMusic(auth=auth_file)
+        try:
+            self.client = YTMusic(auth=auth_file)
+        except Exception:
+            self.client =YTMusic()
     def get_stream_url_and_duration(self, video_id:str)  -> GetStreamURLResponse:
         full_url: str = "https://www.youtube.com/watch?v=" + video_id
         options = {

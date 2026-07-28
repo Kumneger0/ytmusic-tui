@@ -270,8 +270,13 @@ func renderNowPlaying(m *Model, currentPosition, TotalDuration time.Duration) st
 	filled := lipgloss.NewStyle().Foreground(progressFilled).Render(strings.Repeat("━", progress))
 	empty := lipgloss.NewStyle().Foreground(progressEmpty).Render(strings.Repeat("─", max(barWidth-progress, 0)))
 
+	playIcon := "⏸"
+	if m.IsPlaying() {
+		playIcon = "▶"
+	}
+
 	trackInfo := lipgloss.NewStyle().Foreground(textPrimary).Bold(true).Render(
-		fmt.Sprintf("▶ %s", trackName),
+		fmt.Sprintf("%s %s", playIcon, trackName),
 	)
 	artistInfo := dimStyle.Render(fmt.Sprintf(" — %s", artistName))
 	timeInfo := dimStyle.Render(fmt.Sprintf("  %s / %s", formatTime(currentPosition), formatTime(TotalDuration)))
@@ -286,15 +291,22 @@ func renderNowPlaying(m *Model, currentPosition, TotalDuration time.Duration) st
 	)
 }
 
-func renderPlayerControls() string {
+func renderPlayerControls(m *Model) string {
 	key := lipgloss.NewStyle().Foreground(accentColor).Bold(true)
 	sep := dimmerStyle.Render("  │  ")
 	label := lipgloss.NewStyle().Foreground(textSecondary)
 
+	playPauseIcon := "▶"
+	playPauseLabel := " play"
+	if m.IsPlaying() {
+		playPauseIcon = "⏸"
+		playPauseLabel = " pause"
+	}
+
 	var parts []string
 	parts = append(parts,
 		key.Render("⏮")+label.Render(" prev")+dimmerStyle.Render("(b)"),
-		key.Render("⏯")+label.Render(" play/pause")+dimmerStyle.Render("(space)"),
+		key.Render(playPauseIcon)+label.Render(playPauseLabel)+dimmerStyle.Render("(space)"),
 		key.Render("⏭")+label.Render(" next")+dimmerStyle.Render("(n)"),
 		key.Render("♥")+label.Render(" like")+dimmerStyle.Render("(l)"),
 		key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
