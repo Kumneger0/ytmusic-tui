@@ -214,8 +214,14 @@ func (m Model) View() string {
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, resultHeader, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.SearchResult.View())),
 		)
 	} else if m.MainViewMode == LyricsMode {
+		trackName := ""
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+			trackName = " • " + m.SelectedTrack.Track.Track.Name
+		}
+		lyricsHeader := titleStyle.Render("  📝 Lyrics" + trackName)
+		lyricsPadded := lipgloss.NewStyle().Padding(1, 2).Render(m.LyricsView.View())
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
-			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, m.LyricsView.View()),
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lyricsHeader, lyricsPadded),
 		)
 	} else if m.MainViewMode == HomePageMode {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(

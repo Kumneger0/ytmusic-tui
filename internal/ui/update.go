@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/godbus/dbus/v5"
 	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/types"
@@ -275,8 +276,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.LibraryWidth = dims.sidebarWidth
 		m.MainViewWidth = dims.mainWidth
 		m.PlayerSectionHeight = dims.inputHeight
-		m.LyricsView.Width = dims.mainWidth
-		m.LyricsView.Height = dims.contentHeight
+		m.LyricsView.Width = max(dims.mainWidth-6, 10)
+		m.LyricsView.Height = max(dims.contentHeight-6, 10)
 		return m, nil
 	case types.UpdatePlaylistMsg:
 		if msg.Playlist != nil {
@@ -346,6 +347,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.RelatedList = list.New(items, CustomDelegate{Model: &m}, width, m.Height)
 		removeListDefaults(&m.RelatedList)
 		m.RelatedList.Title = "Related"
+		return m, nil
+	case types.LyricsMsg:
+		if msg.Err != nil || msg.LyricsResponse == nil {
+			noLyricsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
+			m.LyricsView.SetContent(noLyricsStyle.Render("No lyrics found for this song."))
+			return m, nil
+		}
+		var lyricsText string
+		if msg.LyricsResponse.HasTimestamps && len(msg.LyricsResponse.Lines) > 0 {
+			var lines []string
+			for _, line := range msg.LyricsResponse.Lines {
+				lines = append(lines, line.Text)
+			}
+			lyricsText = strings.Join(lines, "\n")
+		} else if msg.LyricsResponse.Lyrics != "" {
+			lyricsText = msg.LyricsResponse.Lyrics
+		} else {
+			noLyricsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
+			lyricsText = noLyricsStyle.Render("No lyrics available for this song.")
+		}
+		if msg.LyricsResponse.Source != "" {
+			sourceStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
+			lyricsText = lyricsText + "\n\n" + sourceStyle.Render(msg.LyricsResponse.Source)
+		}
+		m.LyricsView.SetContent(lyricsText)
 		return m, nil
 	case tea.KeyMsg:
 		model, cmd := m.handleKeyPress(msg)
@@ -421,6 +447,11 @@ func (m Model) handlePagination(listModel *list.Model, ShouldAppendQueue bool, c
 func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "down", "j":
+		if m.MainViewMode == LyricsMode && m.FocusedOn == MainView {
+			var cmd tea.Cmd
+			m.LyricsView, cmd = m.LyricsView.Update(msg)
+			return m, cmd
+		}
 		if m.FocusedOn != MainView && m.FocusedOn != QueueList {
 			return m, nil
 		}
@@ -432,6 +463,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		listModel := getListItemForMusicToChoose(&m, m.FocusedOn)
 		return m.handlePagination(listModel, m.FocusedOn == QueueList, nil)
 	case "up", "k":
+		if m.MainViewMode == LyricsMode && m.FocusedOn == MainView {
+			var cmd tea.Cmd
+			m.LyricsView, cmd = m.LyricsView.Update(msg)
+			return m, cmd
+		}
 		if m.FocusedOn != MainView && m.FocusedOn != QueueList {
 			return m, nil
 		}
@@ -605,7 +641,12 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 	return nil
 }
 func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
-	//TODO: implement lyrics later
+	if m.MainViewMode == LyricsMode {
+		m.MainViewMode = NormalMode
+	} else {
+		m.MainViewMode = LyricsMode
+		m.FocusedOn = MainView
+	}
 	return m, nil
 }
 
@@ -1330,6 +1371,8 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		}
 		return getStreamURLResponse, nil
 	})
+
+	m.LyricsView.SetContent("  ⟳ Loading lyrics...")
 
 	lyricsCmd := func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
