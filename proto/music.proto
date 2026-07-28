@@ -34,6 +34,8 @@ service MusicService {
   rpc GetVideoStreamURLAndDuration(GetVideoStreamURLAndDurationRequest) returns (GetVideoStreamURLAndDurationResponse);
 
   rpc GetHomePage(GetHomePageRequest) returns (GetHomePageResponse);
+  rpc GetSongRelated(GetSongRelatedRequest) returns (GetSongRelatedResponse);
+  rpc GetLyrics(GetLyricsRequest) returns (GetLyricsResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
 
@@ -366,4 +368,53 @@ message GetVideoStreamURLAndDurationRequest {
 message GetVideoStreamURLAndDurationResponse {
   string url = 1;
   string duration = 2;
+}
+
+message GetSongRelatedRequest {
+  string browse_id = 1;
+}
+
+message GetSongRelatedResponse {
+  repeated SongRelatedSection sections = 1;
+}
+
+message SongRelatedSection {
+  string title = 1;
+  repeated SongRelatedContent contents = 2;
+  string text_content = 3;
+}
+
+message SongRelatedContent {
+  string title = 1;
+  string video_id = 2;
+  string playlist_id = 3;
+  string browse_id = 4;
+  repeated Artist artists = 5;
+  repeated Thumbnail thumbnails = 6;
+  bool is_explicit = 7;
+  string album = 8;
+  string album_id = 9;
+  string description = 10;
+  string subscribers = 11;
+  string year = 12;
+  string content_type = 13;
+}
+
+message GetLyricsRequest {
+  string browse_id = 1;
+  bool timestamps = 2;
+}
+
+message LyricLine {
+  string text = 1;
+  int32 start_time = 2;
+  int32 end_time = 3;
+  int32 id = 4;
+}
+
+message GetLyricsResponse {
+  string lyrics = 1;
+  string source = 2;
+  bool has_timestamps = 3;
+  repeated LyricLine lines = 4;
 }

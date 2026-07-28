@@ -3,7 +3,7 @@ from types import FrameType
 import grpc
 import os
 import sys
-from typing import Callable, override
+from typing import Callable, override, Any, cast
 import signal
 from dotenv import load_dotenv
 _= load_dotenv()
@@ -29,18 +29,18 @@ from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRela
     YTSearchFilter
 )
 
-def _to_proto_thumbnail(thumb: YTThumbnail) -> music_pb2.Thumbnail:
+def _to_proto_thumbnail(thumb: YTThumbnail | dict[str, Any]) -> music_pb2.Thumbnail:
     return music_pb2.Thumbnail(
-        url=thumb.get("url") or "",
-        width=thumb.get("width") or 0,
-        height=thumb.get("height") or 0,
+        url=str(thumb.get("url") or ""),
+        width=int(thumb.get("width") or 0),
+        height=int(thumb.get("height") or 0),
     )
 
 
-def _to_proto_artist(artist: YTArtist) -> music_pb2.Artist:
+def _to_proto_artist(artist: YTArtist | dict[str, Any]) -> music_pb2.Artist:
     return music_pb2.Artist(
-        id=artist.get("id") or "",
-        name=artist.get("name") or "",
+        id=str(artist.get("id") or ""),
+        name=str(artist.get("name") or ""),
     )
 
 
@@ -50,8 +50,12 @@ def _to_proto_song(song: YTSong) -> music_pb2.Song:
     album_id = ""
     album_data = song.get("album")
     if isinstance(album_data, dict):
-        album_name = album_data.get("name") or ""
-        album_id = album_data.get("id") or ""
+        name_val = album_data.get("name")
+        id_val = album_data.get("id")
+        if isinstance(name_val, str):
+            album_name = name_val
+        if isinstance(id_val, str):
+            album_id = id_val
     elif isinstance(album_data, str):
         album_name = album_data
 
@@ -103,7 +107,11 @@ def _to_proto_playlist(playlist: YTLibraryPlaylist) -> music_pb2.Playlist:
     author_name = ""
     author_val = playlist.get("author")
     if isinstance(author_val, list) and len(author_val) > 0:
-        author_name = author_val[0].get("name") or ""
+        first_author: object = author_val[0]
+        if isinstance(first_author, dict):
+            name_val = str(first_author.get("name") or "")
+            if name_val:
+                author_name = name_val
     elif isinstance(author_val, str):
         author_name = author_val
 
@@ -143,23 +151,30 @@ def _to_proto_followed_artist(artist: YTLibraryArtist) -> music_pb2.FollowedArti
 
 def _to_proto_podcast(podcast: YTLibraryPlaylist) -> music_pb2.Podcast:
     author_name = ""
-    channel = podcast.get("channel")
+    channel: object = podcast.get("channel")
     if isinstance(channel, dict):
-        author_name = channel.get("name") or ""
+        val = str(channel.get("name") or "")
+        if val:
+            author_name = val
 
     if not author_name:
         author_val = podcast.get("author")
         if isinstance(author_val, list) and len(author_val) > 0:
-            author_name = author_val[0].get("name") or ""
+            first_author: object = author_val[0]
+            if isinstance(first_author, dict):
+                val = str(first_author.get("name") or "")
+                if val:
+                    author_name = val
         elif isinstance(author_val, str):
             author_name = author_val
 
-    podcast_id = (
+    podcast_id_val = (
         podcast.get("podcastId")
         or podcast.get("playlistId")
         or podcast.get("browseId")
         or ""
     )
+    podcast_id = str(podcast_id_val)
 
     podcast_msg = music_pb2.Podcast(
         podcast_id=podcast_id,
@@ -169,6 +184,60 @@ def _to_proto_podcast(podcast: YTLibraryPlaylist) -> music_pb2.Podcast:
     for thumbnail in (podcast.get("thumbnails") or []):
         podcast_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
     return podcast_msg
+
+
+def to_proto_song_related_content(content: dict[str, Any]) -> music_pb2.SongRelatedContent:
+    album_name = ""
+    album_id = ""
+    album_data = content.get("album")
+    if isinstance(album_data, dict):
+        name_val = album_data.get("name")
+        if isinstance(name_val, str):
+            album_name = name_val
+        id_val = album_data.get("id")
+        if isinstance(id_val, str):
+            album_id = id_val
+    elif isinstance(album_data, str):
+        album_name = album_data
+
+    content_type = ""
+    if content.get("videoId"):
+        content_type = "song"
+    elif content.get("playlistId"):
+        content_type = "playlist"
+    elif content.get("subscribers"):
+        content_type = "artist"
+    elif content.get("browseId"):
+        if str(content.get("browseId")).startswith("MPRE"):
+            content_type = "album"
+        else:
+            content_type = "artist"
+
+    content_msg = music_pb2.SongRelatedContent(
+        title=str(content.get("title") or ""),
+        video_id=str(content.get("videoId") or ""),
+        playlist_id=str(content.get("playlistId") or ""),
+        browse_id=str(content.get("browseId") or ""),
+        is_explicit=bool(content.get("isExplicit") or content.get("is_explicit")),
+        album=album_name,
+        album_id=album_id,
+        description=str(content.get("description") or ""),
+        subscribers=str(content.get("subscribers") or ""),
+        year=str(content.get("year")) if content.get("year") is not None else "",
+        content_type=content_type,
+    )
+
+    raw_artists = content.get("artists")
+    if isinstance(raw_artists, list):
+        for artist in raw_artists:
+            content_msg.artists.append(_to_proto_artist(cast(dict[str, Any], artist)))
+
+    raw_thumbnails = content.get("thumbnails")
+    if isinstance(raw_thumbnails, list):
+        for thumbnail in raw_thumbnails:
+            content_msg.thumbnails.append(_to_proto_thumbnail(cast(dict[str, Any], thumbnail)))
+
+    return content_msg
 
 
 class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
@@ -377,13 +446,15 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 author_val = result.get("author")
                 author_str = ""
                 if isinstance(author_val, dict):
-                    author_str = author_val.get("name") or ""
+                    name_val = author_val.get("name")
+                    if isinstance(name_val, str):
+                        author_str = name_val
                 elif isinstance(author_val, str):
                     author_str = author_val
 
                 podcast_item = music_pb2.SearchResultPodcast(
-                    browse_id=result.get("browseId") or "",
-                    title=result.get("title") or "",
+                    browse_id=str(result.get("browseId") or ""),
+                    title=str(result.get("title") or ""),
                     author=author_str,
                 )
                 for thumbnail in (result.get("thumbnails") or []):
@@ -395,17 +466,21 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 podcast_name = ""
                 podcast_id = ""
                 if isinstance(podcast_info, dict):
-                    podcast_name = podcast_info.get("name") or ""
-                    podcast_id = podcast_info.get("id") or ""
+                    name_val = podcast_info.get("name")
+                    id_val = podcast_info.get("id")
+                    if isinstance(name_val, str):
+                        podcast_name = name_val
+                    if isinstance(id_val, str):
+                        podcast_id = id_val
                 elif isinstance(podcast_info, str):
                     podcast_name = podcast_info
 
                 episode_item = music_pb2.SearchResultEpisode(
-                    video_id=result.get("videoId") or "",
-                    title=result.get("title") or "",
+                    video_id=str(result.get("videoId") or ""),
+                    title=str(result.get("title") or ""),
                     podcast_name=podcast_name,
                     podcast_id=podcast_id,
-                    date=result.get("date") or "",
+                    date=str(result.get("date") or ""),
                 )
                 for thumbnail in (result.get("thumbnails") or []):
                     episode_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
@@ -534,40 +609,139 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 title=section.get("title") or ""
             )
             
-            for content in section.get("contents", []):
-                playlist_id = content.get("playlistId") or ""
-                video_id = content.get("videoId") or ""
-                browse_id = content.get("browseId") or ""
-                content_type = "playlist"
-                if video_id:
-                    content_type = "song"
-                elif browse_id and browse_id.startswith("MPRE"):
-                    content_type = "album"
-                elif browse_id and (browse_id.startswith("UC") or browse_id.startswith("FKYt")):
-                    content_type = "artist"
-                elif playlist_id:
+            contents: object = section.get("contents")
+            if isinstance(contents, list):
+                for content in contents:
+                    if not isinstance(content, dict):
+                        continue
+                    playlist_id = str(content.get("playlistId") or "")
+                    video_id = str(content.get("videoId") or "")
+                    browse_id = str(content.get("browseId") or "")
                     content_type = "playlist"
-                elif browse_id:
-                    playlist_id = browse_id
-                    content_type = "playlist"
+                    if video_id:
+                        content_type = "song"
+                    elif browse_id and browse_id.startswith("MPRE"):
+                        content_type = "album"
+                    elif browse_id and (browse_id.startswith("UC") or browse_id.startswith("FKYt")):
+                        content_type = "artist"
+                    elif playlist_id:
+                        content_type = "playlist"
+                    elif browse_id:
+                        playlist_id = browse_id
+                        content_type = "playlist"
 
-                content_msg = music_pb2.HomePageContent(
-                    title=content.get("title") or "",
-                    playlist_id=playlist_id,
-                    video_id=video_id,
-                    browse_id=browse_id,
-                    content_type=content_type,
-                    description=content.get("description") or ""
-                )
-                
-                for thumbnail in content.get("thumbnails", []):
-                    content_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
-                
-                section_msg.contents.append(content_msg)
-            
+                    content_msg = music_pb2.HomePageContent(
+                        title=str(content.get("title") or ""),
+                        playlist_id=playlist_id,
+                        video_id=video_id,
+                        browse_id=browse_id,
+                        content_type=content_type,
+                        description=str(content.get("description") or "")
+                    )
+
+                    thumbnails = content.get("thumbnails")
+                    if isinstance(thumbnails, list):
+                        for thumbnail in thumbnails:
+                            content_msg.thumbnails.append(_to_proto_thumbnail(cast(dict[str, Any], thumbnail)))
+
+                    section_msg.contents.append(content_msg)
+
             response.sections.append(section_msg)
-        
+
         return response
+
+    @override
+    def GetSongRelated(
+        self,
+        request: music_pb2.GetSongRelatedRequest,
+        context: grpc.ServicerContext,
+    ) -> music_pb2.GetSongRelatedResponse:
+        try:
+            browse_id = request.browse_id
+            if browse_id and not browse_id.startswith("MPTRt_"):
+                watch_data = self.client.get_watch_playlist(browse_id)
+                related_id = watch_data.get("related")
+                if isinstance(related_id, str) and related_id:
+                    browse_id = related_id
+
+            sections_data = self.client.get_song_related(browse_id)
+            response = music_pb2.GetSongRelatedResponse()
+            for section in sections_data:
+                sec_msg = music_pb2.SongRelatedSection(
+                    title=str(section.get("title") or "")
+                )
+                contents_data = section.get("contents")
+                if isinstance(contents_data, str):
+                    sec_msg.text_content = contents_data
+                elif isinstance(contents_data, list):
+                    for item in contents_data:
+                        sec_msg.contents.append(to_proto_song_related_content(cast(dict[str, Any], item)))
+                response.sections.append(sec_msg)
+            return response
+        except Exception as e:
+            print(f"Error in GetSongRelated: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return music_pb2.GetSongRelatedResponse()
+
+    @override
+    def GetLyrics(
+        self,
+        request: music_pb2.GetLyricsRequest,
+        context: grpc.ServicerContext,
+    ) -> music_pb2.GetLyricsResponse:
+        try:
+            browse_id = request.browse_id
+            if browse_id and not browse_id.startswith("MPLYt_"):
+                watch_data = self.client.get_watch_playlist(browse_id)
+                lyrics_id = watch_data.get("lyrics")
+                if isinstance(lyrics_id, str) and lyrics_id:
+                    browse_id = lyrics_id
+
+            raw_lyrics = self.client.get_lyrics(
+                browse_id=browse_id,
+                timestamps=request.timestamps,
+            )
+            if not raw_lyrics:
+                return music_pb2.GetLyricsResponse()
+
+            def _get_val(obj: object, key: str) -> object:
+                if isinstance(obj, dict):
+                    return obj.get(key)
+                return getattr(obj, key, None)
+
+            source = str(_get_val(raw_lyrics, "source") or "")
+            has_timestamps = bool(_get_val(raw_lyrics, "hasTimestamps") or False)
+            lyrics_data = _get_val(raw_lyrics, "lyrics")
+
+            response = music_pb2.GetLyricsResponse(
+                source=source,
+                has_timestamps=has_timestamps,
+            )
+
+            if has_timestamps and isinstance(lyrics_data, list):
+                for line in lyrics_data:
+                    line_text = str(_get_val(line, "text") or "")
+                    start_time = int(cast(int, _get_val(line, "start_time") or 0))
+                    end_time = int(cast(int, _get_val(line, "end_time") or 0))
+                    line_id = int(cast(int, _get_val(line, "id") or 0))
+                    response.lines.append(
+                        music_pb2.LyricLine(
+                            text=line_text,
+                            start_time=start_time,
+                            end_time=end_time,
+                            id=line_id,
+                        )
+                    )
+            elif isinstance(lyrics_data, str):
+                response.lyrics = lyrics_data
+
+            return response
+        except Exception as e:
+            print(f"Error in GetLyrics: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return music_pb2.GetLyricsResponse()
 
 
 

@@ -1,4 +1,4 @@
-from typing import cast
+from typing import cast, Any
 from ytmusicapi import  YTMusic, LikeStatus
 from yt_dlp import YoutubeDL
 
@@ -160,3 +160,17 @@ class MusicClient:
             video_id,
             LikeStatus.INDIFFERENT
         )
+
+    def get_song_related(self, browse_id: str) -> list[dict[str, Any]]:
+        raw_related: object = self.client.get_song_related(browseId=browse_id)
+        return cast(list[dict[str, Any]], cast(object, raw_related))
+
+    def get_lyrics(self, browse_id: str, timestamps: bool = False) -> object:
+        raw_lyrics: object = self.client.get_lyrics(browseId=browse_id, timestamps=timestamps)
+        return raw_lyrics
+
+    def get_watch_playlist(self, video_id: str) -> dict[str, Any]:
+        raw_watch: object = self.client.get_watch_playlist(videoId=video_id)
+        if isinstance(raw_watch, dict):
+            return cast(dict[str, Any], raw_watch)
+        return {}

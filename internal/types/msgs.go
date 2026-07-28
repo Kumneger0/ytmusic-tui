@@ -128,3 +128,13 @@ type GetLibraryMsg struct {
 	Result *musicpb.GetLibraryResponse
 	Err    error
 }
+
+type RelatedSongsMsg struct {
+	Related *musicpb.GetSongRelatedResponse
+	Err     error
+}
+
+type LyricsMsg struct {
+	LyricsResponse *musicpb.GetLyricsResponse
+	Err            error
+}
