@@ -103,6 +103,7 @@ type Model struct {
 	HomePageData     *musicpb.GetHomePageResponse
 	HomePageList     list.Model
 	HomePageViewMode HomePageViewMode
+	RelatedList      list.Model
 }
 
 type Instance struct {
@@ -180,6 +181,10 @@ func (m Model) View() string {
 	removeListDefaults(&m.SearchResult)
 	removeListDefaults(&m.HomePageList)
 	removeListDefaults(&m.MusicQueueList.Model)
+	if len(m.RelatedList.Items()) > 0 {
+		m.RelatedList.Title = "Related"
+		removeListDefaults(&m.RelatedList)
+	}
 	m.SearchResult.SetShowTitle(false)
 	m.SelectedPlayListItems.SetShowTitle(false)
 	m.HomePageList.SetShowTitle(false)
@@ -188,6 +193,9 @@ func (m Model) View() string {
 	m.SelectedPlayListItems.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
 	m.SearchResult.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
 	m.HomePageList.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
+	if len(m.RelatedList.Items()) > 0 {
+		m.RelatedList.SetSize(dimensions.sidebarWidth, dimensions.contentHeight)
+	}
 	if m.MusicQueueList != nil {
 		m.MusicQueueList.Model.SetSize(dimensions.sidebarWidth, dimensions.contentHeight)
 	}
@@ -233,7 +241,13 @@ func (m Model) View() string {
 	playing := getPlayerStyles(&m, dimensions).
 		Foreground(playerFg).
 		Render(playingCombined)
-	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList, false).Render(m.MusicQueueList.View())
+	var rightColumnView string
+	if len(m.RelatedList.Items()) > 0 {
+		rightColumnView = m.RelatedList.View()
+	} else if m.MusicQueueList != nil {
+		rightColumnView = m.MusicQueueList.View()
+	}
+	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList, false).Render(rightColumnView)
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.JoinHorizontal(lipgloss.Top, sideBarView, mainView, queueList),
 		playing,

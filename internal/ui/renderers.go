@@ -36,9 +36,25 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	var icon string
 	var subtitle string
 
+	if d.Model != nil {
+		switch d.Model.FocusedOn {
+		case SideView:
+			if m.Title == "Youtube Music tui" || m.Title == "Library" {
+				isSelected = m.Index() == index
+			}
+		case MainView:
+			if m.Title != "Related" && m.Title != "Queue" && m.Title != "Youtube Music tui" {
+				isSelected = m.Index() == index
+			}
+		case QueueList:
+			if m.Title == "Related" || m.Title == "Queue" {
+				isSelected = m.Index() == index
+			}
+		}
+	}
+
 	switch item := item.(type) {
 	case types.SearchResultItem:
-		isSelected = d.Model != nil && d.Model.FocusedOn == MainView && m.Index() == index
 		title = item.Title()
 		switch item.Kind() {
 		case types.SearchResultTrack:
@@ -102,24 +118,9 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			}
 			subtitle = strings.Join(names, ", ")
 		}
-		if d.Model != nil {
-			switch d.Model.FocusedOn {
-			case QueueList:
-				if item.IsItFromQueue {
-					isSelected = m.Index() == index
-				}
-			case MainView:
-				if !item.IsItFromQueue && item.IsItFromSearch == false {
-					isSelected = m.Index() == index
-				}
-			}
-		}
 	case types.SidebarItem:
 		icon = item.Icon
 		title = item.Name
-		if d.Model != nil && d.Model.FocusedOn == SideView {
-			isSelected = m.Index() == index
-		}
 	case types.HomePageContentItem:
 		if item.VideoID != "" || item.ContentType == "song" || item.ContentType == "video" {
 			icon = "♫"
@@ -130,21 +131,12 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		}
 		title = item.ItemTitle
 		subtitle = item.Description
-		if d.Model != nil && d.Model.FocusedOn == MainView && d.Model.MainViewMode == HomePageMode {
-			isSelected = m.Index() == index
-		}
 	case types.HomePageSectionItem:
 		icon = "▸"
 		title = item.SectionTitle
-		if d.Model != nil && d.Model.FocusedOn == MainView && d.Model.MainViewMode == HomePageMode {
-			isSelected = m.Index() == index
-		}
 	case types.UserSavedTracksListItem:
 		title = item.FilterValue()
-		if d.Model != nil {
-			icon = "♥"
-			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
-		}
+		icon = "♥"
 	}
 
 	availableWidth := m.Width()

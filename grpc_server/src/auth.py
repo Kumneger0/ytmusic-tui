@@ -347,8 +347,10 @@ def process_raw_headers_via_ytmusicapi(raw_headers: str, filepath: Path | None =
         return False, str(e), target_path
 
 
+from typing import Mapping
+
 class WebLoginHandler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
     def do_GET(self):
@@ -389,7 +391,7 @@ class WebLoginHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    def _send_json(self, status_code: int, data: dict):
+    def _send_json(self, status_code: int, data: Mapping[str, object]):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
