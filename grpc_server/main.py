@@ -1,5 +1,5 @@
 from concurrent import futures
-from types import FrameType
+from types import FrameType, UnionType
 import grpc
 import os
 import sys
@@ -29,19 +29,27 @@ from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRela
     YTSearchFilter
 )
 
-def _to_proto_thumbnail(thumb: YTThumbnail | dict[str, Any]) -> music_pb2.Thumbnail:
-    return music_pb2.Thumbnail(
-        url=str(thumb.get("url") or ""),
-        width=int(thumb.get("width") or 0),
-        height=int(thumb.get("height") or 0),
-    )
+def _to_proto_thumbnail(thumb: YTThumbnail | dict[str, Any] | str) -> music_pb2.Thumbnail:
+    if isinstance(thumb, str):
+        return music_pb2.Thumbnail(url=thumb, width=0, height=0)
+    if isinstance(thumb, dict):
+        return music_pb2.Thumbnail(
+            url=str(thumb.get("url") or ""),
+            width=int(thumb.get("width") or 0),
+            height=int(thumb.get("height") or 0),
+        )
+    return music_pb2.Thumbnail(url="", width=0, height=0)
 
 
-def _to_proto_artist(artist: YTArtist | dict[str, Any]) -> music_pb2.Artist:
-    return music_pb2.Artist(
-        id=str(artist.get("id") or ""),
-        name=str(artist.get("name") or ""),
-    )
+def _to_proto_artist(artist: YTArtist | dict[str, Any] | str) -> music_pb2.Artist:
+    if isinstance(artist, str):
+        return music_pb2.Artist(id="", name=artist)
+    if isinstance(artist, dict):
+        return music_pb2.Artist(
+            id=str(artist.get("id") or ""),
+            name=str(artist.get("name") or ""),
+        )
+    return music_pb2.Artist(id="", name=str(artist or ""))
 
 
 def _to_proto_song(song: YTSong) -> music_pb2.Song:
@@ -386,18 +394,28 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         for result in raw_results:
             result_type = result.get("resultType")
             if result_type == "song":
+                dur_val = result.get("duration_seconds")
+                dur_int = 0
+                if isinstance(dur_val, int):
+                    dur_int = dur_val
+                elif isinstance(dur_val, str):
+                    try:
+                        dur_int = int(dur_val)
+                    except ValueError:
+                        pass
+
                 song_item = music_pb2.SearchResultSong(
-                    video_id=result.get("videoId") or "",
-                    title=result.get("title") or "",
+                    video_id=str(result.get("videoId") or ""),
+                    title=str(result.get("title") or ""),
                     album="",
                     album_id="",
-                    duration_seconds=result.get("duration_seconds") or 0,
+                    duration_seconds=dur_int,
                     is_explicit=bool(result.get("isExplicit")),
                 )
                 album_info = result.get("album")
                 if isinstance(album_info, dict):
-                    song_item.album = album_info.get("name") or ""
-                    song_item.album_id = album_info.get("id") or ""
+                    song_item.album = str(album_info.get("name") or "")
+                    song_item.album_id = str(album_info.get("id") or "")
                 elif isinstance(album_info, str):
                     song_item.album = album_info
 
@@ -409,10 +427,10 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 
             elif result_type == "album":
                 album_item = music_pb2.SearchResultAlbum(
-                    browse_id=result.get("browseId") or "",
-                    title=result.get("title") or "",
-                    year=result.get("year") or "",
-                    type=result.get("type") or "",
+                    browse_id=str(result.get("browseId") or ""),
+                    title=str(result.get("title") or ""),
+                    year=str(result.get("year") or ""),
+                    type=str(result.get("type") or ""),
                     is_explicit=bool(result.get("isExplicit")),
                 )
                 for artist in (result.get("artists") or []):
@@ -423,9 +441,9 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 
             elif result_type == "artist":
                 artist_item = music_pb2.SearchResultArtist(
-                    browse_id=result.get("browseId") or "",
-                    name=result.get("artist") or "",
-                    subscribers=result.get("subscribers") or "",
+                    browse_id=str(result.get("browseId") or ""),
+                    name=str(result.get("artist") or ""),
+                    subscribers=str(result.get("subscribers") or ""),
                 )
                 for thumbnail in (result.get("thumbnails") or []):
                     artist_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
@@ -433,10 +451,10 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 
             elif result_type == "playlist":
                 playlist_item = music_pb2.SearchResultPlaylist(
-                    browse_id=result.get("browseId") or "",
-                    title=result.get("title") or "",
-                    author=result.get("author") or "",
-                    item_count=result.get("itemCount") or "",
+                    browse_id=str(result.get("browseId") or ""),
+                    title=str(result.get("title") or ""),
+                    author=str(result.get("author") or ""),
+                    item_count=str(result.get("itemCount") or ""),
                 )
                 for thumbnail in (result.get("thumbnails") or []):
                     playlist_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
@@ -487,18 +505,28 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 response.episodes.append(episode_item)
 
             elif result_type == "video":
+                dur_val = result.get("duration_seconds")
+                dur_int = 0
+                if isinstance(dur_val, int):
+                    dur_int = dur_val
+                elif isinstance(dur_val, str):
+                    try:
+                        dur_int = int(dur_val)
+                    except ValueError:
+                        pass
+
                 song_item = music_pb2.SearchResultSong(
-                    video_id=result.get("videoId") or "",
-                    title=result.get("title") or "",
+                    video_id=str(result.get("videoId") or ""),
+                    title=str(result.get("title") or ""),
                     album="",
                     album_id="",
-                    duration_seconds=result.get("duration_seconds") or 0,
+                    duration_seconds=dur_int,
                     is_explicit=bool(result.get("isExplicit")),
                 )
                 album_info = result.get("album")
                 if isinstance(album_info, dict):
-                    song_item.album = album_info.get("name") or ""
-                    song_item.album_id = album_info.get("id") or ""
+                    song_item.album = str(album_info.get("name") or "")
+                    song_item.album_id = str(album_info.get("id") or "")
                 elif isinstance(album_info, str):
                     song_item.album = album_info
 
@@ -657,12 +685,15 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.GetSongRelatedResponse:
         try:
-            browse_id = request.browse_id
-            if browse_id and not browse_id.startswith("MPTRt_"):
-                watch_data = self.client.get_watch_playlist(browse_id)
+            browse_id = getattr(request, "browse_id", None) or getattr(request, "videoId", None)
+            if not browse_id or not browse_id.startswith("MPTRt_"):
+                watch_data = self.client.get_watch_playlist(request.videoId)
                 related_id = watch_data.get("related")
                 if isinstance(related_id, str) and related_id:
                     browse_id = related_id
+
+            if browse_id is None:
+                return music_pb2.GetSongRelatedResponse()
 
             sections_data = self.client.get_song_related(browse_id)
             response = music_pb2.GetSongRelatedResponse()
@@ -691,13 +722,15 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.GetLyricsResponse:
         try:
-            browse_id = request.browse_id
-            if browse_id and not browse_id.startswith("MPLYt_"):
-                watch_data = self.client.get_watch_playlist(browse_id)
-                lyrics_id = watch_data.get("lyrics")
-                if isinstance(lyrics_id, str) and lyrics_id:
-                    browse_id = lyrics_id
+            browse_id = None
+            watch_data = self.client.get_watch_playlist(request.videoId)
+            lyrics_id = watch_data.get("lyrics")
+            if isinstance(lyrics_id, str) and lyrics_id:
+                browse_id = lyrics_id
 
+            if browse_id is None:
+                return music_pb2.GetLyricsResponse()
+                
             raw_lyrics = self.client.get_lyrics(
                 browse_id=browse_id,
                 timestamps=request.timestamps,
