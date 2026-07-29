@@ -53,6 +53,13 @@ const (
 	HomePageContentView
 )
 
+type RightColumnMode string
+
+const (
+	RightColumnQueue   RightColumnMode = "RIGHT_COLUMN_QUEUE"
+	RightColumnRelated RightColumnMode = "RIGHT_COLUMN_RELATED"
+)
+
 type SpotifySearchResult struct {
 	Tracks, Artists, Albums, Playlists list.Model
 }
@@ -104,6 +111,7 @@ type Model struct {
 	HomePageList     list.Model
 	HomePageViewMode HomePageViewMode
 	RelatedList      list.Model
+	RightColumnMode  RightColumnMode
 }
 
 type Instance struct {
@@ -248,7 +256,8 @@ func (m Model) View() string {
 		Foreground(playerFg).
 		Render(playingCombined)
 	var rightColumnView string
-	if len(m.RelatedList.Items()) > 0 {
+	showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
+	if showRelated {
 		rightColumnView = m.RelatedList.View()
 	} else if m.MusicQueueList != nil {
 		rightColumnView = m.MusicQueueList.View()

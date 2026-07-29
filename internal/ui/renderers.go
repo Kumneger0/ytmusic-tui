@@ -47,8 +47,15 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 				isSelected = m.Index() == index
 			}
 		case QueueList:
-			if m.Title == "Related" || m.Title == "Queue" {
-				isSelected = m.Index() == index
+			showRelated := (d.Model.RightColumnMode == RightColumnRelated || d.Model.RightColumnMode == "") && len(d.Model.RelatedList.Items()) > 0
+			if showRelated {
+				if m.Title == "Related" {
+					isSelected = m.Index() == index
+				}
+			} else {
+				if m.Title == "Queue" {
+					isSelected = m.Index() == index
+				}
 			}
 		}
 	}
@@ -303,6 +310,7 @@ func renderPlayerControls(m *Model) string {
 		key.Render("♥")+label.Render(" like")+dimmerStyle.Render("(l)"),
 		key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
 		key.Render("📝")+label.Render(" lyrics")+dimmerStyle.Render("(ctrl+l)"),
+		key.Render("🔄")+label.Render(" queue/related")+dimmerStyle.Render("(ctrl+q)"),
 	)
 	return strings.Join(parts, sep)
 }

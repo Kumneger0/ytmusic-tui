@@ -347,6 +347,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.RelatedList = list.New(items, CustomDelegate{Model: &m}, width, m.Height)
 		removeListDefaults(&m.RelatedList)
 		m.RelatedList.Title = "Related"
+		m.RightColumnMode = RightColumnRelated
 		return m, nil
 	case types.LyricsMsg:
 		if msg.Err != nil || msg.LyricsResponse == nil {
@@ -551,8 +552,23 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.handleMusicChange(true)
+	case "ctrl+q", "t":
+		if m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "" {
+			m.RightColumnMode = RightColumnQueue
+		} else {
+			m.RightColumnMode = RightColumnRelated
+		}
+		return m, nil
 	case "q", "ctrl+c":
 		if m.FocusedOn == SearchBar {
+			return m, nil
+		}
+		if msg.String() == "q" && m.FocusedOn == QueueList && len(m.RelatedList.Items()) > 0 {
+			if m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "" {
+				m.RightColumnMode = RightColumnQueue
+			} else {
+				m.RightColumnMode = RightColumnRelated
+			}
 			return m, nil
 		}
 		if m.BackendProcess != nil && m.BackendProcess.Process != nil {
@@ -903,7 +919,8 @@ func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
 		return &m.SelectedPlayListItems
 	}
 	if focusedOn == QueueList {
-		if len(m.RelatedList.Items()) > 0 {
+		showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
+		if showRelated {
 			return &m.RelatedList
 		}
 		if m.MusicQueueList != nil {
@@ -993,9 +1010,6 @@ func (m Model) playTrackFromList(track types.PlaylistTrackObject, rawItems []lis
 			items = append(items, playlistItem)
 		}
 	}
-	if m.FocusedOn != QueueList {
-		m.RelatedList.SetItems([]list.Item{})
-	}
 	m.MusicQueueList.Model.SetItems(items)
 	m.MusicQueueList.Model.Select(m.MusicQueueList.GlobalIndex())
 	return m.PlaySelectedMusic(track)
@@ -1076,7 +1090,19 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 
 	switch selectedItem := listItemToChooseMusicFrom.SelectedItem().(type) {
 	case types.PlaylistTrackObject:
-		return m.playTrackFromList(selectedItem, m.SelectedPlayListItems.Items())
+		relatedSongsCmd := func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
+				BrowseId: selectedItem.Track.ID,
+			})
+			return types.RelatedSongsMsg{
+				Related: relatedSongs,
+				Err:     err,
+			}
+		}
+		m, cmd := m.playTrackFromList(selectedItem, m.SelectedPlayListItems.Items())
+		return m, tea.Batch(cmd, relatedSongsCmd)
 
 	case types.Playlist:
 		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.ID))
@@ -1112,9 +1138,10 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 					Name: selectedItem.ItemTitle,
 				},
 			}
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+
 			relatedSongsCmd := func() tea.Msg {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
 				relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
 					BrowseId: playlistTrack.Track.ID,
 				})
@@ -1493,7 +1520,8 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 		cmds = append(cmds, cmd)
 	case QueueList:
 		var cmd tea.Cmd
-		if len(m.RelatedList.Items()) > 0 {
+		showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
+		if showRelated {
 			m.RelatedList, cmd = m.RelatedList.Update(msg)
 		} else if m.MusicQueueList != nil {
 			m.MusicQueueList.Model, cmd = m.MusicQueueList.Model.Update(msg)
