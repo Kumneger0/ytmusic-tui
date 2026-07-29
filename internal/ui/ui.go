@@ -112,6 +112,7 @@ type Model struct {
 	HomePageViewMode HomePageViewMode
 	RelatedList      list.Model
 	RightColumnMode  RightColumnMode
+	CurrentLyrics    *musicpb.GetLyricsResponse
 }
 
 type Instance struct {

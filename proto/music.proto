@@ -371,7 +371,7 @@ message GetVideoStreamURLAndDurationResponse {
 }
 
 message GetSongRelatedRequest {
-  string browse_id = 1;
+  string videoId = 1;
 }
 
 message GetSongRelatedResponse {
@@ -401,7 +401,7 @@ message SongRelatedContent {
 }
 
 message GetLyricsRequest {
-  string browse_id = 1;
+  string videoId = 1;
   bool timestamps = 2;
 }
 
