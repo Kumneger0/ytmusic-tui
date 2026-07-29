@@ -261,6 +261,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.PlayedSeconds = msg.CurrentSeconds
+		if m.CurrentLyrics != nil {
+			m.updateLyricsView()
+		}
 		totalDurationInSeconds := m.SelectedTrack.Track.Track.DurationMS / 1000
 		if totalDurationInSeconds > 0 && (float64(totalDurationInSeconds)-m.PlayedSeconds) < 1 {
 			m.PlayedSeconds = 0
@@ -322,7 +325,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, alertCmd)
 		}
 	case types.RelatedSongsMsg:
-		if msg.Err != nil || msg.Related == nil || len(msg.Related.Sections) == 0 {
+		if msg.Err != nil {
+			slog.Error(msg.Err.Error())
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			cmds = append(cmds, alertCmd)
+		}
+		if msg.Related == nil || len(msg.Related.Sections) == 0 {
+			slog.Error("Failed to Fetch Related Songs")
 			return m, nil
 		}
 		var items []list.Item
@@ -350,29 +359,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.RightColumnMode = RightColumnRelated
 		return m, nil
 	case types.LyricsMsg:
-		if msg.Err != nil || msg.LyricsResponse == nil {
+		if msg.Err != nil {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			slog.Error(msg.Err.Error())
+			m.LyricsView.SetContent(msg.Err.Error())
+			return m, alertCmd
+		}
+		if msg.LyricsResponse == nil {
 			noLyricsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
 			m.LyricsView.SetContent(noLyricsStyle.Render("No lyrics found for this song."))
+			m.CurrentLyrics = nil
 			return m, nil
 		}
-		var lyricsText string
-		if msg.LyricsResponse.HasTimestamps && len(msg.LyricsResponse.Lines) > 0 {
-			var lines []string
-			for _, line := range msg.LyricsResponse.Lines {
-				lines = append(lines, line.Text)
-			}
-			lyricsText = strings.Join(lines, "\n")
-		} else if msg.LyricsResponse.Lyrics != "" {
-			lyricsText = msg.LyricsResponse.Lyrics
-		} else {
-			noLyricsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
-			lyricsText = noLyricsStyle.Render("No lyrics available for this song.")
-		}
-		if msg.LyricsResponse.Source != "" {
-			sourceStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
-			lyricsText = lyricsText + "\n\n" + sourceStyle.Render(msg.LyricsResponse.Source)
-		}
-		m.LyricsView.SetContent(lyricsText)
+		m.CurrentLyrics = msg.LyricsResponse
+		m.updateLyricsView()
 		return m, nil
 	case tea.KeyMsg:
 		model, cmd := m.handleKeyPress(msg)
@@ -499,9 +499,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "a":
 		return m.addMusicToQueue()
 	case "r":
-		if m.FocusedOn == QueueList && m.MusicQueueList != nil {
-			if len(m.MusicQueueList.Model.Items()) > 0 {
-				m.MusicQueueList.Model.RemoveItem(m.MusicQueueList.GlobalIndex())
+		if m.FocusedOn == QueueList {
+			showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
+			if showRelated {
+				if len(m.RelatedList.Items()) > 0 {
+					m.RelatedList.RemoveItem(m.RelatedList.Index())
+				}
+			} else if m.MusicQueueList != nil {
+				if len(m.MusicQueueList.Model.Items()) > 0 {
+					m.MusicQueueList.Model.RemoveItem(m.MusicQueueList.GlobalIndex())
+				}
 			}
 		}
 	case "ctrl+l":
@@ -553,22 +560,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m.handleMusicChange(true)
 	case "ctrl+q", "t":
-		if m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "" {
-			m.RightColumnMode = RightColumnQueue
-		} else {
-			m.RightColumnMode = RightColumnRelated
-		}
+		m.toggleRightColumnMode()
 		return m, nil
 	case "q", "ctrl+c":
 		if m.FocusedOn == SearchBar {
-			return m, nil
-		}
-		if msg.String() == "q" && m.FocusedOn == QueueList && len(m.RelatedList.Items()) > 0 {
-			if m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "" {
-				m.RightColumnMode = RightColumnQueue
-			} else {
-				m.RightColumnMode = RightColumnRelated
-			}
 			return m, nil
 		}
 		if m.BackendProcess != nil && m.BackendProcess.Process != nil {
@@ -664,6 +659,83 @@ func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
 		m.FocusedOn = MainView
 	}
 	return m, nil
+}
+
+func (m *Model) toggleRightColumnMode() {
+	if m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "" {
+		m.RightColumnMode = RightColumnQueue
+		if m.MusicQueueList != nil && len(m.MusicQueueList.Model.Items()) > 0 {
+			m.MusicQueueList.Model.Select(0)
+		}
+	} else {
+		m.RightColumnMode = RightColumnRelated
+		if len(m.RelatedList.Items()) > 0 {
+			m.RelatedList.Select(0)
+		}
+	}
+}
+
+func (m *Model) updateLyricsView() {
+	if m.CurrentLyrics == nil {
+		return
+	}
+
+	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A855F7"))
+	inactiveStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#A1A1AA"))
+	sourceStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
+
+	if m.CurrentLyrics.HasTimestamps && len(m.CurrentLyrics.Lines) > 0 {
+		currentMS := int32(m.PlayedSeconds*1000) - 750
+		if currentMS < 0 {
+			currentMS = 0
+		}
+		activeIdx := -1
+
+		for i, line := range m.CurrentLyrics.Lines {
+			if line.StartTime <= currentMS {
+				activeIdx = i
+			} else {
+				break
+			}
+		}
+
+		if activeIdx < 0 && len(m.CurrentLyrics.Lines) > 0 {
+			activeIdx = 0
+		}
+
+		var lines []string
+		for i, line := range m.CurrentLyrics.Lines {
+			if i == activeIdx {
+				lines = append(lines, activeStyle.Render("▶ "+line.Text))
+			} else {
+				lines = append(lines, inactiveStyle.Render("  "+line.Text))
+			}
+		}
+
+		lyricsText := strings.Join(lines, "\n")
+		if m.CurrentLyrics.Source != "" {
+			lyricsText = lyricsText + "\n\n" + sourceStyle.Render(m.CurrentLyrics.Source)
+		}
+
+		m.LyricsView.SetContent(lyricsText)
+
+		if activeIdx >= 0 && m.LyricsView.Height > 0 {
+			targetOffset := activeIdx - (m.LyricsView.Height / 2)
+			if targetOffset < 0 {
+				targetOffset = 0
+			}
+			m.LyricsView.SetYOffset(targetOffset)
+		}
+	} else if m.CurrentLyrics.Lyrics != "" {
+		lyricsText := m.CurrentLyrics.Lyrics
+		if m.CurrentLyrics.Source != "" {
+			lyricsText = lyricsText + "\n\n" + sourceStyle.Render(m.CurrentLyrics.Source)
+		}
+		m.LyricsView.SetContent(lyricsText)
+	} else {
+		noLyricsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
+		m.LyricsView.SetContent(noLyricsStyle.Render("No lyrics available for this song."))
+	}
 }
 
 func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
@@ -1094,14 +1166,14 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
-				BrowseId: selectedItem.Track.ID,
+				VideoId: selectedItem.Track.ID,
 			})
 			return types.RelatedSongsMsg{
 				Related: relatedSongs,
 				Err:     err,
 			}
 		}
-		m, cmd := m.playTrackFromList(selectedItem, m.SelectedPlayListItems.Items())
+		m, cmd := m.playTrackFromList(selectedItem, listItemToChooseMusicFrom.Items())
 		return m, tea.Batch(cmd, relatedSongsCmd)
 
 	case types.Playlist:
@@ -1143,7 +1215,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
-					BrowseId: playlistTrack.Track.ID,
+					VideoId: playlistTrack.Track.ID,
 				})
 				return types.RelatedSongsMsg{
 					Related: relatedSongs,
@@ -1176,7 +1248,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
-					BrowseId: track.ID,
+					VideoId: track.ID,
 				})
 				return types.RelatedSongsMsg{
 					Related: relatedSongs,
@@ -1399,13 +1471,15 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		return getStreamURLResponse, nil
 	})
 
+	m.CurrentLyrics = nil
 	m.LyricsView.SetContent("  ⟳ Loading lyrics...")
 
 	lyricsCmd := func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		lyricsResponse, err := m.YtMusicClient.GetLyrics(ctx, &musicpb.GetLyricsRequest{
-			BrowseId: selectedMusic.Track.ID,
+			VideoId:    selectedMusic.Track.ID,
+			Timestamps: true,
 		})
 		return types.LyricsMsg{
 			LyricsResponse: lyricsResponse,
@@ -1445,11 +1519,6 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		Track:   &selectedMusic,
 	}
 
-	if m.MainViewMode == LyricsMode {
-		model, cmd := m.getMusicLyrics(m.SelectedTrack)
-		m = model
-		cmds = append(cmds, cmd)
-	}
 	return m, tea.Batch(cmds...)
 }
 
