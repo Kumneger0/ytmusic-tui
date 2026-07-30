@@ -281,6 +281,7 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 	defer func() {
 		if backendCmd != nil && backendCmd.Process != nil {
 			_ = backendCmd.Process.Signal(syscall.SIGTERM)
+			_ = backendCmd.Wait()
 		}
 	}()
 	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
