@@ -1,13 +1,13 @@
-//go:build windows
+//go:build darwin && amd64
 
 package backend
 
 import "embed"
 
-//go:embed python-windows.exe
+//go:embed binaries/python-darwin-amd64
 var PythonBackend embed.FS
 
 // PythonBacked is an alias for PythonBackend for backwards compatibility.
 var PythonBacked = PythonBackend
 
-const embedFileName = "python-windows.exe"
+const embedFilePath = "binaries/python-darwin-amd64"

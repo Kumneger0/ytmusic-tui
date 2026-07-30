@@ -13,9 +13,9 @@ import (
 // GetExecutablePath extracts the embedded Python backend executable to the user cache directory
 // and verifies its SHA256 integrity hash.
 func GetExecutablePath(fs embed.FS) (string, error) {
-	data, err := fs.ReadFile(embedFileName)
+	data, err := fs.ReadFile(embedFilePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read embedded backend (%s): %w", embedFileName, err)
+		return "", fmt.Errorf("failed to read embedded backend (%s): %w", embedFilePath, err)
 	}
 
 	hash := sha256.Sum256(data)

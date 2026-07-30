@@ -1,13 +1,13 @@
-//go:build linux
+//go:build darwin && arm64
 
 package backend
 
 import "embed"
 
-//go:embed python-linux
+//go:embed binaries/python-darwin-arm64
 var PythonBackend embed.FS
 
 // PythonBacked is an alias for PythonBackend for backwards compatibility.
 var PythonBacked = PythonBackend
 
-const embedFileName = "python-linux"
+const embedFilePath = "binaries/python-darwin-arm64"

@@ -12,20 +12,30 @@ permissions:
 
 jobs:
   build-python-backend:
-    name: Build Python Backend (${{ matrix.target_os }})
-    runs-on: ${{ matrix.os }}
+    name: Build Python Backend (${{ matrix.target_os }}-${{ matrix.target_arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - runner: ubuntu-24.04
             target_os: linux
-            binary_name: python-linux
-          - os: macos-latest
+            target_arch: amd64
+            binary_name: python-linux-amd64
+
+          - runner: macos-13
             target_os: darwin
-            binary_name: python-darwin
-          - os: windows-latest
+            target_arch: amd64
+            binary_name: python-darwin-amd64
+
+          - runner: macos-14
+            target_os: darwin
+            target_arch: arm64
+            binary_name: python-darwin-arm64
+
+          - runner: windows-2025
             target_os: windows
-            binary_name: python-windows.exe
+            target_arch: amd64
+            binary_name: python-windows-amd64.exe
 
     steps:
       - name: Checkout repository
@@ -58,21 +68,23 @@ jobs:
       - name: Build PyInstaller executable
         run: uv run pyinstaller main.spec
 
-      - name: Copy binary to backend directory
+      - name: Move and verify output binary
         shell: bash
         run: |
-          mkdir -p backend
+          mkdir -p backend/binaries
           if [ "${{ matrix.target_os }}" = "windows" ]; then
-            cp dist/main.exe backend/python-windows.exe
+            cp dist/main.exe backend/binaries/${{ matrix.binary_name }}
           else
-            cp dist/main backend/${{ matrix.binary_name }}
+            cp dist/main backend/binaries/${{ matrix.binary_name }}
           fi
+          ls -la backend/binaries/
+          test -f backend/binaries/${{ matrix.binary_name }}
 
       - name: Upload Python backend artifact
         uses: actions/upload-artifact@v4
         with:
-          name: python-backend-${{ matrix.target_os }}
-          path: backend/${{ matrix.binary_name }}
+          name: ${{ matrix.binary_name }}
+          path: backend/binaries/${{ matrix.binary_name }}
           if-no-files-found: error
 
   release:
@@ -100,28 +112,20 @@ jobs:
       - name: Generate Go Protobuf files
         run: make proto-go
 
-      - name: Download Linux Python backend artifact
+      - name: Download all Python backend artifacts
         uses: actions/download-artifact@v4
         with:
-          name: python-backend-linux
-          path: backend/
+          path: backend/binaries/
+          merge-multiple: true
 
-      - name: Download macOS Python backend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: python-backend-darwin
-          path: backend/
-
-      - name: Download Windows Python backend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: python-backend-windows
-          path: backend/
-
-      - name: Set permissions on Python backend executables
+      - name: Set permissions and verify all Python backend binaries exist
         run: |
-          chmod +x backend/python-linux backend/python-darwin
-          ls -la backend/
+          chmod +x backend/binaries/python-linux-amd64 backend/binaries/python-darwin-amd64 backend/binaries/python-darwin-arm64
+          ls -la backend/binaries/
+          test -f backend/binaries/python-linux-amd64
+          test -f backend/binaries/python-darwin-amd64
+          test -f backend/binaries/python-darwin-arm64
+          test -f backend/binaries/python-windows-amd64.exe
 
       - name: Install ALSA & cross-compile dependencies
         run: |

@@ -61,14 +61,17 @@ hooks: ## install git commit-msg hook for commitlint (local)
 server-build: ## build python to single executable 
 	@echo "building python to single executable"
 	.venv/bin/pyinstaller main.spec 
-	@mkdir -p backend
+	@mkdir -p backend/binaries
 	@GOOS=$$(go env GOOS); \
+	GOARCH=$$(go env GOARCH); \
 	if [ "$$GOOS" = "windows" ]; then \
-		cp dist/main.exe backend/python-windows.exe; \
+		cp dist/main.exe backend/binaries/python-windows-$$GOARCH.exe; \
+	elif [ "$$GOOS" = "darwin" ] && [ "$$GOARCH" = "arm64" ]; then \
+		cp dist/main backend/binaries/python-darwin-arm64; \
 	elif [ "$$GOOS" = "darwin" ]; then \
-		cp dist/main backend/python-darwin; \
+		cp dist/main backend/binaries/python-darwin-amd64; \
 	else \
-		cp dist/main backend/python-linux; \
+		cp dist/main backend/binaries/python-linux-amd64; \
 	fi
 
 .PHONY: proto

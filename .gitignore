@@ -27,6 +27,4 @@ wheels/
 .env
 browser.json
 gen/
-backend/python-linux
-backend/python-darwin
-backend/python-windows.exe
+backend/binaries/python-*
