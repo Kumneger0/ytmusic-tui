@@ -43,6 +43,15 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 		Use:   "ytmusic-tui",
 		Short: "youtube music player",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			legacyLockPath := filepath.Join(os.TempDir(), "clispot.lock")
+			if pidBytes, err := os.ReadFile(legacyLockPath); err == nil {
+				if pid, err := strconv.Atoi(string(pidBytes)); err == nil && isProcessRunning(pid) {
+					showAnotherProcessIsRunning(legacyLockPath)
+					os.Exit(1)
+				}
+				_ = os.Remove(legacyLockPath)
+			}
+
 			lockFilePath := filepath.Join(os.TempDir(), "ytmusic-tui.lock")
 
 			fileLock := flock.New(lockFilePath)

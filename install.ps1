@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 
 # Variables
 $repo = "kumneger0/ytmusic-tui"
-$ytmusic-tuiDir = "$env:LOCALAPPDATA\ytmusic-tui"
-$binDir = "$ytmusic-tuiDir\bin"
+$ytmusicTuiDir = "$env:LOCALAPPDATA\ytmusic-tui"
+$binDir = "$ytmusicTuiDir\bin"
 $exe = "$binDir\ytmusic-tui.exe"
 
 # Functions

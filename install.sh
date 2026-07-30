@@ -94,10 +94,10 @@ log "Installing ytmusic-tui v$version for $target..."
 
 download_uri="$releases_uri/download/v$version/ytmusic-tui_${target}.${ext}"
 
-ytmusic-tui_dir="$HOME/.ytmusic-tui"
-bin_dir="$ytmusic-tui_dir/bin"
+ytmusic_tui_dir="$HOME/.ytmusic-tui"
+bin_dir="$ytmusic_tui_dir/bin"
 exe="$bin_dir/ytmusic-tui"
-archive="$ytmusic-tui_dir/ytmusic-tui.$ext"
+archive="$ytmusic_tui_dir/ytmusic-tui.$ext"
 mkdir -p "$bin_dir"
 
 curl --fail --location --progress-bar --output "$archive" "$download_uri"
