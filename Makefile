@@ -60,16 +60,27 @@ hooks: ## install git commit-msg hook for commitlint (local)
 .PHONY: server-build
 server-build: ## build python to single executable 
 	@echo "building python to single executable"
+	@GOHOSTOS=$$(go env GOHOSTOS); \
+	GOHOSTARCH=$$(go env GOHOSTARCH); \
+	GOOS=$$(go env GOOS); \
+	GOARCH=$$(go env GOARCH); \
+	if [ "$$GOOS" != "$$GOHOSTOS" ] || [ "$$GOARCH" != "$$GOHOSTARCH" ]; then \
+		echo "Error: PyInstaller cannot cross-compile for $$GOOS/$$GOARCH on $$GOHOSTOS/$$GOHOSTARCH host"; \
+		exit 1; \
+	fi
 	.venv/bin/pyinstaller main.spec 
 	@mkdir -p backend/binaries
-	@GOOS=$$(go env GOOS); \
-	GOARCH=$$(go env GOARCH); \
-	if [ "$$GOOS" = "windows" ]; then \
-		cp dist/main.exe backend/binaries/python-windows-$$GOARCH.exe; \
-	elif [ "$$GOOS" = "darwin" ]; then \
+	@GOHOSTOS=$$(go env GOHOSTOS); \
+	GOHOSTARCH=$$(go env GOHOSTARCH); \
+	if [ "$$GOHOSTOS" = "windows" ] && [ "$$GOHOSTARCH" = "amd64" ]; then \
+		cp dist/main.exe backend/binaries/python-windows-amd64.exe; \
+	elif [ "$$GOHOSTOS" = "darwin" ] && [ "$$GOHOSTARCH" = "arm64" ]; then \
 		cp dist/main backend/binaries/python-darwin-arm64; \
-	else \
+	elif [ "$$GOHOSTOS" = "linux" ] && [ "$$GOHOSTARCH" = "amd64" ]; then \
 		cp dist/main backend/binaries/python-linux-amd64; \
+	else \
+		echo "Error: Unsupported host platform $$GOHOSTOS/$$GOHOSTARCH for backend build"; \
+		exit 1; \
 	fi
 
 .PHONY: proto
