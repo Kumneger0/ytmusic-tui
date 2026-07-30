@@ -36,6 +36,11 @@ func TestEmbeddedHashDeterministic(t *testing.T) {
 }
 
 func TestGetExecutablePath_ExtractsAndReuses(t *testing.T) {
+	tmpDir := t.TempDir()
+	orig := userCacheDir
+	userCacheDir = func() (string, error) { return tmpDir, nil }
+	defer func() { userCacheDir = orig }()
+
 	path1, err := GetExecutablePath(PythonBackend)
 	if err != nil {
 		t.Fatalf("first call: %v", err)
@@ -68,6 +73,11 @@ func TestGetExecutablePath_ExtractsAndReuses(t *testing.T) {
 }
 
 func TestGetExecutablePath_ReplacesStaleBinary(t *testing.T) {
+	tmpDir := t.TempDir()
+	orig := userCacheDir
+	userCacheDir = func() (string, error) { return tmpDir, nil }
+	defer func() { userCacheDir = orig }()
+
 	origPath, err := GetExecutablePath(PythonBackend)
 	if err != nil {
 		t.Fatalf("initial extract: %v", err)

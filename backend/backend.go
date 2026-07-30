@@ -10,6 +10,8 @@ import (
 	"runtime"
 )
 
+var userCacheDir = os.UserCacheDir
+
 // GetExecutablePath extracts the embedded Python backend executable to the user cache directory
 // and verifies its SHA256 integrity hash.
 func GetExecutablePath(fs embed.FS) (string, error) {
@@ -21,7 +23,7 @@ func GetExecutablePath(fs embed.FS) (string, error) {
 	hash := sha256.Sum256(data)
 	actualHash := fmt.Sprintf("%x", hash)
 
-	cacheDir, err := os.UserCacheDir()
+	cacheDir, err := userCacheDir()
 	if err != nil {
 		return "", err
 	}
