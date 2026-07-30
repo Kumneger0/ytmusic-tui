@@ -58,16 +58,18 @@ hooks: ## install git commit-msg hook for commitlint (local)
 
 
 .PHONY: server-build
- server-build: ## build python to single executable 
-		@echo "building python to single executable"
-		.venv/bin/pyinstaller --onefile \
-		 --collect-data ytmusicapi \
-		 grpc_server/main.py 
-		@mkdir -p backend
-		tmp=$$(mktemp backend/main.XXXXXX) && \
-			trap 'rm -f "$$tmp"' EXIT INT TERM && \
-			cp dist/main "$$tmp" && \
-			mv -f "$$tmp" backend/main
+server-build: ## build python to single executable 
+	@echo "building python to single executable"
+	.venv/bin/pyinstaller main.spec 
+	@mkdir -p backend
+	@GOOS=$$(go env GOOS); \
+	if [ "$$GOOS" = "windows" ]; then \
+		cp dist/main.exe backend/python-windows.exe; \
+	elif [ "$$GOOS" = "darwin" ]; then \
+		cp dist/main backend/python-darwin; \
+	else \
+		cp dist/main backend/python-linux; \
+	fi
 
 .PHONY: proto
 proto: proto-python proto-go ## generate protobuf files for both python and go
