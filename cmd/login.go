@@ -15,7 +15,7 @@ func newLoginCmd() *cobra.Command {
 		Short:        "login to YouTube Music",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			binaryPath, err := backend.GetExecutablePath(backend.PythonBacked)
+			binaryPath, err := backend.GetExecutablePath(backend.PythonBackend)
 			if err != nil {
 				return fmt.Errorf("failed to prepare backend executable: %w", err)
 			}
