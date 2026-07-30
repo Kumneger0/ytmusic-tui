@@ -27,8 +27,6 @@ wheels/
 .env
 browser.json
 gen/
-backend/main
 backend/python-linux
 backend/python-darwin
 backend/python-windows.exe
-main.spec
