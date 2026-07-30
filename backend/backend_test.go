@@ -92,13 +92,14 @@ func TestGetExecutablePath_ReplacesStaleBinary(t *testing.T) {
 	}
 }
 
-func TestWriteBinaryToCacheFolder(t *testing.T) {
+func TestWriteBinaryAtomically(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "testbin")
 	payload := []byte("#!/bin/sh\necho hello\n")
+	hash := fmt.Sprintf("%x", sha256.Sum256(payload))
 
-	if err := writeBinaryToCacheFolder(payload, target); err != nil {
-		t.Fatalf("writeBinaryToCacheFolder: %v", err)
+	if err := writeBinaryAtomically(payload, dir, target, hash); err != nil {
+		t.Fatalf("writeBinaryAtomically: %v", err)
 	}
 
 	got, err := os.ReadFile(target)
