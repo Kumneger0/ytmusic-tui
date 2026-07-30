@@ -90,6 +90,16 @@ jobs:
         with:
           go-version: '1.26.x'
 
+      - name: Install Protobuf Compiler & Go Plugins
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+      - name: Generate Go Protobuf files
+        run: make proto-go
+
       - name: Download Linux Python backend artifact
         uses: actions/download-artifact@v4
         with:
@@ -115,7 +125,6 @@ jobs:
 
       - name: Install ALSA & cross-compile dependencies
         run: |
-          sudo apt-get update
           sudo apt-get install -y pkg-config libasound2-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 
       - name: Run GoReleaser
