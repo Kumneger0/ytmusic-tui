@@ -68,8 +68,6 @@ server-build: ## build python to single executable
 		cp dist/main.exe backend/binaries/python-windows-$$GOARCH.exe; \
 	elif [ "$$GOOS" = "darwin" ] && [ "$$GOARCH" = "arm64" ]; then \
 		cp dist/main backend/binaries/python-darwin-arm64; \
-	elif [ "$$GOOS" = "darwin" ]; then \
-		cp dist/main backend/binaries/python-darwin-amd64; \
 	else \
 		cp dist/main backend/binaries/python-linux-amd64; \
 	fi
