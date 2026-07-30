@@ -27,5 +27,4 @@ wheels/
 .env
 browser.json
 gen/
-backend/main
-main.spec
+backend/binaries/python-*

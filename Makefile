@@ -58,16 +58,30 @@ hooks: ## install git commit-msg hook for commitlint (local)
 
 
 .PHONY: server-build
- server-build: ## build python to single executable 
-		@echo "building python to single executable"
-		.venv/bin/pyinstaller --onefile \
-		 --collect-data ytmusicapi \
-		 grpc_server/main.py 
-		@mkdir -p backend
-		tmp=$$(mktemp backend/main.XXXXXX) && \
-			trap 'rm -f "$$tmp"' EXIT INT TERM && \
-			cp dist/main "$$tmp" && \
-			mv -f "$$tmp" backend/main
+server-build: ## build python to single executable 
+	@echo "building python to single executable"
+	@GOHOSTOS=$$(go env GOHOSTOS); \
+	GOHOSTARCH=$$(go env GOHOSTARCH); \
+	GOOS=$$(go env GOOS); \
+	GOARCH=$$(go env GOARCH); \
+	if [ "$$GOOS" != "$$GOHOSTOS" ] || [ "$$GOARCH" != "$$GOHOSTARCH" ]; then \
+		echo "Error: PyInstaller cannot cross-compile for $$GOOS/$$GOARCH on $$GOHOSTOS/$$GOHOSTARCH host"; \
+		exit 1; \
+	fi
+	.venv/bin/pyinstaller main.spec 
+	@mkdir -p backend/binaries
+	@GOHOSTOS=$$(go env GOHOSTOS); \
+	GOHOSTARCH=$$(go env GOHOSTARCH); \
+	if [ "$$GOHOSTOS" = "windows" ] && [ "$$GOHOSTARCH" = "amd64" ]; then \
+		cp dist/main.exe backend/binaries/python-windows-amd64.exe; \
+	elif [ "$$GOHOSTOS" = "darwin" ] && [ "$$GOHOSTARCH" = "arm64" ]; then \
+		cp dist/main backend/binaries/python-darwin-arm64; \
+	elif [ "$$GOHOSTOS" = "linux" ] && [ "$$GOHOSTARCH" = "amd64" ]; then \
+		cp dist/main backend/binaries/python-linux-amd64; \
+	else \
+		echo "Error: Unsupported host platform $$GOHOSTOS/$$GOHOSTARCH for backend build"; \
+		exit 1; \
+	fi
 
 .PHONY: proto
 proto: proto-python proto-go ## generate protobuf files for both python and go
