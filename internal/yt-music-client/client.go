@@ -1,7 +1,7 @@
 package ytmusicclient
 
 import (
-	musicpb "github.com/kumneger0/clispot/gen"
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

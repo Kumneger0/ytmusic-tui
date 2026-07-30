@@ -11,10 +11,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ebitengine/oto/v3"
-	musicpb "github.com/kumneger0/clispot/gen"
-	"github.com/kumneger0/clispot/internal/command"
-	"github.com/kumneger0/clispot/internal/config"
-	"github.com/kumneger0/clispot/internal/types"
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"github.com/kumneger0/ytmusic-tui/internal/command"
+	"github.com/kumneger0/ytmusic-tui/internal/config"
+	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"github.com/smallnest/ringbuffer"
 )
 

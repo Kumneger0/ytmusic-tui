@@ -8,7 +8,7 @@ import (
 )
 
 func Init(dir string) *lumberjack.Logger {
-	logFilePath := filepath.Join(dir, "clispot.log")
+	logFilePath := filepath.Join(dir, "ytmusic-tui.log")
 
 	rotator := &lumberjack.Logger{
 		Filename:   logFilePath,

@@ -11,9 +11,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/godbus/dbus/v5"
-	musicpb "github.com/kumneger0/clispot/gen"
-	"github.com/kumneger0/clispot/internal/types"
-	"github.com/kumneger0/clispot/internal/youtube"
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"github.com/kumneger0/ytmusic-tui/internal/types"
+	"github.com/kumneger0/ytmusic-tui/internal/youtube"
 	"go.dalton.dog/bubbleup"
 )
 

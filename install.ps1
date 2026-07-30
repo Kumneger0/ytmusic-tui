@@ -2,10 +2,10 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 # Variables
-$repo = "kumneger0/clispot"
-$clispotDir = "$env:LOCALAPPDATA\clispot"
-$binDir = "$clispotDir\bin"
-$exe = "$binDir\clispot.exe"
+$repo = "kumneger0/ytmusic-tui"
+$ytmusic-tuiDir = "$env:LOCALAPPDATA\ytmusic-tui"
+$binDir = "$ytmusic-tuiDir\bin"
+$exe = "$binDir\ytmusic-tui.exe"
 
 # Functions
 function Write-Success {
@@ -25,7 +25,7 @@ function Test-Admin {
 
 # Checks
 if (Test-Admin) {
-    Write-Warning "The script is running as administrator. It is recommended to install clispot as a regular user."
+    Write-Warning "The script is running as administrator. It is recommended to install ytmusic-tui as a regular user."
     $choices = [System.Management.Automation.Host.ChoiceDescription[]] @(
         (New-Object System.Management.Automation.Host.ChoiceDescription '&Yes', 'Abort installation.'),
         (New-Object System.Management.Automation.Host.ChoiceDescription '&No', 'Resume installation.')
@@ -69,11 +69,11 @@ else {
     }
 }
 
-Write-Info "Installing clispot v$version for $target..."
+Write-Info "Installing ytmusic-tui v$version for $target..."
 
 # Download
-$archivePath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "clispot.tar.gz")
-$downloadUrl = "https://github.com/$repo/releases/download/v$version/clispot_$($target).tar.gz"
+$archivePath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "ytmusic-tui.tar.gz")
+$downloadUrl = "https://github.com/$repo/releases/download/v$version/ytmusic-tui_$($target).tar.gz"
 
 Write-Info "Downloading from $downloadUrl..."
 Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath -UseBasicParsing
@@ -90,17 +90,17 @@ tar -xzf $archivePath -C $binDir
 Remove-Item -Path $archivePath -Force -ErrorAction SilentlyContinue
 
 # PATH Update
-Write-Info "Adding clispot to PATH..."
+Write-Info "Adding ytmusic-tui to PATH..."
 $userPath = [Environment]::GetEnvironmentVariable('PATH', [EnvironmentVariableTarget]::User)
 if ($userPath -notlike "*$binDir*") {
     $newPath = "$userPath;$binDir"
     [Environment]::SetEnvironmentVariable('PATH', $newPath, [EnvironmentVariableTarget]::User)
     $env:PATH = "$env:PATH;$binDir"
-    Write-Success "clispot added to User PATH."
+    Write-Success "ytmusic-tui added to User PATH."
 }
 else {
-    Write-Info "clispot is already in PATH."
+    Write-Info "ytmusic-tui is already in PATH."
 }
 
-Write-Success "clispot v$version was successfully installed!"
-Write-Host "Restart your terminal to start using 'clispot'."
+Write-Success "ytmusic-tui v$version was successfully installed!"
+Write-Host "Restart your terminal to start using 'ytmusic-tui'."

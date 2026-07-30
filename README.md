@@ -18,7 +18,7 @@ check the [docs](https://ytmusic-tui.kumneger.dev) for the full lowdown on how t
 
 ## contributing
 
-wanna help? check [contributing.md](CONTRIBUTING.md) for the details. found a bug or got ideas? [open an issue](https://github.com/Kumneger0/clispot/issues)
+wanna help? check [contributing.md](CONTRIBUTING.md) for the details. found a bug or got ideas? [open an issue](https://github.com/Kumneger0/ytmusic-tui/issues)
 
 ## license
 

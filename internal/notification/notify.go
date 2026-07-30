@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/gen2brain/beeep"
-	"github.com/kumneger0/clispot/assets"
+	"github.com/kumneger0/ytmusic-tui/assets"
 )
 
 var (
@@ -26,7 +26,7 @@ func getAppLogo() *[]byte {
 }
 
 func getAppIconPath() string {
-	path := filepath.Join(os.TempDir(), "clispot-icon.png")
+	path := filepath.Join(os.TempDir(), "ytmusic-tui-icon.png")
 	once.Do(func() {
 		logoPNG := getAppLogo()
 		if logoPNG == nil {
@@ -43,7 +43,7 @@ func getAppIconPath() string {
 }
 
 func Notify(title string, message string) {
-	beeep.AppName = "Clispot"
+	beeep.AppName = "YTMusic-TUI"
 	logo := getAppIconPath()
 	shortenMessage := trimWithEllipsis(message, 300)
 	err := beeep.Notify(title, shortenMessage, logo)

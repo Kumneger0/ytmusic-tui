@@ -8,8 +8,8 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	musicpb "github.com/kumneger0/clispot/gen"
-	"github.com/kumneger0/clispot/internal/types"
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"go.dalton.dog/bubbleup"
 )
 

@@ -730,12 +730,20 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
             if browse_id is None:
                 return music_pb2.GetLyricsResponse()
-                
-            raw_lyrics = self.client.get_lyrics(
-                browse_id=browse_id,
-                timestamps=request.timestamps,
-            )
-            if not raw_lyrics:
+
+            raw_lyrics: object | None = None
+            
+            try:
+                raw_lyrics = self.client.get_lyrics(
+                  browse_id=browse_id,
+                  timestamps=request.timestamps,
+              )
+            except:
+                 raw_lyrics = self.client.get_lyrics(
+                                  browse_id=browse_id,
+                                  timestamps=not request.timestamps,
+                              )
+            if not raw_lyrics or raw_lyrics is None:
                 return music_pb2.GetLyricsResponse()
 
             def _get_val(obj: object, key: str) -> object:

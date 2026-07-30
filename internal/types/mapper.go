@@ -1,7 +1,7 @@
 package types
 
 import (
-	musicpb "github.com/kumneger0/clispot/gen"
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 )
 
 func MapThumbnailToImage(pb *musicpb.Thumbnail) Image {

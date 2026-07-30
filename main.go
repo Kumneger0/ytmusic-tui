@@ -3,7 +3,7 @@ package main
 import (
 	"log/slog"
 
-	"github.com/kumneger0/clispot/cmd"
+	"github.com/kumneger0/ytmusic-tui/cmd"
 )
 
 var (

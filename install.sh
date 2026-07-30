@@ -80,7 +80,7 @@ else
     command -v unzip >/dev/null || { log "unzip is required for installation." >&2; exit 1; }
 fi
 
-repo="kumneger0/clispot"
+repo="kumneger0/ytmusic-tui"
 releases_uri="https://github.com/$repo/releases"
 
 if [ -z "$tag" ]; then
@@ -90,14 +90,14 @@ fi
 
 version=${tag#v}
 
-log "Installing clispot v$version for $target..."
+log "Installing ytmusic-tui v$version for $target..."
 
-download_uri="$releases_uri/download/v$version/clispot_${target}.${ext}"
+download_uri="$releases_uri/download/v$version/ytmusic-tui_${target}.${ext}"
 
-clispot_dir="$HOME/.clispot"
-bin_dir="$clispot_dir/bin"
-exe="$bin_dir/clispot"
-archive="$clispot_dir/clispot.$ext"
+ytmusic-tui_dir="$HOME/.ytmusic-tui"
+bin_dir="$ytmusic-tui_dir/bin"
+exe="$bin_dir/ytmusic-tui"
+archive="$ytmusic-tui_dir/ytmusic-tui.$ext"
 mkdir -p "$bin_dir"
 
 curl --fail --location --progress-bar --output "$archive" "$download_uri"
@@ -167,6 +167,6 @@ case "$current_shell" in
         ;;
 esac
 
-log "Successfully installed clispot to $exe"
+log "Successfully installed ytmusic-tui to $exe"
 log "Please restart your terminal or source your shell config to apply changes."
-log "Run 'clispot --help' to get started!"
+log "Run 'ytmusic-tui --help' to get started!"

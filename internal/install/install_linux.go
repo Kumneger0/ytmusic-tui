@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/kumneger0/clispot/internal/types"
+	"github.com/kumneger0/ytmusic-tui/internal/types"
 )
 
 func commandExists(name string) bool {

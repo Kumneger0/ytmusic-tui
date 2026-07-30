@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-Before building clispot from source, ensure you have the following prerequisites installed:
+Before building ytmusic-tui from source, ensure you have the following prerequisites installed:
 
 - [Go](https://go.dev/dl/) version 1.25 or higher
 - Git
@@ -12,8 +12,8 @@ Before building clispot from source, ensure you have the following prerequisites
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/kumneger0/clispot.git
-   cd clispot
+   git clone https://github.com/kumneger0/ytmusic-tui.git
+   cd ytmusic-tui
    ```
 
 2. Create a Spotify Application:
@@ -47,4 +47,4 @@ Before building clispot from source, ensure you have the following prerequisites
    > ```
 
 If you encounter any issues during installation:  
-For additional help, please [open an issue](https://github.com/kumneger0/clispot/issues/new) on GitHub.
+For additional help, please [open an issue](https://github.com/kumneger0/ytmusic-tui/issues/new) on GitHub.
