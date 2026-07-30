@@ -16,7 +16,7 @@ func TestGetConfigDir_LinuxFallback(t *testing.T) {
 		return "/home/kune/.config", nil
 	}
 	dir := GetConfigDir("linux")
-	want := "/home/kune/.config/clispot"
+	want := "/home/kune/.config/ytmusic-tui"
 	assert.Equal(t, want, dir)
 }
 
@@ -30,7 +30,7 @@ func TestGetConfigDir_WindowsFallback(t *testing.T) {
 
 	want := filepath.Join(
 		`C:\Users\kune\AppData\Roaming`,
-		"clispot",
+		"ytmusic-tui",
 	)
 
 	t.Setenv("APPDATA", `C:\Users\kune\AppData\Roaming`)
@@ -49,7 +49,7 @@ func TestGetConfigDir_DarwinFallback(t *testing.T) {
 	dir := GetConfigDir("darwin")
 	want := filepath.Join(
 		`/Users/kune/Library/Application Support`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -64,7 +64,7 @@ func TestGetConfigDir_WithCustomConfigDir_Linux(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/home/kune/.custom-config")
 	t.Setenv("HOME", "/home/kune")
 	dir := GetConfigDir("linux")
-	want := "/home/kune/.custom-config/clispot"
+	want := "/home/kune/.custom-config/ytmusic-tui"
 	assert.Equal(t, want, dir)
 }
 
@@ -78,7 +78,7 @@ func TestGetConfigDir_WithCustomConfigDir_Darwin(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/home/kune/.custom-config")
 	t.Setenv("HOME", "/home/kune")
 	dir := GetConfigDir("darwin")
-	want := "/home/kune/.custom-config/clispot"
+	want := "/home/kune/.custom-config/ytmusic-tui"
 	assert.Equal(t, want, dir)
 }
 
@@ -93,7 +93,7 @@ func TestGetConfigDir_WithCustomConfigDir_Windows(t *testing.T) {
 	dir := GetConfigDir("windows")
 	want := filepath.Join(
 		`C:\Users\kune\AppData\Roaming`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -107,7 +107,7 @@ func TestGetStateDir_LinuxFallback(t *testing.T) {
 	}
 	t.Setenv("HOME", "/home/kune")
 	dir := GetStateDir("linux")
-	want := "/home/kune/.local/state/clispot"
+	want := "/home/kune/.local/state/ytmusic-tui"
 	assert.Equal(t, want, dir)
 }
 
@@ -122,7 +122,7 @@ func TestGetStateDir_WindowsFallback(t *testing.T) {
 	dir := GetStateDir("windows")
 	want := filepath.Join(
 		`C:\Users\kune\AppData\Local`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -138,7 +138,7 @@ func TestGetStateDir_DarwinFallback(t *testing.T) {
 	dir := GetStateDir("darwin")
 	want := filepath.Join(
 		`/Users/kune/Library/State`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -148,7 +148,7 @@ func TestGetStateDir_WithCustomStateDir_Linux(t *testing.T) {
 	dir := GetStateDir("linux")
 	want := filepath.Join(
 		`/home/kune/.custom-state`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -159,7 +159,7 @@ func TestGetStateDir_WithCustomStateDir_Darwin(t *testing.T) {
 	dir := GetStateDir("darwin")
 	want := filepath.Join(
 		`/Users/kune/Library/State`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -175,7 +175,7 @@ func TestGetStateDir_WithCustomStateDir_Windows(t *testing.T) {
 	dir := GetStateDir("windows")
 	want := filepath.Join(
 		`C:\Users\kune\AppData\Local`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -197,7 +197,7 @@ func TestGetCacheDir_LinuxFallback(t *testing.T) {
 	dir := GetCacheDir("linux")
 	want := filepath.Join(
 		`/home/kune/.cache`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -213,7 +213,7 @@ func TestGetCacheDir_WindowsFallback(t *testing.T) {
 	dir := GetCacheDir("windows")
 	want := filepath.Join(
 		`C:\Users\kune\AppData\Local`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }
@@ -235,7 +235,7 @@ func TestGetCacheDir_DarwinFallback(t *testing.T) {
 	dir := GetCacheDir("darwin")
 	want := filepath.Join(
 		`/Users/kune/Library/Caches`,
-		"clispot",
+		"ytmusic-tui",
 	)
 	assert.Equal(t, want, dir)
 }

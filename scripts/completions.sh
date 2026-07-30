@@ -3,5 +3,5 @@ set -e
 rm -rf completions
 mkdir completions
 for sh in bash zsh fish; do
-	go run main.go completion "$sh" >"completions/clispot.$sh"
+	go run main.go completion "$sh" >"completions/ytmusic-tui.$sh"
 done

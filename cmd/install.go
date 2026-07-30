@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/charmbracelet/huh"
-	"github.com/kumneger0/clispot/internal/command"
-	"github.com/kumneger0/clispot/internal/install"
+	"github.com/kumneger0/ytmusic-tui/internal/command"
+	"github.com/kumneger0/ytmusic-tui/internal/install"
 	"github.com/spf13/cobra"
 )
 

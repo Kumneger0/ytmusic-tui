@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ebitengine/oto/v3"
-	musicpb "github.com/kumneger0/clispot/gen"
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 )
 
 type NextPageURLType string

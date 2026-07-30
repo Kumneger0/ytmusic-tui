@@ -16,12 +16,12 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	backend "github.com/kumneger0/clispot/backend"
-	"github.com/kumneger0/clispot/internal/config"
-	"github.com/kumneger0/clispot/internal/headless"
-	logSetup "github.com/kumneger0/clispot/internal/logger"
-	"github.com/kumneger0/clispot/internal/youtube"
-	ytMusicClient "github.com/kumneger0/clispot/internal/yt-music-client"
+	backend "github.com/kumneger0/ytmusic-tui/backend"
+	"github.com/kumneger0/ytmusic-tui/internal/config"
+	"github.com/kumneger0/ytmusic-tui/internal/headless"
+	logSetup "github.com/kumneger0/ytmusic-tui/internal/logger"
+	"github.com/kumneger0/ytmusic-tui/internal/youtube"
+	ytMusicClient "github.com/kumneger0/ytmusic-tui/internal/yt-music-client"
 	"go.dalton.dog/bubbleup"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,9 +29,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/kumneger0/clispot/internal/mpris"
-	"github.com/kumneger0/clispot/internal/types"
-	"github.com/kumneger0/clispot/internal/ui"
+	"github.com/kumneger0/ytmusic-tui/internal/mpris"
+	"github.com/kumneger0/ytmusic-tui/internal/types"
+	"github.com/kumneger0/ytmusic-tui/internal/ui"
 )
 
 var (
@@ -40,10 +40,19 @@ var (
 
 func newRootCmd(version string, debug bool) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "clispot",
+		Use:   "ytmusic-tui",
 		Short: "youtube music player",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			lockFilePath := filepath.Join(os.TempDir(), "clispot.lock")
+			legacyLockPath := filepath.Join(os.TempDir(), "clispot.lock")
+			if pidBytes, err := os.ReadFile(legacyLockPath); err == nil {
+				if pid, err := strconv.Atoi(string(pidBytes)); err == nil && isProcessRunning(pid) {
+					showAnotherProcessIsRunning(legacyLockPath)
+					os.Exit(1)
+				}
+				_ = os.Remove(legacyLockPath)
+			}
+
+			lockFilePath := filepath.Join(os.TempDir(), "ytmusic-tui.lock")
 
 			fileLock := flock.New(lockFilePath)
 			locked, err := fileLock.TryLock()
@@ -89,7 +98,7 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 	}
 
 	cmd.AddCommand(newVersionCmd(version))
-	cmd.AddCommand(clispotLog())
+	cmd.AddCommand(ytmusicTuiLog())
 	cmd.AddCommand(ManCmd(cmd))
 	cmd.AddCommand(installDeps())
 	cmd.AddCommand(newLoginCmd())
@@ -107,7 +116,7 @@ func isProcessRunning(pid int) bool {
 
 func showAnotherProcessIsRunning(lockFilePath string) {
 	if runtime.GOOS == "windows" {
-		fmt.Fprintf(os.Stderr, "Another instance of clispot is already running.\n")
+		fmt.Fprintf(os.Stderr, "Another instance of ytmusic-tui is already running.\n")
 		return
 	}
 	pidBytes, readErr := os.ReadFile(lockFilePath)
@@ -126,11 +135,11 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 	}
 
 	if !isProcessRunning(pid) {
-		fmt.Fprintf(os.Stderr, "Another instance of clispot is not running (stale lock file for PID %d).\n", pid)
+		fmt.Fprintf(os.Stderr, "Another instance of ytmusic-tui is not running (stale lock file for PID %d).\n", pid)
 		fmt.Fprintf(os.Stderr, "Please try removing %s and running again if this persists.\n", lockFilePath)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "Another instance of clispot is already running (PID: %d).\n", pid)
+	fmt.Fprintf(os.Stderr, "Another instance of ytmusic-tui is already running (PID: %d).\n", pid)
 }
 
 func startPythonBackend(debug bool) (*exec.Cmd, error) {
@@ -255,7 +264,7 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 
 	if len(missingDeps) > 0 {
 		for _, dep := range missingDeps {
-			fmt.Printf("%s, is missing use clispot install to install the missing dependencies ", dep.ToolName)
+			fmt.Printf("%s, is missing use ytmusic-tui install to install the missing dependencies ", dep.ToolName)
 		}
 		os.Exit(1)
 	}

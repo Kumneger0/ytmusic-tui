@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	backend "github.com/kumneger0/clispot/backend"
+	backend "github.com/kumneger0/ytmusic-tui/backend"
 	"github.com/spf13/cobra"
 )
 

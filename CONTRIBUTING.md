@@ -1,15 +1,15 @@
-# Contributing to clispot
+# Contributing to ytmusic-tui
 
-Thank you for your interest in contributing to the Clispot CLI!
+Thank you for your interest in contributing to the YTMusic TUI!
 
 ## Development Setup
 
 1. **Fork and Clone**:
-   - Fork the [clispot](https://github.com/kumneger0/clispot) repository.
+   - Fork the [ytmusic-tui](https://github.com/kumneger0/ytmusic-tui) repository.
    - Clone your fork locally:
      ```bash
-     git clone https://github.com/YOUR_USERNAME/clispot.git
-     cd clispot
+     git clone https://github.com/YOUR_USERNAME/ytmusic-tui.git
+     cd ytmusic-tui
      ```
 
 2. **Prerequisites**:
@@ -27,7 +27,7 @@ Thank you for your interest in contributing to the Clispot CLI!
 
 - Follow standard Go formatting (`go fmt`).
 - Provide a clear description of the changes in your PR.
-- If you are adding a new feature, please update the documentation in the [clispot_docs](https://github.com/Kumneger0/clispot_docs) repository if applicable.
+- If you are adding a new feature, please update the documentation in the [ytmusic-tui_docs](https://github.com/Kumneger0/ytmusic-tui_docs) repository if applicable.
 
 ## Reporting Issues
 

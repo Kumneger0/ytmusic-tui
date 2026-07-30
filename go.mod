@@ -1,4 +1,4 @@
-module github.com/kumneger0/clispot
+module github.com/kumneger0/ytmusic-tui
 
 go 1.26
 

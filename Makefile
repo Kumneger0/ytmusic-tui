@@ -1,4 +1,4 @@
-projectname?=clispot
+projectname?=ytmusic-tui
 
 default: help
 
@@ -14,13 +14,13 @@ build: server-build ## build the Go application
 
 
 .PHONY: install
-install: build ## build and install clispot to /usr/local/bin
-	@echo "--> Installing clispot to /usr/local/bin..."
+install: build ## build and install ytmusic-tui to /usr/local/bin
+	@echo "--> Installing ytmusic-tui to /usr/local/bin..."
 	@sudo cp $(projectname) /usr/local/bin/
-	@echo "--> Installation complete. Run 'clispot' to start."
+	@echo "--> Installation complete. Run 'ytmusic-tui' to start."
 
 .PHONY: run
-run: build ## build and run clispot
+run: build ## build and run ytmusic-tui
 	@./$(projectname)
 
 .PHONY: bootstrap	
@@ -107,7 +107,7 @@ proto-python:
 proto-go: 
 	@echo "Generating Go protobuf files..."
 	@mkdir -p gen
-	protoc -Iproto --go_out=gen --go_opt=module=github.com/kumneger0/clispot/core/gen --go-grpc_out=gen --go-grpc_opt=module=github.com/kumneger0/clispot/core/gen proto/music.proto
+	protoc -Iproto --go_out=gen --go_opt=module=github.com/kumneger0/ytmusic-tui/gen --go-grpc_out=gen --go-grpc_opt=module=github.com/kumneger0/ytmusic-tui/gen proto/music.proto
 	@echo "Generated Go files successfully."
 
 .PHONY: server-watch

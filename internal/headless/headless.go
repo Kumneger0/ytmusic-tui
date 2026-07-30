@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	musicpb "github.com/kumneger0/clispot/gen"
-	"github.com/kumneger0/clispot/internal/types"
-	"github.com/kumneger0/clispot/internal/ui"
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"github.com/kumneger0/ytmusic-tui/internal/types"
+	"github.com/kumneger0/ytmusic-tui/internal/ui"
 )
 
 type UserLibrary struct {
