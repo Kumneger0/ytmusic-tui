@@ -26,7 +26,7 @@ func GetExecutablePath(fs embed.FS) (string, error) {
 		return "", err
 	}
 
-	appDir := filepath.Join(cacheDir, "yt-music-tui")
+	appDir := filepath.Join(cacheDir, "ytmusic-tui")
 	if err := os.MkdirAll(appDir, 0755); err != nil {
 		return "", err
 	}

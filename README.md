@@ -1,4 +1,4 @@
-# yt-music-tui
+# ytmusic-tui
 
 listen to youtube music in ur terminal no cap
 
