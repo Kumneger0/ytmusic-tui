@@ -1,50 +1,136 @@
-name: goreleaser
+name: Release
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
+  build-python-backend:
+    name: Build Python Backend (${{ matrix.target_os }}-${{ matrix.target_arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        goarch: [amd64]
+        include:
+          - runner: ubuntu-24.04
+            target_os: linux
+            target_arch: amd64
+            binary_name: python-linux-amd64
+
+          - runner: macos-14
+            target_os: darwin
+            target_arch: arm64
+            binary_name: python-darwin-arm64
+
+          - runner: windows-2025
+            target_os: windows
+            target_arch: amd64
+            binary_name: python-windows-amd64.exe
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Generate Protobuf files (Python)
+        shell: bash
+        run: |
+          mkdir -p grpc_server/gen
+          touch grpc_server/gen/__init__.py
+          uv run python -m grpc_tools.protoc \
+            -Iproto \
+            --python_out=grpc_server/gen \
+            --grpc_python_out=grpc_server/gen \
+            --pyi_out=grpc_server/gen \
+            proto/music.proto
+          python -c "p='grpc_server/gen/music_pb2_grpc.py'; content=open(p).read(); open(p,'w').write(content.replace('import music_pb2 as', 'from . import music_pb2 as'))"
+
+      - name: Build PyInstaller executable
+        run: uv run pyinstaller main.spec
+
+      - name: Move and verify output binary
+        shell: bash
+        run: |
+          mkdir -p backend/binaries
+          if [ "${{ matrix.target_os }}" = "windows" ]; then
+            cp dist/main.exe backend/binaries/${{ matrix.binary_name }}
+          else
+            cp dist/main backend/binaries/${{ matrix.binary_name }}
+          fi
+          ls -la backend/binaries/
+          test -f backend/binaries/${{ matrix.binary_name }}
+
+      - name: Upload Python backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: backend/binaries/${{ matrix.binary_name }}
+          if-no-files-found: error
+
+  release:
+    name: Release Go Binaries via GoReleaser
+    needs: build-python-backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.26.x
+          go-version: '1.26.x'
+
+      - name: Install Protobuf Compiler & Go Plugins
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+      - name: Generate Go Protobuf files
+        run: make proto-go
+
+      - name: Download all Python backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: backend/binaries/
+          merge-multiple: true
+
+      - name: Set permissions and verify all Python backend binaries exist
+        run: |
+          chmod +x backend/binaries/python-linux-amd64 backend/binaries/python-darwin-arm64
+          ls -la backend/binaries/
+          test -f backend/binaries/python-linux-amd64
+          test -f backend/binaries/python-darwin-arm64
+          test -f backend/binaries/python-windows-amd64.exe
 
       - name: Install ALSA & cross-compile dependencies
         run: |
-          sudo apt-get update
           sudo apt-get install -y pkg-config libasound2-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 
-
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@v6
         with:
           version: '~> v2'
-          args: release --clean
+          args: release --clean --skip=validate
         env:
           CGO_ENABLED: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux-${{ matrix.goarch }}-artifacts
-          path: dist/
-

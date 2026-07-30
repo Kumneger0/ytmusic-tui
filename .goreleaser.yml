@@ -32,6 +32,12 @@ builds:
       - goos: linux
         goarch: "386"
       - goos: darwin
+        goarch: amd64
+      - goos: darwin
+        goarch: "386"
+      - goos: windows
+        goarch: arm64
+      - goos: windows
         goarch: "386"
     
 

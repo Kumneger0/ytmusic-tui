@@ -137,7 +137,7 @@ func startPythonBackend(debug bool) (*exec.Cmd, error) {
 	if debug {
 		return nil, nil
 	}
-	return backend.StartBackend(backend.PythonBacked)
+	return backend.StartBackend(backend.PythonBackend)
 }
 
 func runRoot(cmd *cobra.Command, debug bool) error {
@@ -275,11 +275,13 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 	backendCmd, err := startPythonBackend(debug)
 	if err != nil {
 		slog.Error(err.Error())
-		log.Fatal(err)
+		fmt.Println(err.Error())
+		os.Exit(1)
 	}
 	defer func() {
 		if backendCmd != nil && backendCmd.Process != nil {
 			_ = backendCmd.Process.Signal(syscall.SIGTERM)
+			_ = backendCmd.Wait()
 		}
 	}()
 	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
