@@ -738,11 +738,11 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                   browse_id=browse_id,
                   timestamps=request.timestamps,
               )
-            except:
-                 raw_lyrics = self.client.get_lyrics(
-                                  browse_id=browse_id,
-                                  timestamps=not request.timestamps,
-                              )
+            except Exception:
+                raw_lyrics = self.client.get_lyrics(
+                    browse_id=browse_id,
+                    timestamps=not request.timestamps,
+                )
             if not raw_lyrics or raw_lyrics is None:
                 return music_pb2.GetLyricsResponse()
 
