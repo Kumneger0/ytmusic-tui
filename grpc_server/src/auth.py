@@ -3,7 +3,9 @@ import os
 import re
 import sys
 import tempfile
+from collections import abc
 from pathlib import Path
+from typing import final, override
 
 from ytmusicapi import YTMusic, setup
 
@@ -308,9 +310,12 @@ def sanitize_headers_for_ytmusicapi(raw: str) -> str:
 
     return "\n".join(cleaned)
 
-
+@final
 class ReuseHTTPServer(HTTPServer):
     allow_reuse_address = True
+
+
+
 
 
 def process_raw_headers_via_ytmusicapi(raw_headers: str, filepath: Path | None = None) -> tuple[bool, str, Path]:
@@ -331,11 +336,11 @@ def process_raw_headers_via_ytmusicapi(raw_headers: str, filepath: Path | None =
 
     try:
         sanitized = sanitize_headers_for_ytmusicapi(raw_headers)
-        setup(filepath=str(temp_path), headers_raw=sanitized)
+        _ = setup(filepath=str(temp_path), headers_raw=sanitized)
 
         success, err_msg = test_authentication(temp_path)
         if success:
-            temp_path.replace(target_path)
+            _ = temp_path.replace(target_path)
             return True, "Login successful", target_path
         else:
             if temp_path.exists():
@@ -347,9 +352,9 @@ def process_raw_headers_via_ytmusicapi(raw_headers: str, filepath: Path | None =
         return False, str(e), target_path
 
 
-from typing import Mapping
 
 class WebLoginHandler(BaseHTTPRequestHandler):
+    @override
     def log_message(self, format: str, *args: object) -> None:
         pass
 
@@ -358,7 +363,7 @@ class WebLoginHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(LOGIN_HTML.encode("utf-8"))
+            _ = self.wfile.write(LOGIN_HTML.encode("utf-8"))
         else:
             self.send_response(404)
             self.end_headers()
@@ -391,11 +396,11 @@ class WebLoginHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    def _send_json(self, status_code: int, data: Mapping[str, object]):
+    def _send_json(self, status_code: int, data: abc.Mapping[str, object]):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode("utf-8"))
+        _ = self.wfile.write(json.dumps(data).encode("utf-8"))
 
 
 def start_web_login_server() -> None:
@@ -404,17 +409,11 @@ def start_web_login_server() -> None:
     httpd = ReuseHTTPServer(server_address, WebLoginHandler)
     url = f"http://localhost:{port}"
 
-    print("================================================================================")
-    print("  YOUTUBE MUSIC WEB LOGIN SERVER IS RUNNING")
-    print("================================================================================")
     print(f"  URL: {url}")
-    print("--------------------------------------------------------------------------------")
     print("  Opening browser automatically...")
-    print("  If your browser does not open automatically, open the URL above manually.")
-    print("================================================================================\n")
 
     try:
-        webbrowser.open(url)
+        _ = webbrowser.open(url)
     except Exception:
         pass
 
@@ -456,12 +455,10 @@ def _process_login_headers(raw_headers: str) -> None:
 
     success, err_msg, browser_json_path = process_raw_headers_via_ytmusicapi(raw_headers)
     if success:
-        print("\n================================================================================")
         print("  AUTHENTICATION SUCCESSFUL!")
-        print(f"  Saved credentials to: {browser_json_path}")
+        print(f" Saved credentials to: {browser_json_path}")
         print("  You may now close your browser, exit the server (Ctrl+C), and run")
         print("  your program normally without the --login flag!")
-        print("================================================================================\n")
     else:
         print(f"\n[Error] {err_msg}")
         sys.exit(1)

@@ -1,4 +1,5 @@
 from typing import cast, Any
+from ytmusicapi.models.lyrics import Lyrics, TimedLyrics
 from ytmusicapi import  YTMusic, LikeStatus
 from yt_dlp import YoutubeDL
 
@@ -165,9 +166,51 @@ class MusicClient:
         raw_related: object = self.client.get_song_related(browseId=browse_id)
         return cast(list[dict[str, Any]], cast(object, raw_related))
 
-    def get_lyrics(self, browse_id: str, timestamps: bool = False) -> object:
-        raw_lyrics: object = self.client.get_lyrics(browseId=browse_id, timestamps=timestamps)
-        return raw_lyrics
+    def get_lyrics(self, browse_id: str, timestamps: bool = False) -> Lyrics | TimedLyrics | None:
+        if timestamps:
+            try:
+                return self.client.get_lyrics(browseId=browse_id, timestamps=True)
+            except (KeyError, Exception):
+                result = self._get_timed_lyrics_raw(browse_id)
+                if result is not None:
+                    return result
+
+        try:
+            return self.client.get_lyrics(browseId=browse_id, timestamps=False)
+        except Exception:
+            return None
+
+    def _get_timed_lyrics_raw(self, browse_id: str) -> TimedLyrics | None:
+        """Parse timed lyrics directly from the mobile API response."""
+        try:
+            from ytmusicapi.mixins.browsing import TIMESTAMPED_LYRICS
+            from ytmusicapi.navigation import nav
+            from ytmusicapi.models.lyrics import LyricLine
+
+            with self.client.as_mobile():
+                response = self.client._send_request("browse", {"browseId": browse_id})
+
+            data = nav(response, TIMESTAMPED_LYRICS, True)
+            if not isinstance(data, dict) or "timedLyricsData" not in data:
+                return None
+
+            lines: list[LyricLine] = []
+            for item in data["timedLyricsData"]:
+                text = item.get("lyricLine", "")
+                cue = item.get("cueRange") or {}
+                start = int(cue.get("startTimeMilliseconds", 0)) if isinstance(cue, dict) else 0
+                end = int(cue.get("endTimeMilliseconds", 0)) if isinstance(cue, dict) else 0
+                meta = cue.get("metadata") if isinstance(cue, dict) else None
+                lid = int(meta["id"]) if isinstance(meta, dict) and "id" in meta else 0
+                lines.append(LyricLine(text=text, start_time=start, end_time=end, id=lid))
+
+            return TimedLyrics(
+                lyrics=lines,
+                source=data.get("sourceMessage"),
+                hasTimestamps=True,
+            )
+        except Exception:
+            return None
 
     def get_watch_playlist(self, video_id: str) -> dict[str, Any]:
         raw_watch: object = self.client.get_watch_playlist(videoId=video_id)

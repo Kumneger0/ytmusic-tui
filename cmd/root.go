@@ -102,6 +102,7 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 	cmd.AddCommand(ManCmd(cmd))
 	cmd.AddCommand(installDeps())
 	cmd.AddCommand(newLoginCmd())
+	cmd.AddCommand(newExtractCookieCmd())
 	return cmd
 }
 
