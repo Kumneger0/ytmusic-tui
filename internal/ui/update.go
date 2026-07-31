@@ -365,7 +365,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.LyricsView.SetContent(msg.Err.Error())
 			return m, alertCmd
 		}
-		if msg.LyricsResponse == nil {
+		if msg.LyricsResponse == nil || (msg.LyricsResponse.Lyrics == "" && len(msg.LyricsResponse.Lines) == 0) {
 			noLyricsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
 			m.LyricsView.SetContent(noLyricsStyle.Render("No lyrics found for this song."))
 			m.CurrentLyrics = nil
@@ -559,7 +559,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.handleMusicChange(true)
-	case "ctrl+q", "t":
+	case "ctrl+q":
 		m.toggleRightColumnMode()
 		return m, nil
 	case "q", "ctrl+c":

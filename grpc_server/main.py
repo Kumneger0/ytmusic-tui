@@ -1,5 +1,6 @@
 from concurrent import futures
 from types import FrameType, UnionType
+from ytmusicapi.models.lyrics import Lyrics, TimedLyrics
 import grpc
 import os
 import sys
@@ -15,6 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 from grpc_server.gen import music_pb2, music_pb2_grpc  # pyright: ignore[reportImplicitRelativeImport]
 
 from grpc_server.src.auth import get_browser_json_path, run_login_flow  # pyright: ignore[reportImplicitRelativeImport]
+from grpc_server.src.cookie_extractor import run_cookie_extraction  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.client import MusicClient  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]
     YTHomeSection,
@@ -722,28 +724,17 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.GetLyricsResponse:
         try:
-            browse_id = None
             watch_data = self.client.get_watch_playlist(request.videoId)
             lyrics_id = watch_data.get("lyrics")
-            if isinstance(lyrics_id, str) and lyrics_id:
-                browse_id = lyrics_id
-
-            if browse_id is None:
+            if not isinstance(lyrics_id, str) or not lyrics_id:
                 return music_pb2.GetLyricsResponse()
 
-            raw_lyrics: object | None = None
-            
-            try:
-                raw_lyrics = self.client.get_lyrics(
-                  browse_id=browse_id,
-                  timestamps=request.timestamps,
-              )
-            except Exception:
-                raw_lyrics = self.client.get_lyrics(
-                    browse_id=browse_id,
-                    timestamps=not request.timestamps,
-                )
-            if not raw_lyrics or raw_lyrics is None:
+            raw_lyrics = self.client.get_lyrics(
+                browse_id=lyrics_id,
+                timestamps=request.timestamps,
+            )
+
+            if raw_lyrics is None:
                 return music_pb2.GetLyricsResponse()
 
             def _get_val(obj: object, key: str) -> object:
@@ -780,8 +771,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             return response
         except Exception as e:
             print(f"Error in GetLyrics: {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
             return music_pb2.GetLyricsResponse()
 
 
@@ -819,5 +808,14 @@ if __name__ == "__main__":
         if login_idx + 1 < len(args) and not args[login_idx + 1].startswith("-"):
             file_arg = args[login_idx + 1]
         run_login_flow(file_path=file_arg)
+    elif len(sys.argv) > 1 and "--extract-cookie" in sys.argv:
+        args = sys.argv[1:]
+        idx = args.index("--extract-cookie")
+        if idx + 1 < len(args) and not args[idx + 1].startswith("-"):
+            browser_name = args[idx + 1]
+        else:
+            print("Error: --extract-cookie requires a browser name argument", file=sys.stderr)
+            sys.exit(1)
+        run_cookie_extraction(browser_name)
     else:
         serve()
