@@ -109,7 +109,7 @@ jobs:
         run: make proto-go
 
       - name: Download all Python backend artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: backend/binaries/
           merge-multiple: true
