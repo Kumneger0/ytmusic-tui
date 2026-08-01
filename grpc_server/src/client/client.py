@@ -29,6 +29,7 @@ class MusicClient:
         self.auth_file = auth_file
         self._client: YTMusic | None = None
         self._lock = threading.Lock()
+        self._generation = 0
 
     def get_client(self) -> YTMusic:
         if self._client is None:
@@ -42,22 +43,27 @@ class MusicClient:
         if self.auth_file:
             try:
                 self._client = YTMusic(auth=self.auth_file)
+                self._generation += 1
                 return
             except Exception as e:
                 print(f"Error initializing YTMusic with auth_file {self.auth_file}: {e}")
         self._client = YTMusic()
+        self._generation += 1
 
-    def reset_client(self) -> None:
+    def reset_client(self, known_generation: int | None = None) -> None:
         with self._lock:
+            if known_generation is not None and known_generation != self._generation:
+                return  # Another thread already reset the client for this failure.
             print("Resetting YTMusic client due to error/session corruption...")
             self._init_client()
 
     def execute(self, func: Callable[[YTMusic], T]) -> T:
+        generation = self._generation
         try:
             return func(self.get_client())
         except Exception as e:
             print(f"YTMusic request execution failed ({e}). Resetting client and retrying once...")
-            self.reset_client()
+            self.reset_client(known_generation=generation)
             return func(self.get_client())
     def get_stream_url_and_duration(self, video_id:str)  -> GetStreamURLResponse:
         full_url: str = "https://www.youtube.com/watch?v=" + video_id
@@ -122,15 +128,19 @@ class MusicClient:
             video_details = song_dict.get("videoDetails")
             if not isinstance(video_details, dict):
                 return cast(YTSongResponse, cast(object, {}))
-            track: YTSongResponse = cast(YTSongResponse, cast(object, video_details))
-            track_video_id = track.get("videoId")
-            if isinstance(track_video_id, str):
+            return cast(YTSongResponse, cast(object, video_details))
+
+        track = self.execute(_fetch)
+        track_video_id = track.get("videoId")
+        if isinstance(track_video_id, str):
+            try:
                 stream_url_and_duration = self.get_stream_url_and_duration(video_id=track_video_id)
                 track["url"] = stream_url_and_duration.get("url")
                 if stream_url_and_duration.get("duration") is not None:
                     track["lengthSeconds"] = str(stream_url_and_duration.get("duration"))
-            return track
-        return self.execute(_fetch)
+            except Exception as e:
+                print(f"Error extracting stream url for track {track_video_id}: {e}")
+        return track
 
     def get_album_tracks(self, browse_id: str) -> YTAlbumResponse:
         return self.execute(lambda c: cast(YTAlbumResponse, cast(object, c.get_album(browseId=browse_id))))
@@ -194,12 +204,13 @@ class MusicClient:
                 res = self.execute(lambda c: c.get_lyrics(browseId=browse_id, timestamps=True))
                 if res and (isinstance(res, dict) and (res.get("hasTimestamps") or res.get("lyrics"))):
                     return cast(dict[str, Any], res)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Failed to fetch timed lyrics via web API: {e}")
 
         try:
             return self.execute(lambda c: c.get_lyrics(browseId=browse_id, timestamps=False))
-        except Exception:
+        except Exception as e:
+            print(f"Failed to fetch plain lyrics: {e}")
             return None
 
     def _get_timed_lyrics_raw(self, browse_id: str) -> TimedLyrics | None:
