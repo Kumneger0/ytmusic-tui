@@ -1261,10 +1261,16 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 			}
 			m, cmd := m.PlaySelectedMusic(playlistTrack)
 			return m, tea.Batch(cmd, relatedSongsCmd)
+		} else if selectedItem.ContentType == "artist" || strings.HasPrefix(selectedItem.BrowseId, "UC") || selectedItem.Subscribers != "" {
+			return m.navigateToDetailView(m.getArtistTracks(selectedItem.BrowseId))
 		} else if selectedItem.ContentType == "album" || strings.HasPrefix(selectedItem.BrowseId, "MPRE") {
 			return m.navigateToDetailView(m.getAlbumTracks(selectedItem.BrowseId))
-		} else if selectedItem.PlaylistId != "" || selectedItem.ContentType == "playlist" {
-			return m.navigateToDetailView(m.getPlaylistItems(selectedItem.PlaylistId))
+		} else if selectedItem.ContentType == "playlist" || (selectedItem.PlaylistId != "" && selectedItem.ContentType == "") {
+			playlistID := selectedItem.PlaylistId
+			if playlistID == "" {
+				playlistID = selectedItem.BrowseId
+			}
+			return m.navigateToDetailView(m.getPlaylistItems(playlistID))
 		} else if selectedItem.BrowseId != "" {
 			return m.navigateToDetailView(m.getArtistTracks(selectedItem.BrowseId))
 		}

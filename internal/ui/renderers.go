@@ -175,6 +175,8 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		if item.SongRelatedContent != nil {
 			if item.VideoId != "" || item.ContentType == "song" || item.ContentType == "video" {
 				icon = "♫"
+			} else if item.ContentType == "artist" || strings.HasPrefix(item.BrowseId, "UC") || item.Subscribers != "" {
+				icon = "♪"
 			} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseId, "MPRE") {
 				icon = "◉"
 			} else {
