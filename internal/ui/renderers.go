@@ -373,14 +373,67 @@ func renderPlayerControls(m *Model) string {
 	}
 
 	var parts []string
-	parts = append(parts,
-		key.Render("⏮")+label.Render(" prev")+dimmerStyle.Render("(b)"),
-		key.Render(playPauseIcon)+label.Render(playPauseLabel)+dimmerStyle.Render("(space)"),
-		key.Render("⏭")+label.Render(" next")+dimmerStyle.Render("(n)"),
-		key.Render("♥")+label.Render(" like")+dimmerStyle.Render("(l)"),
-		key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
-		key.Render("📝")+label.Render(" lyrics")+dimmerStyle.Render("(ctrl+l)"),
-		key.Render("🔄")+label.Render(" queue/related")+dimmerStyle.Render("(ctrl+q)"),
-	)
+
+	switch m.FocusedOn {
+	case SideView:
+		parts = append(parts,
+			key.Render("↵")+label.Render(" select")+dimmerStyle.Render("(enter)"),
+			key.Render("→")+label.Render(" main view")+dimmerStyle.Render("(tab)"),
+			key.Render("↓")+label.Render(" player")+dimmerStyle.Render("(shift+tab)"),
+			key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
+			key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
+		)
+	case MainView:
+		if m.MainViewMode == LyricsMode {
+			parts = append(parts,
+				key.Render("↕")+label.Render(" scroll")+dimmerStyle.Render("(j/k)"),
+				key.Render("→")+label.Render(" queue")+dimmerStyle.Render("(tab)"),
+				key.Render("←")+label.Render(" sidebar")+dimmerStyle.Render("(shift+tab)"),
+				key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
+				key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
+			)
+		} else {
+			parts = append(parts,
+				key.Render("▶")+label.Render(" play")+dimmerStyle.Render("(enter)"),
+				key.Render("+")+label.Render(" add queue")+dimmerStyle.Render("(a)"),
+				key.Render("→")+label.Render(" queue")+dimmerStyle.Render("(tab)"),
+				key.Render("←")+label.Render(" sidebar")+dimmerStyle.Render("(shift+tab)"),
+				key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
+				key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
+			)
+		}
+	case QueueList:
+		parts = append(parts,
+			key.Render("▶")+label.Render(" play")+dimmerStyle.Render("(enter)"),
+			key.Render("-")+label.Render(" remove")+dimmerStyle.Render("(d)"),
+			key.Render("↓")+label.Render(" player")+dimmerStyle.Render("(tab)"),
+			key.Render("←")+label.Render(" main view")+dimmerStyle.Render("(shift+tab)"),
+			key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
+			key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
+		)
+	case Player:
+		parts = append(parts,
+			key.Render(playPauseIcon)+label.Render(playPauseLabel)+dimmerStyle.Render("(space)"),
+			key.Render("⏮")+label.Render(" prev")+dimmerStyle.Render("(b)"),
+			key.Render("⏭")+label.Render(" next")+dimmerStyle.Render("(n)"),
+			key.Render("♥")+label.Render(" like")+dimmerStyle.Render("(l)"),
+			key.Render("📝")+label.Render(" lyrics")+dimmerStyle.Render("(ctrl+l)"),
+			key.Render("←")+label.Render(" sidebar")+dimmerStyle.Render("(tab)"),
+			key.Render("→")+label.Render(" queue")+dimmerStyle.Render("(shift+tab)"),
+			key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
+		)
+	case SearchBar:
+		parts = append(parts,
+			key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(enter)"),
+			key.Render("✕")+label.Render(" cancel")+dimmerStyle.Render("(esc)"),
+		)
+	default:
+		parts = append(parts,
+			key.Render(playPauseIcon)+label.Render(playPauseLabel)+dimmerStyle.Render("(space)"),
+			key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
+			key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
+		)
+	}
+
 	return strings.Join(parts, sep)
 }

@@ -18,13 +18,16 @@ func newTestModel() Model {
 		FocusedOn:    SideView,
 		MainViewMode: HomePageMode,
 		Alert:        *bubbleup.NewAlertModel(80, false, 5*time.Second),
+		Width:        120,
+		Height:       40,
 	}
+	dims := CalculateLayoutDimensions(&m)
 	d := CustomDelegate{Model: &m}
-	m.SideBarList = list.New(nil, d, 10, 20)
-	m.SelectedPlayListItems = list.New(nil, d, 10, 20)
-	m.HomePageList = list.New(nil, d, 10, 20)
-	m.SearchResult = list.New(nil, d, 10, 20)
-	m.RelatedList = list.New(nil, d, 10, 20)
+	m.SideBarList = list.New(nil, d, dims.SidebarWidth, dims.ContentHeight)
+	m.SelectedPlayListItems = list.New(nil, d, dims.MainWidth, dims.ContentHeight)
+	m.HomePageList = list.New(nil, d, dims.MainWidth, dims.ContentHeight)
+	m.SearchResult = list.New(nil, d, dims.MainWidth, dims.ContentHeight)
+	m.RelatedList = list.New(nil, d, dims.SidebarWidth, dims.ContentHeight)
 	m.Search = textinput.New()
 	return m
 }
@@ -285,6 +288,7 @@ func TestUpdate_KeyMsg_CtrlK_OpensSearchBar(t *testing.T) {
 
 func TestUpdate_KeyMsg_CtrlQ_TogglesRightColumn(t *testing.T) {
 	m := newTestModel()
+	m.FocusedOn = QueueList
 	m.RightColumnMode = RightColumnQueue
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlQ})
