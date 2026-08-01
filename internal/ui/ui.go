@@ -224,8 +224,8 @@ func (m Model) View() string {
 		)
 	} else if m.MainViewMode == LyricsMode {
 		trackName := ""
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
-			trackName = " • " + m.SelectedTrack.Track.Track.Name
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
+			trackName = " • " + m.SelectedTrack.Track.Track.Title
 		}
 		lyricsHeader := titleStyle.Render("  📝 Lyrics" + trackName)
 		lyricsPadded := lipgloss.NewStyle().Padding(1, 2).Render(m.LyricsView.View())
@@ -243,10 +243,10 @@ func (m Model) View() string {
 
 	var playingView string
 
-	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
 		playedSeconds := int(m.PlayedSeconds)
 		currentPosition := time.Second * time.Duration(playedSeconds)
-		total := time.Duration(m.SelectedTrack.Track.Track.DurationMS) * time.Millisecond
+		total := time.Duration(m.SelectedTrack.Track.Track.DurationSeconds) * time.Second
 		playingView = renderNowPlaying(&m, currentPosition, total)
 	}
 

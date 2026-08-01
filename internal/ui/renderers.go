@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 )
 
@@ -61,69 +62,113 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	}
 
 	switch item := item.(type) {
-	case types.SearchResultItem:
-		title = item.Title()
-		switch item.Kind() {
-		case types.SearchResultTrack:
+	case *musicpb.Song:
+		icon = "♫"
+		title = item.Title
+		if len(item.Artists) > 0 {
+			var names []string
+			for _, a := range item.Artists {
+				names = append(names, a.Name)
+			}
+			subtitle = strings.Join(names, ", ")
+		}
+	case *musicpb.SearchResultSong:
+		icon = "♫"
+		title = item.Title
+		if len(item.Artists) > 0 {
+			var names []string
+			for _, a := range item.Artists {
+				names = append(names, a.Name)
+			}
+			subtitle = strings.Join(names, ", ")
+		}
+	case *musicpb.SearchResultArtist:
+		icon = "♪"
+		title = item.Name
+		if item.Subscribers != "" {
+			subtitle = fmt.Sprintf("%s — %s subscribers", item.Name, item.Subscribers)
+		} else {
+			subtitle = "Artist"
+		}
+	case *musicpb.SearchResultPlaylist:
+		icon = "☰"
+		title = item.Title
+		if item.Author != "" {
+			subtitle = item.Author
+		} else {
+			subtitle = "Playlist"
+		}
+	case *musicpb.SearchResultAlbum:
+		icon = "◉"
+		title = item.Title
+		subtitle = fmt.Sprintf("%s • %s", item.Type, item.Year)
+	case *musicpb.SearchResultPodcast:
+		icon = "📻"
+		title = item.Title
+		if item.Author != "" {
+			subtitle = fmt.Sprintf("%s — podcast", item.Author)
+		} else {
+			subtitle = "Podcast Show"
+		}
+	case *musicpb.SearchResultEpisode:
+		icon = "🎙"
+		title = item.Title
+		if item.PodcastName != "" && item.Date != "" {
+			subtitle = fmt.Sprintf("%s • %s", item.PodcastName, item.Date)
+		} else if item.PodcastName != "" {
+			subtitle = item.PodcastName
+		} else {
+			subtitle = "Podcast Episode"
+		}
+	case *musicpb.Album:
+		icon = "◉"
+		title = item.Title
+		subtitle = fmt.Sprintf("%s • %s", item.Type, item.Year)
+	case *musicpb.Playlist:
+		icon = "☰"
+		title = item.Title
+		if item.Author != "" {
+			subtitle = item.Author
+		} else {
+			subtitle = "Playlist"
+		}
+	case *musicpb.FollowedArtist:
+		icon = "♪"
+		title = item.Name
+		if item.Subscribers != "" {
+			subtitle = item.Subscribers
+		} else {
+			subtitle = "Artist"
+		}
+	case *musicpb.LibraryChannel:
+		icon = "♪"
+		title = item.Name
+		subtitle = "Channel"
+	case *musicpb.Podcast:
+		icon = "📻"
+		title = item.Title
+		subtitle = item.Author
+	case *musicpb.SongRelatedContent:
+		if item.VideoId != "" || item.ContentType == "song" || item.ContentType == "video" {
 			icon = "♫"
-			if t, ok := item.(types.Track); ok && len(t.Artists) > 0 {
+		} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseId, "MPRE") {
+			icon = "◉"
+		} else {
+			icon = "☰"
+		}
+		title = item.Title
+		subtitle = item.Description
+	case types.PlaylistTrackObject:
+		icon = "♫"
+		if item.Track != nil {
+			title = item.Track.Title
+			if len(item.Track.Artists) > 0 {
 				var names []string
-				for _, a := range t.Artists {
+				for _, a := range item.Track.Artists {
 					names = append(names, a.Name)
 				}
 				subtitle = strings.Join(names, ", ")
 			}
-		case types.SearchResultArtist:
-			icon = "♪"
-			if a, ok := item.(types.Artist); ok {
-				subtitle = fmt.Sprintf("%s — artist", a.Name)
-			} else {
-				subtitle = "Artist"
-			}
-		case types.SearchResultPlaylist:
-			icon = "☰"
-			if p, ok := item.(types.Playlist); ok {
-				if p.Author != "" {
-					subtitle = p.Author
-				} else {
-					subtitle = "Playlist"
-				}
-			}
-		case types.SearchResultAlbum:
-			icon = "◉"
-			if a, ok := item.(types.Album); ok {
-				subtitle = fmt.Sprintf("%s • %s", a.Type, a.Year)
-			}
-		case types.SearchResultPodcast:
-			icon = "📻"
-			if p, ok := item.(types.Podcast); ok {
-				if p.Author != "" {
-					subtitle = fmt.Sprintf("%s — podcast", p.Author)
-				} else {
-					subtitle = "Podcast Show"
-				}
-			}
-		case types.SearchResultEpisode:
-			icon = "🎙"
-			if ep, ok := item.(types.Episode); ok {
-				if ep.PodcastName != "" && ep.Date != "" {
-					subtitle = fmt.Sprintf("%s • %s", ep.PodcastName, ep.Date)
-				} else if ep.PodcastName != "" {
-					subtitle = ep.PodcastName
-				} else {
-					subtitle = "Podcast Episode"
-				}
-			}
-		}
-	case types.PlaylistTrackObject:
-		icon = "♫"
-		title = item.Track.Name
-		if len(item.Track.Artists) > 0 {
-			var names []string
-			for _, a := range item.Track.Artists {
-				names = append(names, a.Name)
-			}
-			subtitle = strings.Join(names, ", ")
 		}
 	case types.SidebarItem:
 		icon = item.Icon
@@ -248,7 +293,7 @@ func renderNowPlaying(m *Model, currentPosition, TotalDuration time.Duration) st
 		artistNames = append(artistNames, artist.Name)
 	}
 	artistName := strings.Join(artistNames, ", ")
-	trackName := selectedTrack.Track.Track.Name
+	trackName := selectedTrack.Track.Track.Title
 
 	var likedIndicator string
 	if selectedTrack.isLiked {

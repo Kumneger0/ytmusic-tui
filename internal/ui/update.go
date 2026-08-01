@@ -52,36 +52,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var items []list.Item
 			for _, s := range msg.Result.Songs {
 				items = append(items, types.PlaylistTrackObject{
-					Track: types.MapSongToTrack(s),
+					Track: s,
 				})
 			}
 			for _, p := range msg.Result.Playlists {
-				items = append(items, types.MapPlaylistToPlaylist(p))
+				items = append(items, p)
 			}
 			for _, al := range msg.Result.Albums {
-				items = append(items, types.MapAlbumToAlbum(al))
+				items = append(items, al)
 			}
 			for _, a := range msg.Result.Artists {
-				items = append(items, types.Artist{
-					ID:     a.ChannelId,
-					Name:   a.Name,
-					Images: types.MapThumbnailsToImages(a.Thumbnails),
-				})
+				items = append(items, a)
 			}
 			for _, c := range msg.Result.Channels {
-				items = append(items, types.Artist{
-					ID:     c.BrowseId,
-					Name:   c.Name,
-					Images: types.MapThumbnailsToImages(c.Thumbnails),
-				})
+				items = append(items, c)
 			}
 			for _, pod := range msg.Result.Podcasts {
-				items = append(items, types.Podcast{
-					ID:     pod.PodcastId,
-					Name:   pod.Title,
-					Author: pod.Author,
-					Images: types.MapThumbnailsToImages(pod.Thumbnails),
-				})
+				items = append(items, pod)
 			}
 			m.SelectedPlayListItems = list.New(items, CustomDelegate{Model: &m}, 10, 20)
 			removeListDefaults(&m.SelectedPlayListItems)
@@ -127,7 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var tracks []*types.PlaylistTrackObject
 		for _, track := range msg.Playlist.Tracks {
 			tracks = append(tracks, &types.PlaylistTrackObject{
-				Track: types.MapSongToTrack(track),
+				Track: track,
 			})
 		}
 		cmd := func() tea.Msg {
@@ -168,13 +155,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Player == nil {
 			return m, nil
 		}
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && msg.VideoID != m.SelectedTrack.Track.Track.ID {
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && msg.VideoID != m.SelectedTrack.Track.Track.VideoId {
 			_ = msg.Player.Close()
 			return m, nil
 		}
-		if m.SelectedTrack.Track.Track.DurationMS == 0 && msg.Duration != "" {
+		if m.SelectedTrack.Track.Track.DurationSeconds == 0 && msg.Duration != "" {
 			if duration, err := strconv.ParseInt(msg.Duration, 10, 64); err == nil {
-				m.SelectedTrack.Track.Track.DurationMS = int(duration) * 1000
+				m.SelectedTrack.Track.Track.DurationSeconds = int32(duration)
 			} else {
 				slog.Error(err.Error())
 			}
@@ -208,7 +195,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case types.SearchingMsg:
 		m.IsSearchLoading = true
-	case types.SpotifySearchResultMsg:
+	case types.SearchResultMsg:
 		var alertCmd tea.Cmd
 		if msg.Err != nil {
 			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
@@ -246,25 +233,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.HomePageViewMode = HomePageSectionView
 		m.MainViewMode = HomePageMode
 		return m, nil
-	case *types.UserFollowedArtistResponse:
-		// TODO: implement later
 	case types.DBusMessage:
 		model, cmd := m.handleDbusMessage(msg.MessageType, cmds)
 		m = model
 		cmds = append(cmds, cmd)
 	case types.LikeUnlikeTrackMsg:
-		if msg.TrackID == m.SelectedTrack.Track.Track.ID {
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && msg.TrackID == m.SelectedTrack.Track.Track.VideoId {
 			m.SelectedTrack.isLiked = msg.Like
 		}
 	case types.PlayedSecondsUpdateMsg:
-		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
+		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil || m.SelectedTrack.Track.Track == nil {
 			return m, nil
 		}
 		m.PlayedSeconds = msg.CurrentSeconds
 		if m.CurrentLyrics != nil {
 			m.updateLyricsView()
 		}
-		totalDurationInSeconds := m.SelectedTrack.Track.Track.DurationMS / 1000
+		totalDurationInSeconds := m.SelectedTrack.Track.Track.DurationSeconds
 		if totalDurationInSeconds > 0 && (float64(totalDurationInSeconds)-m.PlayedSeconds) < 1 {
 			m.PlayedSeconds = 0
 			model, cmd := m.handleMusicChange(true)
@@ -340,7 +325,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				items = append(items, types.HomePageSectionItem{SectionTitle: section.Title})
 			}
 			for _, content := range section.Contents {
-				items = append(items, MapSongRelatedContentToListItem(content))
+				items = append(items, content)
 			}
 			if section.TextContent != "" {
 				items = append(items, types.HomePageContentItem{
@@ -536,7 +521,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 					slog.Error(err.Error())
 				}
 				likeUnlikeTrackMsg := types.LikeUnlikeTrackMsg{
-					TrackID: m.SelectedTrack.Track.Track.ID,
+					TrackID: m.SelectedTrack.Track.Track.VideoId,
 					Like:    !shouldRemove,
 					Err:     err,
 				}
@@ -610,7 +595,7 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 			var tracks []*types.PlaylistTrackObject
 			for _, track := range playlistItems.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
-					Track: types.MapSongToTrack(track),
+					Track: track,
 				})
 			}
 			return types.UpdatePlaylistMsg{
@@ -637,7 +622,7 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 			var playlistItems []*types.PlaylistTrackObject
 			for _, item := range userSavedTracks.Tracks {
 				playlistItems = append(playlistItems, &types.PlaylistTrackObject{
-					Track: types.MapSongToTrack(item),
+					Track: item,
 				})
 			}
 			return types.UpdatePlaylistMsg{
@@ -765,7 +750,7 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 		if !ok {
 			continue
 		}
-		if playlistTrack.Track.ID == m.SelectedTrack.Track.Track.ID {
+		if playlistTrack.Track != nil && m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && playlistTrack.Track.VideoId == m.SelectedTrack.Track.Track.VideoId {
 			currentlySelectedMusicIndex = index
 			break
 		}
@@ -828,8 +813,22 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 	}
 	if m.MainViewMode == SearchResultMode {
 		if len(m.SearchResult.Items()) > 0 {
-			if track, ok := m.SearchResult.SelectedItem().(types.Track); ok {
-				itemToAdd = types.PlaylistTrackObject{Track: track}
+			if song, ok := m.SearchResult.SelectedItem().(*musicpb.Song); ok {
+				itemToAdd = types.PlaylistTrackObject{Track: song}
+			} else if srSong, ok := m.SearchResult.SelectedItem().(*musicpb.SearchResultSong); ok {
+				song := &musicpb.Song{
+					VideoId:         srSong.VideoId,
+					Title:           srSong.Title,
+					Artists:         srSong.Artists,
+					Album:           srSong.Album,
+					AlbumId:         srSong.AlbumId,
+					DurationSeconds: srSong.DurationSeconds,
+					Liked:           srSong.Liked,
+					Thumbnails:      srSong.Thumbnails,
+					IsExplicit:      srSong.IsExplicit,
+					Url:             srSong.Url,
+				}
+				itemToAdd = types.PlaylistTrackObject{Track: song}
 			}
 		}
 	}
@@ -838,8 +837,8 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
-		currentlyPlayingTrackID = m.SelectedTrack.Track.Track.ID
+	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
+		currentlyPlayingTrackID = m.SelectedTrack.Track.Track.VideoId
 	}
 
 	var musicQueue = m.MusicQueueList.Items()
@@ -874,7 +873,7 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 		if !ok {
 			continue
 		}
-		if playlistTrackObject.Track.ID == currentlyPlayingTrackID {
+		if playlistTrackObject.Track != nil && playlistTrackObject.Track.VideoId == currentlyPlayingTrackID {
 			currentlyPlayingTrackIndex = index
 		}
 	}
@@ -921,61 +920,6 @@ func (m Model) HandleMusicPausePlay() (Model, tea.Cmd) {
 
 	m.PlayerProcess.OtoPlayer.Play()
 	return m, nil
-}
-
-func MapSongRelatedContentToListItem(content *musicpb.SongRelatedContent) list.Item {
-	if content.VideoId != "" || content.ContentType == "song" || content.ContentType == "video" {
-		var artists []types.Artist
-		for _, a := range content.Artists {
-			artists = append(artists, types.Artist{
-				ID:   a.Id,
-				Name: a.Name,
-			})
-		}
-		return types.PlaylistTrackObject{
-			Track: types.Track{
-				ID:      content.VideoId,
-				Name:    content.Title,
-				Artists: artists,
-			},
-		}
-	}
-	if content.ContentType == "album" || strings.HasPrefix(content.BrowseId, "MPRE") {
-		var artists []types.Artist
-		for _, a := range content.Artists {
-			artists = append(artists, types.Artist{
-				ID:   a.Id,
-				Name: a.Name,
-			})
-		}
-		return types.Album{
-			ID:      content.BrowseId,
-			Name:    content.Title,
-			Artists: artists,
-			Year:    content.Year,
-		}
-	}
-	if content.ContentType == "artist" || content.Subscribers != "" {
-		return types.Artist{
-			ID:   content.BrowseId,
-			Name: content.Title,
-		}
-	}
-	if content.PlaylistId != "" || content.ContentType == "playlist" {
-		return types.Playlist{
-			ID:          content.PlaylistId,
-			Name:        content.Title,
-			Description: content.Description,
-		}
-	}
-	return types.HomePageContentItem{
-		ItemTitle:   content.Title,
-		PlaylistID:  content.PlaylistId,
-		VideoID:     content.VideoId,
-		BrowseID:    content.BrowseId,
-		ContentType: content.ContentType,
-		Description: content.Description,
-	}
 }
 
 func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
@@ -1067,10 +1011,16 @@ func (m Model) playTrackFromList(track types.PlaylistTrackObject, rawItems []lis
 	for _, rawItem := range rawItems {
 		if homeContent, ok := rawItem.(types.HomePageContentItem); ok && homeContent.VideoID != "" {
 			playlistTrack := types.PlaylistTrackObject{
-				Track: types.Track{
-					ID:   homeContent.VideoID,
-					Name: homeContent.ItemTitle,
+				Track: &musicpb.Song{
+					VideoId: homeContent.VideoID,
+					Title:   homeContent.ItemTitle,
 				},
+				IsItFromQueue: true,
+			}
+			items = append(items, playlistTrack)
+		} else if songItem, ok := rawItem.(*musicpb.Song); ok {
+			playlistTrack := types.PlaylistTrackObject{
+				Track:         songItem,
 				IsItFromQueue: true,
 			}
 			items = append(items, playlistTrack)
@@ -1115,9 +1065,9 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 				trackID = item.PlaylistID
 			}
 			playlistTrack := types.PlaylistTrackObject{
-				Track: types.Track{
-					ID:   trackID,
-					Name: item.ItemTitle,
+				Track: &musicpb.Song{
+					VideoId: trackID,
+					Title:   item.ItemTitle,
 				},
 			}
 			return m.playTrackFromList(playlistTrack, m.HomePageList.Items())
@@ -1162,11 +1112,14 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 
 	switch selectedItem := listItemToChooseMusicFrom.SelectedItem().(type) {
 	case types.PlaylistTrackObject:
+		if selectedItem.Track == nil {
+			return m, nil
+		}
 		relatedSongsCmd := func() tea.Msg {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
-				VideoId: selectedItem.Track.ID,
+				VideoId: selectedItem.Track.VideoId,
 			})
 			return types.RelatedSongsMsg{
 				Related: relatedSongs,
@@ -1176,46 +1129,102 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 		m, cmd := m.playTrackFromList(selectedItem, listItemToChooseMusicFrom.Items())
 		return m, tea.Batch(cmd, relatedSongsCmd)
 
-	case types.Playlist:
-		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.ID))
+	case *musicpb.Song:
+		playlistTrack := types.PlaylistTrackObject{Track: selectedItem}
+		relatedSongsCmd := func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
+				VideoId: selectedItem.VideoId,
+			})
+			return types.RelatedSongsMsg{
+				Related: relatedSongs,
+				Err:     err,
+			}
+		}
+		m, cmd := m.playTrackFromList(playlistTrack, listItemToChooseMusicFrom.Items())
+		return m, tea.Batch(cmd, relatedSongsCmd)
 
-	case types.Album:
-		return m.navigateToDetailView(m.getAlbumTracks(selectedItem.ID))
+	case *musicpb.SearchResultSong:
+		song := &musicpb.Song{
+			VideoId:         selectedItem.VideoId,
+			Title:           selectedItem.Title,
+			Artists:         selectedItem.Artists,
+			Album:           selectedItem.Album,
+			AlbumId:         selectedItem.AlbumId,
+			DurationSeconds: selectedItem.DurationSeconds,
+			Liked:           selectedItem.Liked,
+			Thumbnails:      selectedItem.Thumbnails,
+			IsExplicit:      selectedItem.IsExplicit,
+			Url:             selectedItem.Url,
+		}
+		playlistTrack := types.PlaylistTrackObject{Track: song}
+		relatedSongsCmd := func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
+				VideoId: selectedItem.VideoId,
+			})
+			return types.RelatedSongsMsg{
+				Related: relatedSongs,
+				Err:     err,
+			}
+		}
+		m, cmd := m.PlaySelectedMusic(playlistTrack)
+		return m, tea.Batch(cmd, relatedSongsCmd)
 
-	case types.Artist:
-		return m.navigateToDetailView(m.getArtistTracks(selectedItem.ID))
+	case *musicpb.SearchResultPlaylist:
+		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.BrowseId))
 
-	case types.Podcast:
-		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.ID))
+	case *musicpb.SearchResultAlbum:
+		return m.navigateToDetailView(m.getAlbumTracks(selectedItem.BrowseId))
 
-	case types.Episode:
+	case *musicpb.SearchResultArtist:
+		return m.navigateToDetailView(m.getArtistTracks(selectedItem.BrowseId))
+
+	case *musicpb.SearchResultPodcast:
+		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.BrowseId))
+
+	case *musicpb.SearchResultEpisode:
 		return m.PlaySelectedMusic(types.PlaylistTrackObject{
-			Track: types.Track{
-				ID:   selectedItem.ID,
-				Name: selectedItem.TitleName,
-				Artists: []types.Artist{
-					{Name: selectedItem.PodcastName},
-				},
+			Track: &musicpb.Song{
+				VideoId: selectedItem.VideoId,
+				Title:   selectedItem.Title,
 			},
 		})
-	case types.HomePageContentItem:
-		if selectedItem.VideoID != "" || selectedItem.ContentType == "song" || selectedItem.ContentType == "video" {
-			trackID := selectedItem.VideoID
-			if trackID == "" {
-				trackID = selectedItem.PlaylistID
-			}
+
+	case *musicpb.Playlist:
+		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.PlaylistId))
+
+	case *musicpb.Album:
+		return m.navigateToDetailView(m.getAlbumTracks(selectedItem.BrowseId))
+
+	case *musicpb.Artist:
+		return m.navigateToDetailView(m.getArtistTracks(selectedItem.Id))
+
+	case *musicpb.FollowedArtist:
+		return m.navigateToDetailView(m.getArtistTracks(selectedItem.ChannelId))
+
+	case *musicpb.LibraryChannel:
+		return m.navigateToDetailView(m.getArtistTracks(selectedItem.BrowseId))
+
+	case *musicpb.Podcast:
+		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.PodcastId))
+
+	case *musicpb.SongRelatedContent:
+		if selectedItem.VideoId != "" || selectedItem.ContentType == "song" || selectedItem.ContentType == "video" {
 			playlistTrack := types.PlaylistTrackObject{
-				Track: types.Track{
-					ID:   trackID,
-					Name: selectedItem.ItemTitle,
+				Track: &musicpb.Song{
+					VideoId: selectedItem.VideoId,
+					Title:   selectedItem.Title,
+					Artists: selectedItem.Artists,
 				},
 			}
-
 			relatedSongsCmd := func() tea.Msg {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
-					VideoId: playlistTrack.Track.ID,
+					VideoId: selectedItem.VideoId,
 				})
 				return types.RelatedSongsMsg{
 					Related: relatedSongs,
@@ -1224,41 +1233,12 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 			}
 			m, cmd := m.PlaySelectedMusic(playlistTrack)
 			return m, tea.Batch(cmd, relatedSongsCmd)
-		} else if selectedItem.ContentType == "album" || strings.HasPrefix(selectedItem.BrowseID, "MPRE") {
-			browseID := selectedItem.BrowseID
-			if browseID == "" {
-				browseID = selectedItem.PlaylistID
-			}
-			return m.navigateToDetailView(m.getAlbumTracks(browseID))
-		} else if selectedItem.PlaylistID != "" || selectedItem.BrowseID != "" {
-			playlistID := selectedItem.PlaylistID
-			if playlistID == "" {
-				playlistID = selectedItem.BrowseID
-			}
-			return m.navigateToDetailView(m.getPlaylistItems(playlistID))
-		}
-	case types.SearchResultItem:
-		if selectedItem.Kind() == types.SearchResultTrack {
-			track, ok := selectedItem.(types.Track)
-			if !ok {
-				slog.Error("failed to cast the selected item to types.Track")
-				return m, nil
-			}
-			relatedSongsCmd := func() tea.Msg {
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
-					VideoId: track.ID,
-				})
-				return types.RelatedSongsMsg{
-					Related: relatedSongs,
-					Err:     err,
-				}
-			}
-			m, cmd := m.PlaySelectedMusic(types.PlaylistTrackObject{
-				Track: track,
-			})
-			return m, tea.Batch(cmd, relatedSongsCmd)
+		} else if selectedItem.ContentType == "album" || strings.HasPrefix(selectedItem.BrowseId, "MPRE") {
+			return m.navigateToDetailView(m.getAlbumTracks(selectedItem.BrowseId))
+		} else if selectedItem.PlaylistId != "" || selectedItem.ContentType == "playlist" {
+			return m.navigateToDetailView(m.getPlaylistItems(selectedItem.PlaylistId))
+		} else if selectedItem.BrowseId != "" {
+			return m.navigateToDetailView(m.getArtistTracks(selectedItem.BrowseId))
 		}
 	}
 
@@ -1283,7 +1263,7 @@ func (m Model) handleSearchBarEnter() (Model, tea.Cmd) {
 
 		if err != nil {
 			slog.Error(err.Error())
-			return types.SpotifySearchResultMsg{
+			return types.SearchResultMsg{
 				Result: nil,
 				Err:    err,
 			}
@@ -1291,64 +1271,29 @@ func (m Model) handleSearchBarEnter() (Model, tea.Cmd) {
 
 		var items []list.Item
 		for _, s := range searchResults.Songs {
-			track := types.MapSearchResultSongToTrack(s)
-			items = append(items, track)
+			items = append(items, s)
 		}
 		for _, a := range searchResults.Artists {
-			artist := types.Artist{
-				ID:     a.BrowseId,
-				Name:   a.Name,
-				Images: types.MapThumbnailsToImages(a.Thumbnails),
-			}
-			items = append(items, artist)
+			items = append(items, a)
 		}
 		for _, p := range searchResults.Playlists {
-			playlist := types.Playlist{
-				ID:          p.BrowseId,
-				Name:        p.Title,
-				Description: p.ItemCount,
-				Images:      types.MapThumbnailsToImages(p.Thumbnails),
-				Author:      p.Author,
-			}
-			items = append(items, playlist)
+			items = append(items, p)
 		}
 		for _, al := range searchResults.Albums {
-			album := types.Album{
-				ID:      al.BrowseId,
-				Name:    al.Title,
-				Artists: types.MapArtistsToArtists(al.Artists),
-				Images:  types.MapThumbnailsToImages(al.Thumbnails),
-				Year:    al.Year,
-				Type:    al.Type,
-			}
-			items = append(items, album)
+			items = append(items, al)
 		}
 		for _, pod := range searchResults.Podcasts {
-			podcast := types.Podcast{
-				ID:     pod.BrowseId,
-				Name:   pod.Title,
-				Author: pod.Author,
-				Images: types.MapThumbnailsToImages(pod.Thumbnails),
-			}
-			items = append(items, podcast)
+			items = append(items, pod)
 		}
 		for _, ep := range searchResults.Episodes {
-			episode := types.Episode{
-				ID:          ep.VideoId,
-				TitleName:   ep.Title,
-				PodcastName: ep.PodcastName,
-				PodcastID:   ep.PodcastId,
-				Date:        ep.Date,
-				Images:      types.MapThumbnailsToImages(ep.Thumbnails),
-			}
-			items = append(items, episode)
+			items = append(items, ep)
 		}
 
 		searchResult := &types.SearchResponse{
 			Items: items,
 		}
 
-		return types.SpotifySearchResultMsg{
+		return types.SearchResultMsg{
 			Result: searchResult,
 			Err:    nil,
 		}
@@ -1374,7 +1319,7 @@ func (m Model) getArtistTracks(artistID string) tea.Cmd {
 		var tracks []*types.PlaylistTrackObject
 		for _, track := range artistSongs.Tracks {
 			tracks = append(tracks, &types.PlaylistTrackObject{
-				Track: types.MapSongToTrack(track),
+				Track: track,
 			})
 		}
 		return types.UpdatePlaylistMsg{
@@ -1401,7 +1346,7 @@ func (m Model) getAlbumTracks(albumID string) tea.Cmd {
 		var tracks []*types.PlaylistTrackObject
 		for _, track := range albumResp.Tracks {
 			tracks = append(tracks, &types.PlaylistTrackObject{
-				Track: types.MapSongToTrack(track),
+				Track: track,
 			})
 		}
 		return types.UpdatePlaylistMsg{
@@ -1429,7 +1374,7 @@ func (m Model) getPlaylistItems(playlistID string) tea.Cmd {
 		var tracks []*types.PlaylistTrackObject
 		for _, track := range playlistItems.Tracks {
 			tracks = append(tracks, &types.PlaylistTrackObject{
-				Track: types.MapSongToTrack(track),
+				Track: track,
 			})
 		}
 		return types.UpdatePlaylistMsg{
@@ -1441,6 +1386,9 @@ func (m Model) getPlaylistItems(playlistID string) tea.Cmd {
 }
 
 func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model, tea.Cmd) {
+	if selectedMusic.Track == nil {
+		return m, nil
+	}
 	var cmds []tea.Cmd
 	var artistNames []string
 	for _, artist := range selectedMusic.Track.Artists {
@@ -1461,9 +1409,9 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	playCtx, cancel := context.WithCancel(context.Background())
 	m.playbackCancel = cancel
 
-	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.ID, m.CoreDepsPath, func() (*musicpb.GetVideoStreamURLAndDurationResponse, error) {
+	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.VideoId, m.CoreDepsPath, func() (*musicpb.GetVideoStreamURLAndDurationResponse, error) {
 		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURLAndDuration(playCtx, &musicpb.GetVideoStreamURLAndDurationRequest{
-			VideoId: selectedMusic.Track.ID,
+			VideoId: selectedMusic.Track.VideoId,
 		})
 		if err != nil {
 			return nil, err
@@ -1478,7 +1426,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		lyricsResponse, err := m.YtMusicClient.GetLyrics(ctx, &musicpb.GetLyricsRequest{
-			VideoId:    selectedMusic.Track.ID,
+			VideoId:    selectedMusic.Track.VideoId,
 			Timestamps: true,
 		})
 		return types.LyricsMsg{
@@ -1490,8 +1438,8 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	cmds = append(cmds, cmd, lyricsCmd)
 	metadata := getMusicMetadata(MusicMetadata{
 		artistName: strings.Join(artistNames, ","),
-		length:     int64(selectedMusic.Track.DurationMS),
-		title:      selectedMusic.Track.Name,
+		length:     int64(selectedMusic.Track.DurationSeconds * 1000),
+		title:      selectedMusic.Track.Title,
 	})
 
 	if m.DBusConn != nil {

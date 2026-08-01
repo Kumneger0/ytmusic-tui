@@ -14,7 +14,6 @@ type InstallStep struct {
 	Args    []string
 }
 
-// UserSavedTracksListItem is a simple sidebar item representing the user's liked songs.
 type UserSavedTracksListItem struct {
 	Name string
 }
@@ -75,29 +74,3 @@ func (h HomePageContentItem) Subtitle() string {
 }
 
 type Breadcrumb struct{ Name, Icon string }
-
-type SearchResultType int
-
-const (
-	SearchResultTrack SearchResultType = iota
-	SearchResultArtist
-	SearchResultPlaylist
-	SearchResultAlbum
-	SearchResultPodcast
-	SearchResultEpisode
-)
-
-type SearchResultItem interface {
-	Title() string
-	FilterValue() string
-	Kind() SearchResultType
-}
-
-func (t Track) Title() string             { return t.Name }
-func (t Track) FilterValue() string       { return t.Name }
-func (t Track) Kind() SearchResultType    { return SearchResultTrack }
-func (a Artist) Kind() SearchResultType   { return SearchResultArtist }
-func (p Playlist) Kind() SearchResultType { return SearchResultPlaylist }
-func (a Album) Title() string             { return a.Name }
-func (a Album) FilterValue() string       { return a.Name }
-func (a Album) Kind() SearchResultType    { return SearchResultAlbum }

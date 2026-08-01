@@ -78,7 +78,7 @@ func TestUpdate_PlayedSecondsUpdateMsg_UpdatesSeconds(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
 		Track: &types.PlaylistTrackObject{
-			Track: types.Track{DurationMS: 200_000},
+			Track: &musicpb.Song{DurationSeconds: 200},
 		},
 	}
 
@@ -95,7 +95,7 @@ func TestUpdate_LikeUnlikeTrackMsg(t *testing.T) {
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
 		Track: &types.PlaylistTrackObject{
-			Track: types.Track{ID: "vid1"},
+			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
 
@@ -112,7 +112,7 @@ func TestUpdate_LikeUnlikeTrackMsg_DifferentID(t *testing.T) {
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
 		Track: &types.PlaylistTrackObject{
-			Track: types.Track{ID: "vid1"},
+			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
 
@@ -129,7 +129,7 @@ func TestUpdate_CheckUserSavedTrackMsg(t *testing.T) {
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
 		Track: &types.PlaylistTrackObject{
-			Track: types.Track{ID: "vid1"},
+			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
 
