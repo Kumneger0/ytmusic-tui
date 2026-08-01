@@ -213,12 +213,12 @@ def to_proto_song_related_content(content: dict[str, Any]) -> music_pb2.SongRela
     content_type = ""
     if content.get("videoId"):
         content_type = "song"
+    elif content.get("subscribers") or (content.get("browseId") and str(content.get("browseId")).startswith("UC")):
+        content_type = "artist"
     elif content.get("playlistId"):
         content_type = "playlist"
-    elif content.get("subscribers"):
-        content_type = "artist"
     elif content.get("browseId"):
-        if str(content.get("browseId")).startswith("MPRE"):
+        if str(content.get("browseId")).startswith("MPRE") or str(content.get("browseId")).startswith("FEmusic_album"):
             content_type = "album"
         else:
             content_type = "artist"

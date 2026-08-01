@@ -414,3 +414,25 @@ func TestUpdate_SearchBar_FocusSubmitCancel(t *testing.T) {
 		t.Errorf("FocusedOn after escape: should not be SearchBar, got %s", updatedCancel.FocusedOn)
 	}
 }
+
+func TestUpdate_SongRelatedContent_ArtistSelection(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = QueueList
+	m.RightColumnMode = RightColumnRelated
+
+	artistItem := types.SongRelatedContentItem{
+		SongRelatedContent: &musicpb.SongRelatedContent{
+			Title:       "Kendrick Lamar",
+			BrowseId:    "UCq3V-gFmAdGlc8c-1M8-g",
+			ContentType: "artist",
+			Subscribers: "10M",
+		},
+	}
+
+	m.RelatedList = list.New([]list.Item{artistItem}, CustomDelegate{Model: &m}, 20, 10)
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Error("cmd should not be nil when selecting related artist")
+	}
+}
