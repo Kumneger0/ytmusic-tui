@@ -26,6 +26,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -300,6 +301,12 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		os.Exit(1)
 	}
 	defer conn.Close()
+	termWidth, termHeight, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		fmt.Println(err.Error())
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
 	model := ui.Model{
 		BreadcrumbItems: []types.Breadcrumb{{Name: "Home", Icon: "⌂"}},
 		FocusedOn:       ui.SideView,
@@ -308,9 +315,18 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		YtMusicClient:   client,
 		CoreDepsPath:    coreDepsPath,
 		BackendProcess:  backendCmd,
+		Width:           termWidth - 4,
+		Height:          termHeight - 4,
 	}
-	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
-	model.HomePageList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+
+	dims := ui.CalculateLayoutDimensions(&model)
+	model.LibraryWidth = dims.SidebarWidth
+	model.MainViewWidth = dims.MainWidth
+	model.PlayerSectionHeight = dims.InputHeight
+
+	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
+	model.HomePageList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
+	model.RelatedList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
 	if isHeadlessMode {
 		safeModel := ui.SafeModel{
 			Model: &model,
@@ -326,7 +342,7 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 			Icon: item.icon,
 		})
 	}
-	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
 	input := textinput.New()
 	input.Placeholder = "Search tracks, artists, albums..."
 	input.Prompt = "> "
@@ -335,8 +351,8 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 	model.Alert = *bubbleup.NewAlertModel(80, true, 10*time.Second)
 
 	model.Search = input
-	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
-	model.SideBarList = list.New(SideBarMenuList, ui.CustomDelegate{Model: &model}, 10, 20)
+	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	model.SideBarList = list.New(SideBarMenuList, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
 
 	model.SelectedPlayListItems = playlistItems
 	model.MusicQueueList = &ui.MusicQueueList{

@@ -190,36 +190,34 @@ func (m Model) View() string {
 	removeListDefaults(&m.SearchResult)
 	removeListDefaults(&m.HomePageList)
 	removeListDefaults(&m.MusicQueueList.Model)
-	if len(m.RelatedList.Items()) > 0 {
-		m.RelatedList.Title = "Related"
-		removeListDefaults(&m.RelatedList)
-	}
+	m.RelatedList.Title = "Related"
+	removeListDefaults(&m.RelatedList)
 	m.SearchResult.SetShowTitle(false)
 	m.SelectedPlayListItems.SetShowTitle(false)
 	m.HomePageList.SetShowTitle(false)
 	dimensions := calculateLayoutDimensions(&m)
-	m.SideBarList.SetSize(dimensions.sidebarWidth, dimensions.contentHeight)
-	m.SelectedPlayListItems.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
-	m.SearchResult.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
-	m.HomePageList.SetSize(dimensions.mainWidth, dimensions.contentHeight-4)
+	m.SideBarList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
+	m.SelectedPlayListItems.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
+	m.SearchResult.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
+	m.HomePageList.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
 	if len(m.RelatedList.Items()) > 0 {
-		m.RelatedList.SetSize(dimensions.sidebarWidth, dimensions.contentHeight)
+		m.RelatedList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
 	}
 	if m.MusicQueueList != nil {
-		m.MusicQueueList.Model.SetSize(dimensions.sidebarWidth, dimensions.contentHeight)
+		m.MusicQueueList.Model.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
 	}
-	sideBarView := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, SideView, false).Render(m.SideBarList.View())
-	searchBar := renderSearchBar(&m, dimensions.mainWidth)
+	sideBarView := getStyle(&m, dimensions.ContentHeight, dimensions.SidebarWidth, SideView, false).Render(m.SideBarList.View())
+	searchBar := renderSearchBar(&m, dimensions.MainWidth)
 	breadcrumb := renderBreadcrumbs(m.BreadcrumbItems)
 	var mainView string
 	if m.IsSearchLoading {
 		loadingText := dimmerStyle.Render("  ⟳ Loading...")
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
+		mainView = getStyle(&m, dimensions.ContentHeight, dimensions.MainWidth, MainView, false).Render(
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, loadingText),
 		)
 	} else if m.MainViewMode == SearchResultMode {
 		resultHeader := titleStyle.Render("  Search Results")
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
+		mainView = getStyle(&m, dimensions.ContentHeight, dimensions.MainWidth, MainView, false).Render(
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, resultHeader, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.SearchResult.View())),
 		)
 	} else if m.MainViewMode == LyricsMode {
@@ -229,15 +227,15 @@ func (m Model) View() string {
 		}
 		lyricsHeader := titleStyle.Render("  📝 Lyrics" + trackName)
 		lyricsPadded := lipgloss.NewStyle().Padding(1, 2).Render(m.LyricsView.View())
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
+		mainView = getStyle(&m, dimensions.ContentHeight, dimensions.MainWidth, MainView, false).Render(
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lyricsHeader, lyricsPadded),
 		)
 	} else if m.MainViewMode == HomePageMode {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).Render(
+		mainView = getStyle(&m, dimensions.ContentHeight, dimensions.MainWidth, MainView, false).Render(
 			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.HomePageList.View())),
 		)
 	} else {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView, false).
+		mainView = getStyle(&m, dimensions.ContentHeight, dimensions.MainWidth, MainView, false).
 			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.SelectedPlayListItems.View())))
 	}
 
@@ -257,13 +255,13 @@ func (m Model) View() string {
 		Foreground(playerFg).
 		Render(playingCombined)
 	var rightColumnView string
-	showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
+	showRelated := m.RightColumnMode == RightColumnRelated
 	if showRelated {
 		rightColumnView = m.RelatedList.View()
 	} else if m.MusicQueueList != nil {
 		rightColumnView = m.MusicQueueList.View()
 	}
-	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList, false).Render(rightColumnView)
+	queueList := getStyle(&m, dimensions.ContentHeight, dimensions.SidebarWidth, QueueList, false).Render(rightColumnView)
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.JoinHorizontal(lipgloss.Top, sideBarView, mainView, queueList),
 		playing,
@@ -278,14 +276,20 @@ func formatTime(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d", minutes, seconds)
 }
 
-type layoutDimensions struct {
-	sidebarWidth  int
-	mainWidth     int
-	contentHeight int
-	inputHeight   int
+type LayoutDimensions struct {
+	SidebarWidth  int
+	MainWidth     int
+	ContentHeight int
+	InputHeight   int
 }
 
-func calculateLayoutDimensions(m *Model) layoutDimensions {
+type layoutDimensions = LayoutDimensions
+
+func CalculateLayoutDimensions(m *Model) LayoutDimensions {
+	if m.Width <= 0 || m.Height <= 0 {
+		m.Width = 100
+		m.Height = 30
+	}
 	sidebarWidth := m.Width * 22 / 100
 	inputHeight := min(max(m.Height*10/100, 2), 3)
 	mainCenterArea := m.Width - (sidebarWidth * 2) - 2
@@ -293,12 +297,16 @@ func calculateLayoutDimensions(m *Model) layoutDimensions {
 		mainCenterArea = 10
 	}
 
-	return layoutDimensions{
-		sidebarWidth:  sidebarWidth,
-		mainWidth:     mainCenterArea,
-		contentHeight: m.Height * 90 / 100,
-		inputHeight:   inputHeight,
+	return LayoutDimensions{
+		SidebarWidth:  sidebarWidth,
+		MainWidth:     mainCenterArea,
+		ContentHeight: m.Height * 90 / 100,
+		InputHeight:   inputHeight,
 	}
+}
+
+func calculateLayoutDimensions(m *Model) LayoutDimensions {
+	return CalculateLayoutDimensions(m)
 }
 
 func removeListDefaults(listToRemoveDefaults *list.Model) {
