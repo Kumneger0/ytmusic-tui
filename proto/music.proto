@@ -372,6 +372,7 @@ message GetVideoStreamURLAndDurationResponse {
 
 message GetSongRelatedRequest {
   string videoId = 1;
+  string browse_id = 2;
 }
 
 message GetSongRelatedResponse {
