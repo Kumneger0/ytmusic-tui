@@ -686,6 +686,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.GetSongRelatedResponse:
         try:
+            if not request.videoId and not getattr(request, "browse_id", None):
+                return music_pb2.GetSongRelatedResponse()
             browse_id = getattr(request, "browse_id", None) or getattr(request, "videoId", None)
             if not browse_id or not browse_id.startswith("MPTRt_"):
                 watch_data = self.client.get_watch_playlist(request.videoId)
@@ -693,7 +695,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 if isinstance(related_id, str) and related_id:
                     browse_id = related_id
 
-            if browse_id is None:
+            if not browse_id or not browse_id.startswith("MPTRt_"):
                 return music_pb2.GetSongRelatedResponse()
 
             sections_data = self.client.get_song_related(browse_id)
@@ -702,6 +704,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 sec_msg = music_pb2.SongRelatedSection(
                     title=str(section.get("title") or "")
                 )
+                
                 contents_data = section.get("contents")
                 if isinstance(contents_data, str):
                     sec_msg.text_content = contents_data
@@ -712,8 +715,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             return response
         except Exception as e:
             print(f"Error in GetSongRelated: {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
             return music_pb2.GetSongRelatedResponse()
 
     @override
