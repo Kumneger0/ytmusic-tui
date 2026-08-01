@@ -543,7 +543,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetArtistTopTracks(self, request: music_pb2.GetArtistTopTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetArtistTopTracksResponse:
         artist_data = self.client.get_artist_top_tracks(channel_id=request.channel_id) or {}
-        print(f"Artist data for channel_id {request.channel_id}: {artist_data}")
         response = music_pb2.GetArtistTopTracksResponse(
             name=artist_data.get("name") or "",
             subscribers=artist_data.get("subscribers") or "",
