@@ -50,7 +50,7 @@ type DBusMessage struct {
 
 type SearchingMsg struct{}
 
-type SpotifySearchResultMsg struct {
+type SearchResultMsg struct {
 	Result *SearchResponse
 	Err    error
 }

@@ -15,9 +15,9 @@ import (
 )
 
 type UserLibrary struct {
-	Playlist           []types.Playlist `json:"playlist"`
-	UserFollowedArtist []types.Artist   `json:"artist"`
-	Album              []types.Album    `json:"album"`
+	Playlist           []*musicpb.Playlist       `json:"playlist"`
+	UserFollowedArtist []*musicpb.FollowedArtist `json:"artist"`
+	Album              []*musicpb.Album          `json:"album"`
 }
 
 type TracksType string
@@ -188,29 +188,10 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		var savedAlbums []types.Album
-		for _, album := range albums.Albums {
-			savedAlbums = append(savedAlbums, types.MapAlbumToAlbum(album))
-		}
-
-		var playlists []types.Playlist
-		for _, p := range userPlaylist.Playlists {
-			playlists = append(playlists, types.MapPlaylistToPlaylist(p))
-		}
-
-		var artists []types.Artist
-		for _, a := range followedArtists.Artists {
-			artists = append(artists, types.Artist{
-				ID:     a.ChannelId,
-				Name:   a.Name,
-				Images: types.MapThumbnailsToImages(a.Thumbnails),
-			})
-		}
-
 		userLibrary := &UserLibrary{
-			Playlist:           playlists,
-			UserFollowedArtist: artists,
-			Album:              savedAlbums,
+			Playlist:           userPlaylist.Playlists,
+			UserFollowedArtist: followedArtists.Artists,
+			Album:              albums.Albums,
 		}
 
 		data, err := json.Marshal(userLibrary)
@@ -257,7 +238,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			var tracks []*types.PlaylistTrackObject
 			for _, track := range artistSongs.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
-					Track: types.MapSongToTrack(track),
+					Track: track,
 				})
 			}
 
@@ -288,7 +269,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			var tracks []*types.PlaylistTrackObject
 			for _, track := range playlistItems.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
-					Track: types.MapSongToTrack(track),
+					Track: track,
 				})
 			}
 
@@ -319,7 +300,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			var tracks []*types.PlaylistTrackObject
 			for _, item := range savedTracks.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
-					Track: types.MapSongToTrack(item),
+					Track: item,
 				})
 			}
 
@@ -350,7 +331,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			var trackObject []*types.PlaylistTrackObject
 			for _, item := range albumTracks.Tracks {
 				trackObject = append(trackObject, &types.PlaylistTrackObject{
-					Track: types.MapSongToTrack(item),
+					Track: item,
 				})
 			}
 
@@ -395,43 +376,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		var tracks []types.Track
-		for _, s := range searchResults.Songs {
-			tracks = append(tracks, types.MapSearchResultSongToTrack(s))
-		}
-		var artists []types.Artist
-		for _, a := range searchResults.Artists {
-			artists = append(artists, types.Artist{
-				ID:     a.BrowseId,
-				Name:   a.Name,
-				Images: types.MapThumbnailsToImages(a.Thumbnails),
-			})
-		}
-		var playlists []types.Playlist
-		for _, p := range searchResults.Playlists {
-			playlists = append(playlists, types.Playlist{
-				ID:          p.BrowseId,
-				Name:        p.Title,
-				Description: p.ItemCount,
-				Images:      types.MapThumbnailsToImages(p.Thumbnails),
-				Author:      p.Author,
-			})
-		}
-		var albums []types.Album
-		for _, al := range searchResults.Albums {
-			albums = append(albums, types.Album{
-				ID:      al.BrowseId,
-				Name:    al.Title,
-				Artists: types.MapArtistsToArtists(al.Artists),
-				Images:  types.MapThumbnailsToImages(al.Thumbnails),
-				Year:    al.Year,
-				Type:    al.Type,
-			})
-		}
-
-		resp := &types.SearchResponse{}
-
-		data, err := json.Marshal(resp)
+		data, err := json.Marshal(searchResults)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
@@ -530,7 +475,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 
 			trackObject = &types.PlaylistTrackObject{
-				Track: types.MapSongToTrack(track.Track),
+				Track: track.Track,
 			}
 		}
 
@@ -541,8 +486,8 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			"message": "track is now playing",
 			"track": map[string]any{
 				"id":      reqBody.TrackID,
-				"name":    trackObject.Track.Name,
-				"album":   trackObject.Track.Album.Name,
+				"name":    trackObject.Track.Title,
+				"album":   trackObject.Track.Album,
 				"artists": trackObject.Track.Artists,
 			},
 		}
@@ -622,7 +567,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 		var index int = -1
 		for i, track := range musicQueue.Tracks {
-			if track.Track.ID == reqBody.Track.Track.ID {
+			if track.Track != nil && reqBody.Track.Track != nil && track.Track.VideoId == reqBody.Track.Track.VideoId {
 				index = i
 				break
 			}
