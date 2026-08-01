@@ -467,7 +467,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "ctrl+k":
 		m.FocusedOn = SearchBar
 		return m, m.Search.Focus()
-	case "escape":
+	case "esc", "escape":
 		if m.FocusedOn == SearchBar {
 			m.Search.Blur()
 			m.FocusedOn = SideView

@@ -301,12 +301,17 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		os.Exit(1)
 	}
 	defer conn.Close()
-	termWidth, termHeight, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		fmt.Println(err.Error())
-		slog.Error(err.Error())
-		os.Exit(1)
+	var termWidth, termHeight int
+
+	if !isHeadlessMode {
+		termWidth, termHeight, err = term.GetSize(int(os.Stdout.Fd()))
+		if err != nil {
+			fmt.Println(err.Error())
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
 	}
+
 	model := ui.Model{
 		BreadcrumbItems: []types.Breadcrumb{{Name: "Home", Icon: "⌂"}},
 		FocusedOn:       ui.SideView,
