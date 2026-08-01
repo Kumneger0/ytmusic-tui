@@ -468,6 +468,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.FocusedOn = SearchBar
 		return m, m.Search.Focus()
 	case "escape":
+		if m.FocusedOn == SearchBar {
+			m.Search.Blur()
+			m.FocusedOn = SideView
+			return m, nil
+		}
 		if m.MainViewMode == HomePageMode && m.HomePageViewMode == HomePageContentView {
 			var items []list.Item
 			for i, section := range m.HomePageData.Sections {

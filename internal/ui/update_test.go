@@ -298,3 +298,119 @@ func TestUpdate_KeyMsg_CtrlQ_TogglesRightColumn(t *testing.T) {
 		t.Error("RightColumnMode should have toggled away from RightColumnQueue")
 	}
 }
+
+func TestUpdate_LyricsView_JKScrolling(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = MainView
+	m.MainViewMode = LyricsMode
+	m.LyricsView.SetContent("Line 1\nLine 2\nLine 3\nLine 4\nLine 5")
+
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	updated := result.(Model)
+	if updated.MainViewMode != LyricsMode {
+		t.Errorf("MainViewMode: want LyricsMode, got %v", updated.MainViewMode)
+	}
+
+	result2, _ := updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	updated2 := result2.(Model)
+	if updated2.MainViewMode != LyricsMode {
+		t.Errorf("MainViewMode: want LyricsMode, got %v", updated2.MainViewMode)
+	}
+}
+
+func TestUpdate_QueueList_RemovalAndNavigation(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = QueueList
+	m.RightColumnMode = RightColumnQueue
+
+	trackObj := types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "song1", Title: "Song 1"}}
+	m.MusicQueueList = &MusicQueueList{
+		Model: list.New([]list.Item{trackObj}, CustomDelegate{Model: &m}, 20, 10),
+	}
+
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	updated := result.(Model)
+	if len(updated.MusicQueueList.Model.Items()) != 0 {
+		t.Errorf("Queue items: want 0 after removal, got %d", len(updated.MusicQueueList.Model.Items()))
+	}
+
+	resultTab, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updatedTab := resultTab.(Model)
+	if updatedTab.FocusedOn != Player {
+		t.Errorf("FocusedOn after tab: want Player, got %s", updatedTab.FocusedOn)
+	}
+
+	resultShiftTab, _ := m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	updatedShiftTab := resultShiftTab.(Model)
+	if updatedShiftTab.FocusedOn != MainView {
+		t.Errorf("FocusedOn after shift+tab: want MainView, got %s", updatedShiftTab.FocusedOn)
+	}
+}
+
+func TestUpdate_PlayerActions(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = Player
+	m.SelectedTrack = &SelectedTrack{
+		Track: &types.PlaylistTrackObject{
+			Track: &musicpb.Song{VideoId: "v1", Title: "Test Song"},
+		},
+	}
+
+	// Space (Play/Pause)
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+
+	// Prev ('b')
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+
+	// Next ('n')
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+
+	// Like ('l')
+	_, cmdLike := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	if cmdLike == nil {
+		t.Error("cmdLike should not be nil when pressing 'l' on selected track")
+	}
+
+	// LyricsKey (ctrl+l)
+	resultLyrics, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	updatedLyrics := resultLyrics.(Model)
+	if updatedLyrics.MainViewMode != LyricsMode {
+		t.Errorf("MainViewMode after ctrl+l: want LyricsMode, got %v", updatedLyrics.MainViewMode)
+	}
+	if updatedLyrics.FocusedOn != MainView {
+		t.Errorf("FocusedOn after ctrl+l: want MainView, got %s", updatedLyrics.FocusedOn)
+	}
+}
+
+func TestUpdate_SearchBar_FocusSubmitCancel(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = MainView
+
+	resFocus, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	updatedFocus := resFocus.(Model)
+	if updatedFocus.FocusedOn != SearchBar {
+		t.Fatalf("FocusedOn: want SearchBar, got %s", updatedFocus.FocusedOn)
+	}
+
+	updatedFocus.Search.SetValue("Kendrick")
+
+	resSubmit, cmdSubmit := updatedFocus.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	submittedModel := resSubmit.(Model)
+	if cmdSubmit == nil {
+		t.Error("cmdSubmit should not be nil when pressing enter in SearchBar")
+	}
+
+	_, cmdQ := submittedModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmdQ != nil {
+		msg := cmdQ()
+		if msg == tea.Quit() {
+			t.Error("q in SearchBar should not quit application")
+		}
+	}
+
+	resCancel, _ := submittedModel.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	updatedCancel := resCancel.(Model)
+	if updatedCancel.FocusedOn == SearchBar {
+		t.Errorf("FocusedOn after escape: should not be SearchBar, got %s", updatedCancel.FocusedOn)
+	}
+}

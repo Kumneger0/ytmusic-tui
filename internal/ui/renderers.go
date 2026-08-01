@@ -405,7 +405,7 @@ func renderPlayerControls(m *Model) string {
 	case QueueList:
 		parts = append(parts,
 			key.Render("▶")+label.Render(" play")+dimmerStyle.Render("(enter)"),
-			key.Render("-")+label.Render(" remove")+dimmerStyle.Render("(d)"),
+			key.Render("✕")+label.Render(" remove")+dimmerStyle.Render("(r)"),
 			key.Render("↓")+label.Render(" player")+dimmerStyle.Render("(tab)"),
 			key.Render("←")+label.Render(" main view")+dimmerStyle.Render("(shift+tab)"),
 			key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
