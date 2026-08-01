@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 )
 
@@ -62,102 +61,128 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	}
 
 	switch item := item.(type) {
-	case *musicpb.Song:
+	case types.SongItem:
 		icon = "♫"
-		title = item.Title
-		if len(item.Artists) > 0 {
-			var names []string
-			for _, a := range item.Artists {
-				names = append(names, a.Name)
+		if item.Song != nil {
+			title = item.Title
+			if len(item.Artists) > 0 {
+				var names []string
+				for _, a := range item.Artists {
+					names = append(names, a.Name)
+				}
+				subtitle = strings.Join(names, ", ")
 			}
-			subtitle = strings.Join(names, ", ")
 		}
-	case *musicpb.SearchResultSong:
+	case types.SearchResultSongItem:
 		icon = "♫"
-		title = item.Title
-		if len(item.Artists) > 0 {
-			var names []string
-			for _, a := range item.Artists {
-				names = append(names, a.Name)
+		if item.SearchResultSong != nil {
+			title = item.Title
+			if len(item.Artists) > 0 {
+				var names []string
+				for _, a := range item.Artists {
+					names = append(names, a.Name)
+				}
+				subtitle = strings.Join(names, ", ")
 			}
-			subtitle = strings.Join(names, ", ")
 		}
-	case *musicpb.SearchResultArtist:
+	case types.SearchResultArtistItem:
 		icon = "♪"
-		title = item.Name
-		if item.Subscribers != "" {
-			subtitle = fmt.Sprintf("%s — %s subscribers", item.Name, item.Subscribers)
-		} else {
-			subtitle = "Artist"
+		if item.SearchResultArtist != nil {
+			title = item.Name
+			if item.Subscribers != "" {
+				subtitle = fmt.Sprintf("%s — %s subscribers", item.Name, item.Subscribers)
+			} else {
+				subtitle = "Artist"
+			}
 		}
-	case *musicpb.SearchResultPlaylist:
+	case types.SearchResultPlaylistItem:
 		icon = "☰"
-		title = item.Title
-		if item.Author != "" {
-			subtitle = item.Author
-		} else {
-			subtitle = "Playlist"
+		if item.SearchResultPlaylist != nil {
+			title = item.Title
+			if item.Author != "" {
+				subtitle = item.Author
+			} else {
+				subtitle = "Playlist"
+			}
 		}
-	case *musicpb.SearchResultAlbum:
+	case types.SearchResultAlbumItem:
 		icon = "◉"
-		title = item.Title
-		subtitle = fmt.Sprintf("%s • %s", item.Type, item.Year)
-	case *musicpb.SearchResultPodcast:
-		icon = "📻"
-		title = item.Title
-		if item.Author != "" {
-			subtitle = fmt.Sprintf("%s — podcast", item.Author)
-		} else {
-			subtitle = "Podcast Show"
+		if item.SearchResultAlbum != nil {
+			title = item.Title
+			subtitle = fmt.Sprintf("%s • %s", item.Type, item.Year)
 		}
-	case *musicpb.SearchResultEpisode:
+	case types.SearchResultPodcastItem:
+		icon = "📻"
+		if item.SearchResultPodcast != nil {
+			title = item.Title
+			if item.Author != "" {
+				subtitle = fmt.Sprintf("%s — podcast", item.Author)
+			} else {
+				subtitle = "Podcast Show"
+			}
+		}
+	case types.SearchResultEpisodeItem:
 		icon = "🎙"
-		title = item.Title
-		if item.PodcastName != "" && item.Date != "" {
-			subtitle = fmt.Sprintf("%s • %s", item.PodcastName, item.Date)
-		} else if item.PodcastName != "" {
-			subtitle = item.PodcastName
-		} else {
-			subtitle = "Podcast Episode"
+		if item.SearchResultEpisode != nil {
+			title = item.Title
+			if item.PodcastName != "" && item.Date != "" {
+				subtitle = fmt.Sprintf("%s • %s", item.PodcastName, item.Date)
+			} else if item.PodcastName != "" {
+				subtitle = item.PodcastName
+			} else {
+				subtitle = "Podcast Episode"
+			}
 		}
-	case *musicpb.Album:
+	case types.AlbumItem:
 		icon = "◉"
-		title = item.Title
-		subtitle = fmt.Sprintf("%s • %s", item.Type, item.Year)
-	case *musicpb.Playlist:
+		if item.Album != nil {
+			title = item.Title
+			subtitle = fmt.Sprintf("%s • %s", item.Type, item.Year)
+		}
+	case types.PlaylistItem:
 		icon = "☰"
-		title = item.Title
-		if item.Author != "" {
-			subtitle = item.Author
-		} else {
-			subtitle = "Playlist"
+		if item.Playlist != nil {
+			title = item.Title
+			if item.Author != "" {
+				subtitle = item.Author
+			} else {
+				subtitle = "Playlist"
+			}
 		}
-	case *musicpb.FollowedArtist:
+	case types.FollowedArtistItem:
 		icon = "♪"
-		title = item.Name
-		if item.Subscribers != "" {
-			subtitle = item.Subscribers
-		} else {
-			subtitle = "Artist"
+		if item.FollowedArtist != nil {
+			title = item.Name
+			if item.Subscribers != "" {
+				subtitle = item.Subscribers
+			} else {
+				subtitle = "Artist"
+			}
 		}
-	case *musicpb.LibraryChannel:
+	case types.LibraryChannelItem:
 		icon = "♪"
-		title = item.Name
-		subtitle = "Channel"
-	case *musicpb.Podcast:
+		if item.LibraryChannel != nil {
+			title = item.Name
+			subtitle = "Channel"
+		}
+	case types.PodcastItem:
 		icon = "📻"
-		title = item.Title
-		subtitle = item.Author
-	case *musicpb.SongRelatedContent:
-		if item.VideoId != "" || item.ContentType == "song" || item.ContentType == "video" {
-			icon = "♫"
-		} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseId, "MPRE") {
-			icon = "◉"
-		} else {
-			icon = "☰"
+		if item.Podcast != nil {
+			title = item.Title
+			subtitle = item.Author
 		}
-		title = item.Title
-		subtitle = item.Description
+	case types.SongRelatedContentItem:
+		if item.SongRelatedContent != nil {
+			if item.VideoId != "" || item.ContentType == "song" || item.ContentType == "video" {
+				icon = "♫"
+			} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseId, "MPRE") {
+				icon = "◉"
+			} else {
+				icon = "☰"
+			}
+			title = item.Title
+			subtitle = item.Description
+		}
 	case types.PlaylistTrackObject:
 		icon = "♫"
 		if item.Track != nil {
