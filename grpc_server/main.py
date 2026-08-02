@@ -856,24 +856,27 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             )
 
             if isinstance(result, str):
-                return music_pb2.AddPlaylistItemsResponse(status=result, success=True)
-            elif isinstance(result, dict):
+                success = result != "STATUS_FAILED"
+                return music_pb2.AddPlaylistItemsResponse(
+                    status=result,
+                    success=success,
+                    error="" if success else result,
+                )
+            else:
                 status_str = str(result.get("status") or "")
                 error_msg = str(result.get("error") or "")
+                success = status_str != "STATUS_FAILED" and not error_msg
+                if not success and not error_msg and status_str:
+                    error_msg = status_str
                 return music_pb2.AddPlaylistItemsResponse(
                     status=status_str,
-                    success=bool(not error_msg),
-                    error=error_msg,
+                    success=success,
                 )
-            return music_pb2.AddPlaylistItemsResponse(
-                status="",
-                success=True,
-                error="",
-            )
+            
         except Exception as e:
             print(f"Error in AddPlaylistItems: {e}")
             return music_pb2.AddPlaylistItemsResponse(
-                status="",
+                status="STATUS_FAILED",
                 success=False,
                 error=str(e),
             )
@@ -897,24 +900,27 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             )
 
             if isinstance(result, str):
-                return music_pb2.RemovePlaylistItemsResponse(status=result, success=True)
-            elif isinstance(result, dict):
+                success = result != "STATUS_FAILED"
+                return music_pb2.RemovePlaylistItemsResponse(
+                    status=result,
+                    success=success,
+                    error="" if success else result,
+                )
+            else:
                 status_str = str(result.get("status") or "")
                 error_msg = str(result.get("error") or "")
+                success = status_str != "STATUS_FAILED" and not error_msg
+                if not success and not error_msg and status_str:
+                    error_msg = status_str
                 return music_pb2.RemovePlaylistItemsResponse(
                     status=status_str,
-                    success=bool(not error_msg),
+                    success=success,
                     error=error_msg,
                 )
-            return music_pb2.RemovePlaylistItemsResponse(
-                status="",
-                success=True,
-                error="",
-            )
         except Exception as e:
             print(f"Error in RemovePlaylistItems: {e}")
             return music_pb2.RemovePlaylistItemsResponse(
-                status="",
+                status="STATUS_FAILED",
                 success=False,
                 error=str(e),
             )
