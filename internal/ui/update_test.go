@@ -102,7 +102,7 @@ func TestUpdate_LikeUnlikeTrackMsg(t *testing.T) {
 		},
 	}
 
-	result, _ := m.Update(types.LikeUnlikeTrackMsg{TrackID: "vid1", Like: true})
+	result, _ := m.Update(types.LikeUnlikeTrackResponseMsg{TrackID: "vid1", Liked: true})
 	updated := result.(Model)
 
 	if !updated.SelectedTrack.isLiked {
@@ -119,7 +119,7 @@ func TestUpdate_LikeUnlikeTrackMsg_DifferentID(t *testing.T) {
 		},
 	}
 
-	result, _ := m.Update(types.LikeUnlikeTrackMsg{TrackID: "other", Like: true})
+	result, _ := m.Update(types.LikeUnlikeTrackResponseMsg{TrackID: "other", Liked: true})
 	updated := result.(Model)
 
 	if updated.SelectedTrack.isLiked {

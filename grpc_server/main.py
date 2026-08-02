@@ -1,13 +1,16 @@
 from concurrent import futures
-from types import FrameType, UnionType
-from ytmusicapi.models.lyrics import Lyrics, TimedLyrics
+from types import FrameType
 import grpc
 import os
 import sys
-from typing import Callable, override, Any, cast
+from typing import Callable, cast, override
 import signal
 from dotenv import load_dotenv
 _= load_dotenv()
+
+
+def _coerce_str(value: object) -> str:
+    return str(value) if value is not None else ""
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -23,7 +26,6 @@ from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRela
     YTSearchResult,
     YTSong,
     YTThumbnail,
-    YTArtist,
     YTLibraryAlbum,
     YTLibraryPlaylist,
     YTLibraryChannel,
@@ -31,27 +33,29 @@ from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRela
     YTSearchFilter
 )
 
-def _to_proto_thumbnail(thumb: YTThumbnail | dict[str, Any] | str) -> music_pb2.Thumbnail:
+def _to_proto_thumbnail(thumb: object | str) -> music_pb2.Thumbnail:
     if isinstance(thumb, str):
         return music_pb2.Thumbnail(url=thumb, width=0, height=0)
     if isinstance(thumb, dict):
+        thumb_map = cast(dict[str, object], thumb)
         return music_pb2.Thumbnail(
-            url=str(thumb.get("url") or ""),
-            width=int(thumb.get("width") or 0),
-            height=int(thumb.get("height") or 0),
+            url=_coerce_str(thumb_map.get("url")),
+            width=int(_coerce_str(thumb_map.get("width")) or 0),
+            height=int(_coerce_str(thumb_map.get("height")) or 0),
         )
     return music_pb2.Thumbnail(url="", width=0, height=0)
 
 
-def _to_proto_artist(artist: YTArtist | dict[str, Any] | str) -> music_pb2.Artist:
+def _to_proto_artist(artist: object | str) -> music_pb2.Artist:
     if isinstance(artist, str):
         return music_pb2.Artist(id="", name=artist)
     if isinstance(artist, dict):
+        artist_map = cast(dict[str, object], artist)
         return music_pb2.Artist(
-            id=str(artist.get("id") or ""),
-            name=str(artist.get("name") or ""),
+            id=_coerce_str(artist_map.get("id")),
+            name=_coerce_str(artist_map.get("name")),
         )
-    return music_pb2.Artist(id="", name=str(artist or ""))
+    return music_pb2.Artist(id="", name=_coerce_str(artist))
 
 
 def _to_proto_song(song: YTSong) -> music_pb2.Song:
@@ -117,11 +121,10 @@ def _to_proto_playlist(playlist: YTLibraryPlaylist) -> music_pb2.Playlist:
     author_name = ""
     author_val = playlist.get("author")
     if isinstance(author_val, list) and len(author_val) > 0:
-        first_author: object = author_val[0]
-        if isinstance(first_author, dict):
-            name_val = str(first_author.get("name") or "")
-            if name_val:
-                author_name = name_val
+        first_author = author_val[0]
+        name_val = str(first_author.get("name") or "")
+        if name_val:
+            author_name = name_val
     elif isinstance(author_val, str):
         author_name = author_val
 
@@ -163,18 +166,18 @@ def _to_proto_podcast(podcast: YTLibraryPlaylist) -> music_pb2.Podcast:
     author_name = ""
     channel: object = podcast.get("channel")
     if isinstance(channel, dict):
-        val = str(channel.get("name") or "")
+        channel_map = cast(dict[str, object], channel)
+        val = str(channel_map.get("name") or "")
         if val:
             author_name = val
 
     if not author_name:
         author_val = podcast.get("author")
         if isinstance(author_val, list) and len(author_val) > 0:
-            first_author: object = author_val[0]
-            if isinstance(first_author, dict):
-                val = str(first_author.get("name") or "")
-                if val:
-                    author_name = val
+            first_author = author_val[0]
+            val = str(first_author.get("name") or "")
+            if val:
+                author_name = val
         elif isinstance(author_val, str):
             author_name = author_val
 
@@ -196,56 +199,64 @@ def _to_proto_podcast(podcast: YTLibraryPlaylist) -> music_pb2.Podcast:
     return podcast_msg
 
 
-def to_proto_song_related_content(content: dict[str, Any]) -> music_pb2.SongRelatedContent:
+def to_proto_song_related_content(content: dict[str, object]) -> music_pb2.SongRelatedContent:
     album_name = ""
     album_id = ""
     album_data = content.get("album")
     if isinstance(album_data, dict):
-        name_val = album_data.get("name")
+        album_map = cast(dict[str, object], album_data)
+        name_val = album_map.get("name")
         if isinstance(name_val, str):
             album_name = name_val
-        id_val = album_data.get("id")
+        id_val = album_map.get("id")
         if isinstance(id_val, str):
             album_id = id_val
     elif isinstance(album_data, str):
         album_name = album_data
 
     content_type = ""
-    if content.get("videoId"):
+    video_id = content.get("videoId")
+    browse_id = content.get("browseId")
+    playlist_id = content.get("playlistId")
+    subscribers = content.get("subscribers")
+    if video_id:
         content_type = "song"
-    elif content.get("subscribers") or (content.get("browseId") and str(content.get("browseId")).startswith("UC")):
+    elif subscribers or (browse_id and str(browse_id).startswith("UC")):
         content_type = "artist"
-    elif content.get("playlistId"):
+    elif playlist_id:
         content_type = "playlist"
-    elif content.get("browseId"):
-        if str(content.get("browseId")).startswith("MPRE") or str(content.get("browseId")).startswith("FEmusic_album"):
+    elif browse_id:
+        browse_id_str = str(browse_id)
+        if browse_id_str.startswith("MPRE") or browse_id_str.startswith("FEmusic_album"):
             content_type = "album"
         else:
             content_type = "artist"
 
     content_msg = music_pb2.SongRelatedContent(
-        title=str(content.get("title") or ""),
-        video_id=str(content.get("videoId") or ""),
-        playlist_id=str(content.get("playlistId") or ""),
-        browse_id=str(content.get("browseId") or ""),
+        title=_coerce_str(content.get("title")),
+        video_id=_coerce_str(video_id),
+        playlist_id=_coerce_str(playlist_id),
+        browse_id=_coerce_str(browse_id),
         is_explicit=bool(content.get("isExplicit") or content.get("is_explicit")),
         album=album_name,
         album_id=album_id,
-        description=str(content.get("description") or ""),
-        subscribers=str(content.get("subscribers") or ""),
-        year=str(content.get("year")) if content.get("year") is not None else "",
+        description=_coerce_str(content.get("description")),
+        subscribers=_coerce_str(subscribers),
+        year=_coerce_str(content.get("year")) if content.get("year") is not None else "",
         content_type=content_type,
     )
 
     raw_artists = content.get("artists")
     if isinstance(raw_artists, list):
-        for artist in raw_artists:
-            content_msg.artists.append(_to_proto_artist(cast(dict[str, Any], artist)))
+        for artist in cast(list[object], raw_artists):
+            if isinstance(artist, dict):
+                content_msg.artists.append(_to_proto_artist(cast(dict[str, object], artist)))
 
     raw_thumbnails = content.get("thumbnails")
     if isinstance(raw_thumbnails, list):
-        for thumbnail in raw_thumbnails:
-            content_msg.thumbnails.append(_to_proto_thumbnail(cast(dict[str, Any], thumbnail)))
+        for thumbnail in cast(list[object], raw_thumbnails):
+            if isinstance(thumbnail, dict):
+                content_msg.thumbnails.append(_to_proto_thumbnail(cast(dict[str, object], thumbnail)))
 
     return content_msg
 
@@ -400,11 +411,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 dur_int = 0
                 if isinstance(dur_val, int):
                     dur_int = dur_val
-                elif isinstance(dur_val, str):
-                    try:
-                        dur_int = int(dur_val)
-                    except ValueError:
-                        pass
 
                 song_item = music_pb2.SearchResultSong(
                     video_id=str(result.get("videoId") or ""),
@@ -465,11 +471,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             elif result_type == "podcast":
                 author_val = result.get("author")
                 author_str = ""
-                if isinstance(author_val, dict):
-                    name_val = author_val.get("name")
-                    if isinstance(name_val, str):
-                        author_str = name_val
-                elif isinstance(author_val, str):
+                if isinstance(author_val, str):
                     author_str = author_val
 
                 podcast_item = music_pb2.SearchResultPodcast(
@@ -486,8 +488,9 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 podcast_name = ""
                 podcast_id = ""
                 if isinstance(podcast_info, dict):
-                    name_val = podcast_info.get("name")
-                    id_val = podcast_info.get("id")
+                    podcast_map = cast(dict[str, object], podcast_info)
+                    name_val = podcast_map.get("name")
+                    id_val = podcast_map.get("id")
                     if isinstance(name_val, str):
                         podcast_name = name_val
                     if isinstance(id_val, str):
@@ -511,11 +514,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 dur_int = 0
                 if isinstance(dur_val, int):
                     dur_int = dur_val
-                elif isinstance(dur_val, str):
-                    try:
-                        dur_int = int(dur_val)
-                    except ValueError:
-                        pass
 
                 song_item = music_pb2.SearchResultSong(
                     video_id=str(result.get("videoId") or ""),
@@ -601,7 +599,9 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def SaveRemoveTrack(self, request: music_pb2.SaveRemoveTrackRequest, context: grpc.ServicerContext) -> music_pb2.SaveRemoveTrackResponse:
-        self.client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
+        print('SaveRemoveTrackRequest:', request)
+        save_result = self.client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
+        print('save_result:', save_result)
         return music_pb2.SaveRemoveTrackResponse()
 
     @override
@@ -612,12 +612,14 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def LikeSong(self, request: music_pb2.LikeSongRequest, context: grpc.ServicerContext) -> music_pb2.LikeSongResponse:
-        _ = self.client.like_song(request.video_id)
+        like_song_result = self.client.like_song(request.video_id)
+        print('like_song_result:', like_song_result)
         return music_pb2.LikeSongResponse()
 
     @override
     def UnlikeSong(self, request: music_pb2.UnlikeSongRequest, context: grpc.ServicerContext) -> music_pb2.UnlikeSongResponse:
-        _ = self.client.unlike_song(request.video_id)
+        unlike_song_result = self.client.unlike_song(request.video_id)
+        print('unlike_song_result:', unlike_song_result)
         return music_pb2.UnlikeSongResponse()
     @override
     def GetVideoStreamURLAndDuration(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, context:grpc.ServicerContext) -> music_pb2.GetVideoStreamURLAndDurationResponse:
@@ -640,12 +642,13 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             
             contents: object = section.get("contents")
             if isinstance(contents, list):
-                for content in contents:
+                for content in cast(list[object], contents):
                     if not isinstance(content, dict):
                         continue
-                    playlist_id = str(content.get("playlistId") or "")
-                    video_id = str(content.get("videoId") or "")
-                    browse_id = str(content.get("browseId") or "")
+                    content_map = cast(dict[str, object], content)
+                    playlist_id = str(content_map.get("playlistId") or "")
+                    video_id = str(content_map.get("videoId") or "")
+                    browse_id = str(content_map.get("browseId") or "")
                     content_type = "playlist"
                     if video_id:
                         content_type = "song"
@@ -660,18 +663,19 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                         content_type = "playlist"
 
                     content_msg = music_pb2.HomePageContent(
-                        title=str(content.get("title") or ""),
+                        title=str(content_map.get("title") or ""),
                         playlist_id=playlist_id,
                         video_id=video_id,
                         browse_id=browse_id,
                         content_type=content_type,
-                        description=str(content.get("description") or "")
+                        description=str(content_map.get("description") or "")
                     )
 
-                    thumbnails = content.get("thumbnails")
+                    thumbnails = content_map.get("thumbnails")
                     if isinstance(thumbnails, list):
-                        for thumbnail in thumbnails:
-                            content_msg.thumbnails.append(_to_proto_thumbnail(cast(dict[str, Any], thumbnail)))
+                        for thumbnail in cast(list[object], thumbnails):
+                            if isinstance(thumbnail, dict):
+                                content_msg.thumbnails.append(_to_proto_thumbnail(cast(dict[str, object], thumbnail)))
 
                     section_msg.contents.append(content_msg)
 
@@ -689,16 +693,18 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             if not request.videoId and not getattr(request, "browse_id", None):
                 return music_pb2.GetSongRelatedResponse()
             browse_id = getattr(request, "browse_id", None) or getattr(request, "videoId", None)
-            if not browse_id or not browse_id.startswith("MPTRt_"):
+            browse_id_str = str(browse_id or "")
+            if not browse_id_str.startswith("MPTRt_"):
                 watch_data = self.client.get_watch_playlist(request.videoId)
                 related_id = watch_data.get("related")
                 if isinstance(related_id, str) and related_id:
-                    browse_id = related_id
+                    browse_id_str = related_id
 
-            if not browse_id or not browse_id.startswith("MPTRt_"):
+            if not browse_id_str.startswith("MPTRt_"):
                 return music_pb2.GetSongRelatedResponse()
 
-            sections_data = self.client.get_song_related(browse_id)
+            sections_data = self.client.get_song_related(browse_id_str)
+
             response = music_pb2.GetSongRelatedResponse()
             for section in sections_data:
                 sec_msg = music_pb2.SongRelatedSection(
@@ -709,8 +715,9 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 if isinstance(contents_data, str):
                     sec_msg.text_content = contents_data
                 elif isinstance(contents_data, list):
-                    for item in contents_data:
-                        sec_msg.contents.append(to_proto_song_related_content(cast(dict[str, Any], item)))
+                    for item in cast(list[object], contents_data):
+                        if isinstance(item, dict):
+                            sec_msg.contents.append(to_proto_song_related_content(cast(dict[str, object], item)))
                 response.sections.append(sec_msg)
             return response
         except Exception as e:
@@ -739,7 +746,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
             def _get_val(obj: object, key: str) -> object:
                 if isinstance(obj, dict):
-                    return obj.get(key)
+                    return cast(dict[str, object], obj).get(key)
                 return getattr(obj, key, None)
 
             source = str(_get_val(raw_lyrics, "source") or "")
@@ -752,11 +759,22 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             )
 
             if has_timestamps and isinstance(lyrics_data, list):
-                for line in lyrics_data:
-                    line_text = str(_get_val(line, "text") or "")
-                    start_time = int(cast(int, _get_val(line, "start_time") or 0))
-                    end_time = int(cast(int, _get_val(line, "end_time") or 0))
-                    line_id = int(cast(int, _get_val(line, "id") or 0))
+                for line in cast(list[object], lyrics_data):
+                    line_text = ""
+                    start_time = 0
+                    end_time = 0
+                    line_id = 0
+                    if isinstance(line, dict):
+                        line_map = cast(dict[str, object], line)
+                        line_text = _coerce_str(line_map.get("text"))
+                        start_time = int(_coerce_str(line_map.get("start_time")) or 0)
+                        end_time = int(_coerce_str(line_map.get("end_time")) or 0)
+                        line_id = int(_coerce_str(line_map.get("id")) or 0)
+                    else:
+                        line_text = _coerce_str(getattr(line, "text", None))
+                        start_time = int(getattr(line, "start_time", 0) or 0)
+                        end_time = int(getattr(line, "end_time", 0) or 0)
+                        line_id = int(getattr(line, "id", 0) or 0)
                     response.lines.append(
                         music_pb2.LyricLine(
                             text=line_text,
@@ -776,7 +794,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
 
 def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:
-    def shutdown(signum: int, frame: FrameType | None) -> None:
+    def shutdown(signum: int, _frame: FrameType | None) -> None:
         print(f"Received {signal.Signals(signum).name}")
         _ = server.stop(grace=5)
     return shutdown
