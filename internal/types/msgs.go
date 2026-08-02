@@ -65,9 +65,9 @@ type CheckUserSavedTrackResponseMsg struct {
 	Err   error
 }
 
-type LikeUnlikeTrackMsg struct {
+type LikeUnlikeTrackResponseMsg struct {
 	TrackID string
-	Like    bool
+	Liked   bool
 	Err     error
 }
 

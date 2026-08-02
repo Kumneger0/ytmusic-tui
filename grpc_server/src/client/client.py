@@ -1,5 +1,9 @@
+from _thread import lock
+
+
+from typing import cast, Callable, TypeVar
 import threading
-from typing import cast, Any, Callable, TypeVar
+from ytmusicapi.type_alias import JsonDict
 from ytmusicapi.models.lyrics import Lyrics, TimedLyrics
 from ytmusicapi import YTMusic, LikeStatus
 from yt_dlp import YoutubeDL
@@ -26,10 +30,10 @@ from .types import (
 
 class MusicClient:
     def __init__(self, auth_file: str | None = None) -> None:
-        self.auth_file = auth_file
+        self.auth_file: str | None = auth_file
         self._client: YTMusic | None = None
-        self._lock = threading.Lock()
-        self._generation = 0
+        self._lock: lock = threading.Lock()
+        self._generation: int = 0
 
     def get_client(self) -> YTMusic:
         if self._client is None:
@@ -164,46 +168,62 @@ class MusicClient:
         return self.execute(lambda c: cast(list[YTSong], c.get_history()))
 
     def check_user_saved_track(self, video_id: str) -> bool:
+        if not video_id:
+            return False
+
         def _check(c: YTMusic) -> bool:
-            raw_song = cast(dict[str, object], c.get_song(videoId=video_id))
-            return True if raw_song else False
+            raw_playlist = cast(object, c.get_watch_playlist(videoId=video_id))
+            if not isinstance(raw_playlist, dict):
+                return False
+            watch_playlist = cast(dict[str, object], raw_playlist)
+            tracks = cast(list[object] | None, watch_playlist.get("tracks"))
+            if isinstance(tracks, list) and len(tracks) > 0:
+                first_track: object = tracks[0]
+                if isinstance(first_track, dict):
+                    track_dict = cast(dict[str, object], first_track)
+                    return str(track_dict.get("likeStatus") or "") == "LIKE"
+            return False
+
         try:
             return self.execute(_check)
         except Exception:
             return False
 
-    def save_remove_track(self, video_ids: list[str], is_remove: bool) -> None:
+    def save_remove_track(self, video_ids: list[str], is_remove: bool)  -> JsonDict | None:
         rating = LikeStatus.INDIFFERENT if is_remove else LikeStatus.LIKE
+        print(f"save_remove_track: video_ids={video_ids}, is_remove={is_remove}, rating={rating}")
         for video_id in video_ids:
-            self.execute(lambda c: c.rate_song(videoId=video_id, rating=rating))
+            return self.execute(lambda c: c.rate_song(videoId=video_id, rating=rating))
 
     def search(self, query: str) -> list[YTSong]:
         return self.execute(lambda c: cast(list[YTSong], c.search(query, filter="songs")))
 
     def like_song(self, video_id: str) -> object:
+        print(f"like_song: video_id={video_id}")
         return self.execute(lambda c: c.rate_song(video_id, LikeStatus.LIKE))
 
     def unlike_song(self, video_id: str) -> object:
+        print(f"unlike_song: video_id={video_id}")
         return self.execute(lambda c: c.rate_song(video_id, LikeStatus.INDIFFERENT))
 
-    def get_song_related(self, browse_id: str) -> list[dict[str, Any]]:
+    def get_song_related(self, browse_id: str) -> list[dict[str, object]]:
         if not browse_id or not browse_id.startswith("MPTRt_"):
             return []
         try:
-            return self.execute(lambda c: cast(list[dict[str, Any]], cast(object, c.get_song_related(browseId=browse_id))))
+            return self.execute(lambda c: cast(list[dict[str, object]], cast(object, c.get_song_related(browseId=browse_id))))
         except Exception as e:
             print(f"Error in get_song_related: {e}")
             return []
 
-    def get_lyrics(self, browse_id: str, timestamps: bool = False) -> Lyrics | TimedLyrics | dict[str, Any] | None:
+    def get_lyrics(self, browse_id: str, timestamps: bool = False) -> Lyrics | TimedLyrics | dict[str, object] | None:
         if timestamps:
             result = self._get_timed_lyrics_raw(browse_id)
             if result is not None:
                 return result
             try:
                 res = self.execute(lambda c: c.get_lyrics(browseId=browse_id, timestamps=True))
-                if res and (isinstance(res, dict) and (res.get("hasTimestamps") or res.get("lyrics"))):
-                    return cast(dict[str, Any], res)
+                if res and (res.get("hasTimestamps") or res.get("lyrics")):
+                    return cast(dict[str, object], cast(object, res))
             except Exception as e:
                 print(f"Failed to fetch timed lyrics via web API: {e}")
 
@@ -221,25 +241,40 @@ class MusicClient:
             from ytmusicapi.models.lyrics import LyricLine
 
             with c.as_mobile():
-                response = c._send_request("browse", {"browseId": browse_id})
+                response = c._send_request("browse", {"browseId": browse_id})  # pyright: ignore[reportPrivateUsage]
 
             data = nav(response, TIMESTAMPED_LYRICS, True)
-            if not isinstance(data, dict) or "timedLyricsData" not in data:
+            if not isinstance(data, dict):
+                return None
+
+            data_map = cast(dict[str, object], data)
+            timed_lyrics_data = data_map.get("timedLyricsData")
+            if not isinstance(timed_lyrics_data, list):
                 return None
 
             lines: list[LyricLine] = []
-            for item in data["timedLyricsData"]:
-                text = item.get("lyricLine", "")
-                cue = item.get("cueRange") or {}
-                start = int(cue.get("startTimeMilliseconds", 0)) if isinstance(cue, dict) else 0
-                end = int(cue.get("endTimeMilliseconds", 0)) if isinstance(cue, dict) else 0
-                meta = cue.get("metadata") if isinstance(cue, dict) else None
-                lid = int(meta["id"]) if isinstance(meta, dict) and "id" in meta else 0
+            for item in cast(list[object], timed_lyrics_data):
+                if not isinstance(item, dict):
+                    continue    
+                item_map = cast(dict[str, object], item)
+                text = str(item_map.get("lyricLine") or "")
+                cue = item_map.get("cueRange")
+                start = 0
+                end = 0
+                lid = 0
+                if isinstance(cue, dict):
+                    cue_map = cast(dict[str, object], cue)
+                    start = int(str(cue_map.get("startTimeMilliseconds") or 0))
+                    end = int(str(cue_map.get("endTimeMilliseconds") or 0))
+                    metadata = cue_map.get("metadata")
+                    if isinstance(metadata, dict):
+                        metadata_map = cast(dict[str, object], metadata)
+                        lid = int(str(metadata_map.get("id") or 0))
                 lines.append(LyricLine(text=text, start_time=start, end_time=end, id=lid))
 
             return TimedLyrics(
                 lyrics=lines,
-                source=data.get("sourceMessage"),
+                source=str(data_map.get("sourceMessage") or "") if data_map.get("sourceMessage") is not None else None,
                 hasTimestamps=True,
             )
         try:
@@ -247,14 +282,12 @@ class MusicClient:
         except Exception:
             return None
 
-    def get_watch_playlist(self, video_id: str) -> dict[str, Any]:
+    def get_watch_playlist(self, video_id: str) -> dict[str, object]:
         if not video_id:
             return {}
         try:
             res = self.execute(lambda c: c.get_watch_playlist(videoId=video_id))
-            if isinstance(res, dict):
-                return cast(dict[str, Any], res)
-            return {}
+            return cast(dict[str, object], res)
         except Exception as e:
             print(f"Error in get_watch_playlist: {e}")
             return {}

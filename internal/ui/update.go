@@ -241,9 +241,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd := m.handleDbusMessage(msg.MessageType, cmds)
 		m = model
 		cmds = append(cmds, cmd)
-	case types.LikeUnlikeTrackMsg:
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && msg.TrackID == m.SelectedTrack.Track.Track.VideoId {
-			m.SelectedTrack.isLiked = msg.Like
+	case types.LikeUnlikeTrackResponseMsg:
+		if msg.Err != nil {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			cmds = append(cmds, alertCmd)
+			return m, tea.Batch(cmds...)
+		}
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && m.SelectedTrack.Track.Track.VideoId == msg.TrackID {
+			m.SelectedTrack.isLiked = msg.Liked
 		}
 	case types.PlayedSecondsUpdateMsg:
 		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil || m.SelectedTrack.Track.Track == nil {
@@ -510,29 +515,27 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m.getMusicLyrics(m.SelectedTrack)
 	case "l":
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
+			trackID := m.SelectedTrack.Track.Track.VideoId
+			shouldRemove := m.SelectedTrack.isLiked
+			targetLikedState := !shouldRemove
+
 			cmd := func() tea.Msg {
-				var shouldRemove bool
-				if m.SelectedTrack.isLiked {
-					shouldRemove = true
-				} else {
-					shouldRemove = false
-				}
-				ctx, _ := context.WithCancel(context.Background())
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
 				_, err := m.YtMusicClient.SaveRemoveTrack(ctx, &musicpb.SaveRemoveTrackRequest{
-					VideoIds: []string{},
-					IsRemove: true,
+					VideoIds: []string{trackID},
+					IsRemove: shouldRemove,
 				})
 
 				if err != nil {
 					slog.Error(err.Error())
 				}
-				likeUnlikeTrackMsg := types.LikeUnlikeTrackMsg{
-					TrackID: m.SelectedTrack.Track.Track.VideoId,
-					Like:    !shouldRemove,
+				return types.LikeUnlikeTrackResponseMsg{
+					TrackID: trackID,
+					Liked:   targetLikedState,
 					Err:     err,
 				}
-				return likeUnlikeTrackMsg
 			}
 			return m, cmd
 		}

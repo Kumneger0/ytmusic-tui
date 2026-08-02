@@ -8,7 +8,7 @@ help: ## show this help message
 
 
 .PHONY: build
-build: server-build ## build the Go application
+build: ## build the Go application
 	@echo "--> Building Go application..."
 	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(projectname)
 

@@ -2,24 +2,25 @@ import hashlib
 import sys
 import time
 from http.cookiejar import CookieJar
+from typing import Callable, cast
 
-import browser_cookie3
+import browser_cookie3  # pyright: ignore[reportMissingTypeStubs]
 
 from grpc_server.src.auth import (  # pyright: ignore[reportImplicitRelativeImport]
     process_raw_headers_via_ytmusicapi,
 )
 
-SUPPORTED_BROWSERS: dict[str, object] = {
-    "chrome": browser_cookie3.chrome,
-    "firefox": browser_cookie3.firefox,
-    "brave": browser_cookie3.brave,
-    "edge": browser_cookie3.edge,
-    "chromium": browser_cookie3.chromium,
-    "opera": browser_cookie3.opera,
-    "opera_gx": browser_cookie3.opera_gx,
-    "vivaldi": browser_cookie3.vivaldi,
-    "librewolf": browser_cookie3.librewolf,
-    "safari": browser_cookie3.safari,
+SUPPORTED_BROWSERS: dict[str, Callable[..., CookieJar]] = {
+    "chrome": cast(Callable[..., CookieJar], browser_cookie3.chrome),
+    "firefox": cast(Callable[..., CookieJar], browser_cookie3.firefox),
+    "brave": cast(Callable[..., CookieJar], browser_cookie3.brave),
+    "edge": cast(Callable[..., CookieJar], browser_cookie3.edge),
+    "chromium": cast(Callable[..., CookieJar], browser_cookie3.chromium),
+    "opera": cast(Callable[..., CookieJar], browser_cookie3.opera),
+    "opera_gx": cast(Callable[..., CookieJar], browser_cookie3.opera_gx),
+    "vivaldi": cast(Callable[..., CookieJar], browser_cookie3.vivaldi),
+    "librewolf": cast(Callable[..., CookieJar], browser_cookie3.librewolf),
+    "safari": cast(Callable[..., CookieJar], browser_cookie3.safari),
 }
 
 YOUTUBE_ORIGIN = "https://music.youtube.com"
@@ -38,8 +39,7 @@ def _extract_cookies(browser_name: str) -> CookieJar:
         sys.exit(1)
 
     try:
-        cj: CookieJar = browser_fn(domain_name=".youtube.com")  # pyright: ignore[reportCallIssue]
-        return cj
+        return  browser_fn(domain_name=".youtube.com")
     except Exception as e:
         print(f"[Error] Failed to extract cookies from {browser_name}: {e}", file=sys.stderr)
         print(

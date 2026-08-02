@@ -326,7 +326,7 @@ func renderNowPlaying(m *Model, currentPosition, TotalDuration time.Duration) st
 	if selectedTrack.isLiked {
 		likedIndicator = " ♥"
 	} else {
-		likedIndicator = ""
+		likedIndicator = " ♡"
 	}
 
 	barWidth := m.Width
