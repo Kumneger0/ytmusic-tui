@@ -306,13 +306,16 @@ class MusicClient:
         privacy_status: str = "PRIVATE",
         video_ids: list[str] | None = None,
         source_playlist: str | None = None,
-    ) :
-        return self.execute(
-            lambda c:  c.create_playlist(
+    ):
+        try:
+            return self.get_client().create_playlist(
                     title=title,
                     description=description,
                     privacy_status=privacy_status,
                     video_ids=video_ids,
                     source_playlist=source_playlist,
-                )
-        )
+            )
+        except Exception as e:
+            print(f"create_playlist failed ({e}). Resetting client without retry...")
+            self.reset_client()
+            raise

@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -302,7 +301,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case types.UpdatePlaylistMsg:
 		m.IsSearchLoading = false
 		if msg.Playlist != nil {
-			fmt.Println("it is not null btw we but it doesnt have nay dat inside")
 			var playListItemSongs []list.Item
 			for _, item := range msg.Playlist {
 				if msg.ShouldAppendQueue {
@@ -346,7 +344,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 		}
 		dims := CalculateLayoutDimensions(&m)
-		m.SelectedPlayListItems = list.New([]list.Item{}, CustomDelegate{}, dims.MainWidth, dims.ContentHeight)
+		m.SelectedPlayListItems = list.New([]list.Item{}, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight)
 	case types.RelatedSongsMsg:
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())

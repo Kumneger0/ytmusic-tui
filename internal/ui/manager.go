@@ -3,6 +3,7 @@ package ui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
+	overlay "github.com/rmhubbert/bubbletea-overlay"
 )
 
 type SessionState int
@@ -24,7 +25,6 @@ type Manager struct {
 	WindowHeight int
 	Foreground   tea.Model
 	Background   tea.Model
-	Overlay      tea.Model
 	OverlayMode  OverlayMode
 }
 
@@ -77,7 +77,15 @@ func (m Manager) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Manager) View() string {
 	if m.State == Foreground {
-		return m.Overlay.View()
+		ov := overlay.New(
+			m.Foreground,
+			m.Background,
+			overlay.Center,
+			overlay.Center,
+			0,
+			0,
+		)
+		return ov.View()
 	}
 	return m.Background.View()
 }
