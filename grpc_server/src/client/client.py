@@ -1,8 +1,5 @@
-from _thread import lock
-
-
-from typing import cast, Callable, TypeVar
 import threading
+from typing import cast, Callable, TypeVar
 from ytmusicapi.type_alias import JsonDict
 from ytmusicapi.models.lyrics import Lyrics, TimedLyrics
 from ytmusicapi import YTMusic, LikeStatus
@@ -32,7 +29,7 @@ class MusicClient:
     def __init__(self, auth_file: str | None = None) -> None:
         self.auth_file: str | None = auth_file
         self._client: YTMusic | None = None
-        self._lock: lock = threading.Lock()
+        self._lock = threading.Lock()
         self._generation: int = 0
 
     def get_client(self) -> YTMusic:
@@ -192,8 +189,12 @@ class MusicClient:
     def save_remove_track(self, video_ids: list[str], is_remove: bool)  -> JsonDict | None:
         rating = LikeStatus.INDIFFERENT if is_remove else LikeStatus.LIKE
         print(f"save_remove_track: video_ids={video_ids}, is_remove={is_remove}, rating={rating}")
+        last_res: JsonDict | None = None
         for video_id in video_ids:
-            return self.execute(lambda c: c.rate_song(videoId=video_id, rating=rating))
+            res = self.execute(lambda c, vid=video_id: c.rate_song(videoId=vid, rating=rating))
+            if isinstance(res, dict):
+                last_res = res
+        return last_res
 
     def search(self, query: str) -> list[YTSong]:
         return self.execute(lambda c: cast(list[YTSong], c.search(query, filter="songs")))
