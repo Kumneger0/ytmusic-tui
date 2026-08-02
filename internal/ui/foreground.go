@@ -21,23 +21,26 @@ const (
 )
 
 type ForegroundModel struct {
-	ActiveModal         types.ModalType
-	FocusIndex          FormField
-	TitleInput          textinput.Model
-	DescInput           textinput.Model
-	PrivacyIndex        int
-	PrivacyOptions      []string
-	Width               int
-	Height              int
-	ErrorMsg            string
-	SuccessMsg          string
-	IsSubmitting        bool
-	IsLoading           bool
-	Playlists           []*musicpb.Playlist
-	PlaylistSelectIndex int
-	SelectedTrackID     string
-	SelectedTrackTitle  string
-	Membership          map[string]string
+	ActiveModal           types.ModalType
+	FocusIndex            FormField
+	TitleInput            textinput.Model
+	DescInput             textinput.Model
+	PrivacyIndex          int
+	PrivacyOptions        []string
+	Width                 int
+	Height                int
+	ErrorMsg              string
+	SuccessMsg            string
+	IsSubmitting          bool
+	IsLoading             bool
+	Playlists             []*musicpb.Playlist
+	PlaylistSelectIndex   int
+	SelectedTrackID       string
+	SelectedTrackTitle    string
+	Membership            map[string]string
+	TargetPlaylistID      string
+	TargetPlaylistName    string
+	ConfirmDuplicateIndex int
 }
 
 func NewForegroundModel() *ForegroundModel {
@@ -115,9 +118,24 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.PlaylistSelectIndex = 0
 			m.IsLoading = false
 			m.IsSubmitting = false
-			m.ErrorMsg = ""
+			if msg.Err != nil {
+				m.ErrorMsg = fmt.Sprintf("Failed to fetch playlists: %s", msg.Err.Error())
+			} else {
+				m.ErrorMsg = ""
+			}
 			m.SuccessMsg = ""
 		}
+		return m, nil
+
+	case types.PromptDuplicateConfirmMsg:
+		m.ActiveModal = types.ModalTypeDuplicateConfirm
+		m.TargetPlaylistID = msg.PlaylistID
+		m.TargetPlaylistName = msg.PlaylistName
+		m.SelectedTrackID = msg.TrackID
+		m.SelectedTrackTitle = msg.TrackTitle
+		m.ConfirmDuplicateIndex = 0 // Default: Yes
+		m.IsSubmitting = false
+		m.IsLoading = false
 		return m, nil
 
 	case types.CloseModalMsg:
@@ -257,43 +275,13 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.PlaylistSelectIndex = (m.PlaylistSelectIndex - 1 + len(m.Playlists)) % len(m.Playlists)
 				}
 				return m, nil
-			case "a":
+			case "enter", "a":
 				if len(m.Playlists) > 0 && m.PlaylistSelectIndex >= 0 && m.PlaylistSelectIndex < len(m.Playlists) {
 					pl := m.Playlists[m.PlaylistSelectIndex]
 					trackID := m.SelectedTrackID
 					trackTitle := m.SelectedTrackTitle
 					m.IsSubmitting = true
 					m.ErrorMsg = ""
-					return m, func() tea.Msg {
-						return types.AddToPlaylistMsg{
-							PlaylistID:   pl.PlaylistId,
-							PlaylistName: pl.Title,
-							TrackID:      trackID,
-							TrackTitle:   trackTitle,
-							Duplicates:   true,
-						}
-					}
-				}
-			case "enter":
-				if len(m.Playlists) > 0 && m.PlaylistSelectIndex >= 0 && m.PlaylistSelectIndex < len(m.Playlists) {
-					pl := m.Playlists[m.PlaylistSelectIndex]
-					trackID := m.SelectedTrackID
-					trackTitle := m.SelectedTrackTitle
-					setVid, isMember := m.Membership[pl.PlaylistId]
-					m.IsSubmitting = true
-					m.ErrorMsg = ""
-
-					if isMember {
-						return m, func() tea.Msg {
-							return types.RemoveFromPlaylistMsg{
-								PlaylistID:   pl.PlaylistId,
-								PlaylistName: pl.Title,
-								TrackID:      trackID,
-								TrackTitle:   trackTitle,
-								SetVideoID:   setVid,
-							}
-						}
-					}
 					return m, func() tea.Msg {
 						return types.AddToPlaylistMsg{
 							PlaylistID:   pl.PlaylistId,
@@ -303,6 +291,41 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							Duplicates:   false,
 						}
 					}
+				}
+			}
+			return m, nil
+		}
+
+		if m.ActiveModal == types.ModalTypeDuplicateConfirm {
+			if m.IsSubmitting {
+				return m, nil
+			}
+			switch msg.String() {
+			case "left", "h", "right", "l", "tab", "shift+tab":
+				m.ConfirmDuplicateIndex = (m.ConfirmDuplicateIndex + 1) % 2
+				return m, nil
+			case "enter":
+				if m.ConfirmDuplicateIndex == 0 {
+					// Yes (Add Duplicate)
+					plID := m.TargetPlaylistID
+					plName := m.TargetPlaylistName
+					trID := m.SelectedTrackID
+					trTitle := m.SelectedTrackTitle
+					m.IsSubmitting = true
+					m.ErrorMsg = ""
+					return m, func() tea.Msg {
+						return types.AddToPlaylistMsg{
+							PlaylistID:   plID,
+							PlaylistName: plName,
+							TrackID:      trID,
+							TrackTitle:   trTitle,
+							Duplicates:   true,
+						}
+					}
+				}
+				m.ActiveModal = types.ModalTypeNone
+				return m, func() tea.Msg {
+					return types.CloseModalMsg{ModalType: types.ModalTypeDuplicateConfirm}
 				}
 			}
 			return m, nil
@@ -332,6 +355,8 @@ func (m *ForegroundModel) View() string {
 		return m.renderCreatePlaylistModal()
 	case types.ModalTypeAddToPlaylist:
 		return m.renderAddToPlaylistModal()
+	case types.ModalTypeDuplicateConfirm:
+		return m.renderDuplicateConfirmModal()
 	default:
 		return ""
 	}
@@ -478,7 +503,6 @@ func (m *ForegroundModel) renderAddToPlaylistModal() string {
 	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A"))
 	normalStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E4E4E7"))
-	memberBadgeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).Bold(true)
 	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).Bold(true)
 	selectedStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FAFAFA")).
@@ -496,7 +520,7 @@ func (m *ForegroundModel) renderAddToPlaylistModal() string {
 		Foreground(lipgloss.Color("#A1A1AA")).
 		Align(lipgloss.Center).
 		Width(modalWidth - 4).
-		Render("↑/↓ Select • Enter Toggle Add/Remove • a Add Duplicate • Esc Close")
+		Render("↑/↓ Select • Enter Add to Playlist • Esc Close")
 
 	var middleSection string
 
@@ -528,12 +552,7 @@ func (m *ForegroundModel) renderAddToPlaylistModal() string {
 				if pl.Count > 0 {
 					countStr = fmt.Sprintf(" (%d tracks)", pl.Count)
 				}
-				_, isMember := m.Membership[pl.PlaylistId]
-				badge := " [+ Add]"
-				if isMember {
-					badge = memberBadgeStyle.Render(" [✓ IN PLAYLIST]")
-				}
-				line := fmt.Sprintf("%s%s %s", itemTitle, countStr, badge)
+				line := fmt.Sprintf("%s%s", itemTitle, countStr)
 				if i == m.PlaylistSelectIndex {
 					listRows = append(listRows, selectedStyle.Render("▶ "+line))
 				} else {
@@ -561,6 +580,73 @@ func (m *ForegroundModel) renderAddToPlaylistModal() string {
 		Width(modalWidth).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
+		Padding(1, 2).
+		Background(lipgloss.Color("#18181B")).
+		Render(body)
+}
+
+func (m *ForegroundModel) renderDuplicateConfirmModal() string {
+	modalWidth := 56
+	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A"))
+	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E4E4E7"))
+
+	header := accentStyle.Render("⚠️ Duplicate Song Notice")
+	divider := dimStyle.Render(strings.Repeat("─", modalWidth-4))
+
+	msgText := textStyle.Render(fmt.Sprintf("\"%s\" is already in playlist \"%s\".\nDo you want to add it as a duplicate?", m.SelectedTrackTitle, m.TargetPlaylistName))
+
+	var btnYes, btnNo string
+	if m.ConfirmDuplicateIndex == 0 {
+		btnYes = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FAFAFA")).
+			Background(lipgloss.Color("#7D56F4")).
+			Bold(true).
+			Padding(0, 2).
+			Render("● Yes (Add Duplicate)")
+		btnNo = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#A1A1AA")).
+			Background(lipgloss.Color("#3F3F46")).
+			Padding(0, 2).
+			Render("○ No (Cancel)")
+	} else {
+		btnYes = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#A1A1AA")).
+			Background(lipgloss.Color("#3F3F46")).
+			Padding(0, 2).
+			Render("○ Yes (Add Duplicate)")
+		btnNo = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FAFAFA")).
+			Background(lipgloss.Color("#7D56F4")).
+			Bold(true).
+			Padding(0, 2).
+			Render("● No (Cancel)")
+	}
+
+	btnRow := fmt.Sprintf("%s    %s", btnYes, btnNo)
+	btnContainer := lipgloss.NewStyle().Align(lipgloss.Center).Width(modalWidth - 4).Render(btnRow)
+
+	keybindHelp := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#A1A1AA")).
+		Align(lipgloss.Center).
+		Width(modalWidth - 4).
+		Render("←/→ Select • Enter Confirm • Esc Cancel")
+
+	bodyParts := []string{
+		header,
+		divider,
+		msgText,
+		btnContainer,
+		divider,
+		keybindHelp,
+	}
+
+	body := strings.Join(bodyParts, "\n\n")
+
+	return lipgloss.NewStyle().
+		Width(modalWidth).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#F59E0B")).
 		Padding(1, 2).
 		Background(lipgloss.Color("#18181B")).
 		Render(body)

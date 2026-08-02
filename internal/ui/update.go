@@ -619,45 +619,35 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			userPlaylists, err := m.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{Limit: 100})
-			var pls []*musicpb.Playlist
-			membership := make(map[string]string)
-			if err == nil && userPlaylists != nil {
-				pls = userPlaylists.Playlists
-				for _, pl := range pls {
-					if pl.PlaylistId == "" {
-						continue
-					}
-					itemsRes, itemsErr := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
-						PlaylistId: pl.PlaylistId,
-						Limit:      200,
-					})
-					if itemsErr == nil && itemsRes != nil {
-						for _, t := range itemsRes.Tracks {
-							if t.VideoId == trackID {
-								membership[pl.PlaylistId] = t.SetVideoId
-								break
-							}
-						}
-					}
+			if err != nil {
+				return types.OpenAddToPlaylistModalMsg{
+					TrackID:    trackID,
+					TrackTitle: trackTitle,
+					Err:        err,
 				}
+			}
+			var pls []*musicpb.Playlist
+			if userPlaylists != nil {
+				pls = userPlaylists.Playlists
 			}
 			return types.OpenAddToPlaylistModalMsg{
 				TrackID:    trackID,
 				TrackTitle: trackTitle,
 				Playlists:  pls,
-				Membership: membership,
 			}
 		}
 		return m, tea.Batch(
-			func() tea.Msg {
-				return types.OpenModalMsg{ModalType: types.ModalTypeAddToPlaylist}
-			},
-			func() tea.Msg {
-				return types.OpenAddToPlaylistLoadingMsg{
-					TrackID:    trackID,
-					TrackTitle: trackTitle,
-				}
-			},
+			tea.Sequence(
+				func() tea.Msg {
+					return types.OpenAddToPlaylistLoadingMsg{
+						TrackID:    trackID,
+						TrackTitle: trackTitle,
+					}
+				},
+				func() tea.Msg {
+					return types.OpenModalMsg{ModalType: types.ModalTypeAddToPlaylist}
+				},
+			),
 			openAddToPlaylistCmd,
 		)
 	case "down", "j":

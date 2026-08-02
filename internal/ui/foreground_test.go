@@ -110,32 +110,29 @@ func TestForegroundModel_AddToPlaylistModal(t *testing.T) {
 	}
 }
 
-func TestForegroundModel_AddDuplicateShortcut(t *testing.T) {
+func TestForegroundModel_DuplicateConfirmModal(t *testing.T) {
 	fg := NewForegroundModel()
 
-	pls := []*musicpb.Playlist{
-		{PlaylistId: "PL1", Title: "Chill Vibes", Count: 10},
-	}
-
-	model, _ := fg.Update(types.OpenAddToPlaylistModalMsg{
-		TrackID:    "track123",
-		TrackTitle: "Blinding Lights",
-		Playlists:  pls,
+	model, _ := fg.Update(types.PromptDuplicateConfirmMsg{
+		PlaylistID:   "PL1",
+		PlaylistName: "Chill Vibes",
+		TrackID:      "track123",
+		TrackTitle:   "Blinding Lights",
 	})
 	fg = model.(*ForegroundModel)
 
-	model, cmd := fg.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	fg = model.(*ForegroundModel)
+	if fg.ActiveModal != types.ModalTypeDuplicateConfirm {
+		t.Fatalf("expected ModalTypeDuplicateConfirm, got %v", fg.ActiveModal)
+	}
 
-	if !fg.IsSubmitting {
-		t.Fatalf("expected IsSubmitting to be true after pressing 'a'")
+	view := fg.View()
+	if view == "" {
+		t.Fatalf("expected non-empty view for DuplicateConfirm modal")
 	}
-	if cmd == nil {
-		t.Fatalf("expected command on pressing 'a'")
-	}
-	msg := cmd()
-	addMsg, ok := msg.(types.AddToPlaylistMsg)
-	if !ok || !addMsg.Duplicates {
-		t.Fatalf("expected AddToPlaylistMsg with Duplicates=true, got %v", msg)
+
+	model, _ = fg.Update(tea.KeyMsg{Type: tea.KeyRight})
+	fg = model.(*ForegroundModel)
+	if fg.ConfirmDuplicateIndex != 1 {
+		t.Fatalf("expected ConfirmDuplicateIndex to be 1 (No), got %d", fg.ConfirmDuplicateIndex)
 	}
 }

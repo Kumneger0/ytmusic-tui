@@ -179,6 +179,7 @@ type OpenAddToPlaylistModalMsg struct {
 	TrackTitle string
 	Playlists  []*musicpb.Playlist
 	Membership map[string]string
+	Err        error
 }
 
 type AddToPlaylistMsg struct {

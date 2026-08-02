@@ -3,7 +3,7 @@ from types import FrameType
 import grpc
 import os
 import sys
-from typing import Callable, cast, override
+from typing import Any, Callable, cast, override
 import signal
 from dotenv import load_dotenv
 _= load_dotenv()
@@ -856,23 +856,25 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             )
 
             if isinstance(result, str):
-                success = result != "STATUS_FAILED"
+                success = result == "STATUS_SUCCEEDED"
+                final_status = result if result else "STATUS_FAILED"
                 return music_pb2.AddPlaylistItemsResponse(
-                    status=result,
+                    status=final_status,
                     success=success,
-                    error="" if success else result,
+                    error="" if success else final_status,
                 )
             else:
                 status_str = str(result.get("status") or "")
                 error_msg = str(result.get("error") or "")
-                success = status_str != "STATUS_FAILED" and not error_msg
-                if not success and not error_msg and status_str:
-                    error_msg = status_str
+                success = status_str == "STATUS_SUCCEEDED" and not error_msg
+                final_status = status_str if status_str else "STATUS_FAILED"
+                if not success and not error_msg:
+                    error_msg = final_status
                 return music_pb2.AddPlaylistItemsResponse(
-                    status=status_str,
+                    status=final_status,
                     success=success,
+                    error=error_msg,
                 )
-            
         except Exception as e:
             print(f"Error in AddPlaylistItems: {e}")
             return music_pb2.AddPlaylistItemsResponse(
@@ -900,23 +902,30 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             )
 
             if isinstance(result, str):
-                success = result != "STATUS_FAILED"
+                success = result == "STATUS_SUCCEEDED"
+                final_status = result if result else "STATUS_FAILED"
                 return music_pb2.RemovePlaylistItemsResponse(
-                    status=result,
+                    status=final_status,
                     success=success,
-                    error="" if success else result,
+                    error="" if success else final_status,
                 )
-            else:
+            elif isinstance(result, dict):
                 status_str = str(result.get("status") or "")
                 error_msg = str(result.get("error") or "")
-                success = status_str != "STATUS_FAILED" and not error_msg
-                if not success and not error_msg and status_str:
-                    error_msg = status_str
+                success = status_str == "STATUS_SUCCEEDED" and not error_msg
+                final_status = status_str if status_str else "STATUS_FAILED"
+                if not success and not error_msg:
+                    error_msg = final_status
                 return music_pb2.RemovePlaylistItemsResponse(
-                    status=status_str,
+                    status=final_status,
                     success=success,
                     error=error_msg,
                 )
+            return music_pb2.RemovePlaylistItemsResponse(
+                status="STATUS_FAILED",
+                success=False,
+                error="Unexpected response from YouTube Music API",
+            )
         except Exception as e:
             print(f"Error in RemovePlaylistItems: {e}")
             return music_pb2.RemovePlaylistItemsResponse(
