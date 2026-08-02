@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -64,6 +65,143 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return types.CreatePlaylistResponseMsg{Success: true, PlaylistID: response.PlaylistId}
 		}
 		return m, cmd
+	case types.CreatePlaylistResponseMsg:
+		if msg.Success {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.InfoKey, "Playlist created successfully!")
+			return m, alertCmd
+		} else if msg.Err != nil {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			return m, alertCmd
+		}
+		return m, nil
+	case types.AddToPlaylistMsg:
+		addCmd := func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			response, err := m.YtMusicClient.AddPlaylistItems(ctx, &musicpb.AddPlaylistItemsRequest{
+				PlaylistId: msg.PlaylistID,
+				VideoIds:   []string{msg.TrackID},
+				Duplicates: msg.Duplicates,
+			})
+
+			isDup := false
+			if err != nil && (strings.Contains(strings.ToLower(err.Error()), "duplicate") || strings.Contains(strings.ToLower(err.Error()), "already")) {
+				isDup = true
+			}
+			if response != nil && (strings.Contains(strings.ToLower(response.Status), "duplicate") || strings.Contains(strings.ToLower(response.Error), "duplicate") || strings.Contains(strings.ToLower(response.Error), "already")) {
+				isDup = true
+			}
+
+			if !msg.Duplicates && isDup {
+				return types.PromptDuplicateConfirmMsg{
+					PlaylistID:   msg.PlaylistID,
+					PlaylistName: msg.PlaylistName,
+					TrackID:      msg.TrackID,
+					TrackTitle:   msg.TrackTitle,
+				}
+			}
+
+			if err != nil {
+				slog.Error(err.Error())
+				return types.AddToPlaylistResponseMsg{
+					PlaylistID:   msg.PlaylistID,
+					PlaylistName: msg.PlaylistName,
+					TrackID:      msg.TrackID,
+					TrackTitle:   msg.TrackTitle,
+					Success:      false,
+					Err:          err,
+				}
+			}
+			if response == nil || !response.Success {
+				errStr := "Failed to add song to playlist"
+				if response != nil && response.Error != "" {
+					errStr = response.Error
+				}
+				return types.AddToPlaylistResponseMsg{
+					PlaylistID:   msg.PlaylistID,
+					PlaylistName: msg.PlaylistName,
+					TrackID:      msg.TrackID,
+					TrackTitle:   msg.TrackTitle,
+					Success:      false,
+					Err:          fmt.Errorf("%s", errStr),
+				}
+			}
+			return types.AddToPlaylistResponseMsg{
+				PlaylistID:   msg.PlaylistID,
+				PlaylistName: msg.PlaylistName,
+				TrackID:      msg.TrackID,
+				TrackTitle:   msg.TrackTitle,
+				Status:       response.Status,
+				Success:      true,
+			}
+		}
+		return m, addCmd
+	case types.AddToPlaylistResponseMsg:
+		if msg.Success {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.InfoKey, fmt.Sprintf("Added \"%s\" to %s", msg.TrackTitle, msg.PlaylistName))
+			return m, alertCmd
+		} else if msg.Err != nil {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			return m, alertCmd
+		}
+		return m, nil
+	case types.RemoveFromPlaylistMsg:
+		removeCmd := func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			response, err := m.YtMusicClient.RemovePlaylistItems(ctx, &musicpb.RemovePlaylistItemsRequest{
+				PlaylistId: msg.PlaylistID,
+				Videos: []*musicpb.PlaylistItemRef{
+					{
+						VideoId:    msg.TrackID,
+						SetVideoId: msg.SetVideoID,
+					},
+				},
+			})
+
+			if err != nil {
+				slog.Error(err.Error())
+				return types.RemoveFromPlaylistResponseMsg{
+					PlaylistID:   msg.PlaylistID,
+					PlaylistName: msg.PlaylistName,
+					TrackID:      msg.TrackID,
+					TrackTitle:   msg.TrackTitle,
+					Success:      false,
+					Err:          err,
+				}
+			}
+			if response == nil || !response.Success {
+				errStr := "Failed to remove song from playlist"
+				if response != nil && response.Error != "" {
+					errStr = response.Error
+				}
+				return types.RemoveFromPlaylistResponseMsg{
+					PlaylistID:   msg.PlaylistID,
+					PlaylistName: msg.PlaylistName,
+					TrackID:      msg.TrackID,
+					TrackTitle:   msg.TrackTitle,
+					Success:      false,
+					Err:          fmt.Errorf("%s", errStr),
+				}
+			}
+			return types.RemoveFromPlaylistResponseMsg{
+				PlaylistID:   msg.PlaylistID,
+				PlaylistName: msg.PlaylistName,
+				TrackID:      msg.TrackID,
+				TrackTitle:   msg.TrackTitle,
+				Success:      true,
+			}
+		}
+		return m, removeCmd
+	case types.RemoveFromPlaylistResponseMsg:
+		if msg.Success {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.InfoKey, fmt.Sprintf("Removed \"%s\" from %s", msg.TrackTitle, msg.PlaylistName))
+			return m, alertCmd
+		} else if msg.Err != nil {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			return m, alertCmd
+		}
+		return m, nil
 	case types.GetLibraryMsg:
 		m.IsSearchLoading = false
 		if msg.Err != nil {
@@ -472,6 +610,56 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		}
 		return m, openCreatePlaylistModal
+	case "ctrl+p":
+		trackID, trackTitle := m.getCurrentSelectedTrack()
+		if trackID == "" {
+			return m, nil
+		}
+		openAddToPlaylistCmd := func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			userPlaylists, err := m.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{Limit: 100})
+			var pls []*musicpb.Playlist
+			membership := make(map[string]string)
+			if err == nil && userPlaylists != nil {
+				pls = userPlaylists.Playlists
+				for _, pl := range pls {
+					if pl.PlaylistId == "" {
+						continue
+					}
+					itemsRes, itemsErr := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
+						PlaylistId: pl.PlaylistId,
+						Limit:      200,
+					})
+					if itemsErr == nil && itemsRes != nil {
+						for _, t := range itemsRes.Tracks {
+							if t.VideoId == trackID {
+								membership[pl.PlaylistId] = t.SetVideoId
+								break
+							}
+						}
+					}
+				}
+			}
+			return types.OpenAddToPlaylistModalMsg{
+				TrackID:    trackID,
+				TrackTitle: trackTitle,
+				Playlists:  pls,
+				Membership: membership,
+			}
+		}
+		return m, tea.Batch(
+			func() tea.Msg {
+				return types.OpenModalMsg{ModalType: types.ModalTypeAddToPlaylist}
+			},
+			func() tea.Msg {
+				return types.OpenAddToPlaylistLoadingMsg{
+					TrackID:    trackID,
+					TrackTitle: trackTitle,
+				}
+			},
+			openAddToPlaylistCmd,
+		)
 	case "down", "j":
 		if m.MainViewMode == LyricsMode && m.FocusedOn == MainView {
 			var cmd tea.Cmd
@@ -1633,4 +1821,53 @@ func SendLoadingCmd() tea.Cmd {
 	return func() tea.Msg {
 		return types.SearchingMsg{}
 	}
+}
+
+func (m Model) getCurrentSelectedTrack() (string, string) {
+	if m.FocusedOn == Player {
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
+			return m.SelectedTrack.Track.Track.VideoId, m.SelectedTrack.Track.Track.Title
+		}
+		return "", ""
+	}
+
+	listModel := getListItemForMusicToChoose(&m, m.FocusedOn)
+	if listModel != nil && len(listModel.Items()) > 0 {
+		selectedItem := listModel.SelectedItem()
+		if selectedItem != nil {
+			switch item := selectedItem.(type) {
+			case types.PlaylistTrackObject:
+				if item.Track != nil && item.Track.VideoId != "" {
+					return item.Track.VideoId, item.Track.Title
+				}
+			case types.SongItem:
+				if item.Song != nil && item.Song.VideoId != "" {
+					return item.Song.VideoId, item.Song.Title
+				}
+			case types.SearchResultSongItem:
+				if item.SearchResultSong != nil && item.SearchResultSong.VideoId != "" {
+					return item.SearchResultSong.VideoId, item.SearchResultSong.Title
+				}
+			case types.HomePageContentItem:
+				if item.VideoID != "" {
+					return item.VideoID, item.Title()
+				}
+			case types.SongRelatedContentItem:
+				if item.SongRelatedContent != nil && item.SongRelatedContent.VideoId != "" {
+					return item.SongRelatedContent.VideoId, item.SongRelatedContent.Title
+				}
+			}
+		}
+	}
+
+	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
+		return m.SelectedTrack.Track.Track.VideoId, m.SelectedTrack.Track.Track.Title
+	}
+
+	return "", ""
+}
+
+func (m Model) isCurrentFocusTrack() bool {
+	trackID, _ := m.getCurrentSelectedTrack()
+	return trackID != ""
 }

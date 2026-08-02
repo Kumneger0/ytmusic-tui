@@ -142,7 +142,10 @@ type LyricsMsg struct {
 type ModalType int
 
 const (
-	ModalTypeCreatePlaylist ModalType = iota
+	ModalTypeNone ModalType = iota
+	ModalTypeCreatePlaylist
+	ModalTypeAddToPlaylist
+	ModalTypeDuplicateConfirm
 )
 
 type OpenModalMsg struct {
@@ -164,4 +167,59 @@ type CreatePlaylistResponseMsg struct {
 	PlaylistID string
 	Success    bool
 	Err        error
+}
+
+type OpenAddToPlaylistLoadingMsg struct {
+	TrackID    string
+	TrackTitle string
+}
+
+type OpenAddToPlaylistModalMsg struct {
+	TrackID    string
+	TrackTitle string
+	Playlists  []*musicpb.Playlist
+	Membership map[string]string
+}
+
+type AddToPlaylistMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+	Duplicates   bool
+}
+
+type AddToPlaylistResponseMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+	Status       string
+	Success      bool
+	IsDuplicate  bool
+	Err          error
+}
+
+type RemoveFromPlaylistMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+	SetVideoID   string
+}
+
+type RemoveFromPlaylistResponseMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+	Success      bool
+	Err          error
+}
+
+type PromptDuplicateConfirmMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
 }

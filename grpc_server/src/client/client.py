@@ -319,3 +319,37 @@ class MusicClient:
             print(f"create_playlist failed ({e}). Resetting client without retry...")
             self.reset_client()
             raise
+
+    def add_playlist_items(
+        self,
+        playlist_id: str,
+        video_ids: list[str] | None = None,
+        source_playlist: str | None = None,
+        duplicates: bool = False,
+    )  :
+        try:
+            return self.get_client().add_playlist_items(
+                    playlistId=playlist_id,
+                    videoIds=video_ids,
+                    source_playlist=source_playlist,
+                    duplicates=duplicates,
+            )
+        except Exception as e:
+            print(f"add_playlist_items failed ({e}). Resetting client without retry...")
+            self.reset_client()
+            raise
+
+    def remove_playlist_items(
+        self,
+        playlist_id: str,
+        videos: list[dict[str, Any]],
+    ) :
+        try:
+            return self.get_client().remove_playlist_items(
+                    playlistId=playlist_id,
+                    videos=videos,
+            )
+        except Exception as e:
+            print(f"remove_playlist_items failed ({e}). Resetting client without retry...")
+            self.reset_client()
+            raise

@@ -81,6 +81,7 @@ def _to_proto_song(song: YTSong) -> music_pb2.Song:
         duration_seconds=song.get("duration_seconds") or 0,
         liked=(song.get("likeStatus") == "LIKE"),
         is_explicit=bool(song.get("isExplicit")),
+        set_video_id=song.get("setVideoId") or "",
     )
 
     for artist in (song.get("artists") or []):
@@ -814,7 +815,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
             if isinstance(result, str):
                 return music_pb2.CreatePlaylistResponse(playlist_id=result, success=True)
-            else:
+            elif isinstance(result, dict):
                 playlist_id = str(result.get("playlistId") or result.get("id") or "")
                 error_msg = str(result.get("error") or "")
                 return music_pb2.CreatePlaylistResponse(
@@ -822,10 +823,98 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     success=bool(playlist_id and not error_msg),
                     error=error_msg,
                 )
+            return music_pb2.CreatePlaylistResponse(
+                playlist_id="",
+                success=False,
+                error="Unexpected response from YouTube Music API",
+            )
         except Exception as e:
             print(f"Error in CreatePlaylist: {e}")
             return music_pb2.CreatePlaylistResponse(
                 playlist_id="",
+                success=False,
+                error=str(e),
+            )
+
+    @override
+    def AddPlaylistItems(
+        self,
+        request: music_pb2.AddPlaylistItemsRequest,
+        context: grpc.ServicerContext,
+    ) -> music_pb2.AddPlaylistItemsResponse:
+        try:
+            playlist_id = request.playlist_id
+            video_ids = list(request.video_ids) if request.video_ids else None
+            source_playlist = request.source_playlist if request.source_playlist else None
+            duplicates = request.duplicates
+
+            result = self.client.add_playlist_items(
+                playlist_id=playlist_id,
+                video_ids=video_ids,
+                source_playlist=source_playlist,
+                duplicates=duplicates,
+            )
+
+            if isinstance(result, str):
+                return music_pb2.AddPlaylistItemsResponse(status=result, success=True)
+            elif isinstance(result, dict):
+                status_str = str(result.get("status") or "")
+                error_msg = str(result.get("error") or "")
+                return music_pb2.AddPlaylistItemsResponse(
+                    status=status_str,
+                    success=bool(not error_msg),
+                    error=error_msg,
+                )
+            return music_pb2.AddPlaylistItemsResponse(
+                status="",
+                success=True,
+                error="",
+            )
+        except Exception as e:
+            print(f"Error in AddPlaylistItems: {e}")
+            return music_pb2.AddPlaylistItemsResponse(
+                status="",
+                success=False,
+                error=str(e),
+            )
+
+    @override
+    def RemovePlaylistItems(
+        self,
+        request: music_pb2.RemovePlaylistItemsRequest,
+        context: grpc.ServicerContext,
+    ) -> music_pb2.RemovePlaylistItemsResponse:
+        try:
+            playlist_id = request.playlist_id
+            videos: list[dict[str, Any]] = [
+                {"videoId": v.video_id, "setVideoId": v.set_video_id}
+                for v in request.videos
+            ]
+
+            result = self.client.remove_playlist_items(
+                playlist_id=playlist_id,
+                videos=videos,
+            )
+
+            if isinstance(result, str):
+                return music_pb2.RemovePlaylistItemsResponse(status=result, success=True)
+            elif isinstance(result, dict):
+                status_str = str(result.get("status") or "")
+                error_msg = str(result.get("error") or "")
+                return music_pb2.RemovePlaylistItemsResponse(
+                    status=status_str,
+                    success=bool(not error_msg),
+                    error=error_msg,
+                )
+            return music_pb2.RemovePlaylistItemsResponse(
+                status="",
+                success=True,
+                error="",
+            )
+        except Exception as e:
+            print(f"Error in RemovePlaylistItems: {e}")
+            return music_pb2.RemovePlaylistItemsResponse(
+                status="",
                 success=False,
                 error=str(e),
             )

@@ -37,18 +37,6 @@ func (m Manager) Init() tea.Cmd {
 
 func (m Manager) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
-	case types.CreatePlaylistMsg:
-		var cmd tea.Cmd
-		m.Background, cmd = m.Background.Update(msg)
-		return m, cmd
-	case tea.WindowSizeMsg:
-		m.WindowWidth = msg.Width
-		m.WindowHeight = msg.Height
-		var fgCmd, bgCmd tea.Cmd
-		m.Foreground, fgCmd = m.Foreground.Update(msg)
-		m.Background, bgCmd = m.Background.Update(msg)
-		return m, tea.Batch(fgCmd, bgCmd)
-
 	case types.OpenModalMsg:
 		m.State = Foreground
 		var fgCmd, bgCmd tea.Cmd
@@ -65,9 +53,16 @@ func (m Manager) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.State == Foreground {
-		var cmd tea.Cmd
-		m.Foreground, cmd = m.Foreground.Update(message)
-		return m, cmd
+		if _, isKey := message.(tea.KeyMsg); isKey {
+			var fgCmd tea.Cmd
+			m.Foreground, fgCmd = m.Foreground.Update(message)
+			return m, fgCmd
+		}
+
+		var fgCmd, bgCmd tea.Cmd
+		m.Foreground, fgCmd = m.Foreground.Update(message)
+		m.Background, bgCmd = m.Background.Update(message)
+		return m, tea.Batch(fgCmd, bgCmd)
 	}
 
 	var cmd tea.Cmd

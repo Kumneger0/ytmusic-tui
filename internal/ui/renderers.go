@@ -375,11 +375,13 @@ func renderPlayerControls(m *Model) string {
 	}
 
 	var parts []string
+	hasTrack := m.isCurrentFocusTrack()
 
 	switch m.FocusedOn {
 	case SideView:
 		parts = append(parts,
 			key.Render("↵")+label.Render(" select")+dimmerStyle.Render("(enter)"),
+			key.Render("✨")+label.Render(" new playlist")+dimmerStyle.Render("(ctrl+t)"),
 			key.Render("→")+label.Render(" main view")+dimmerStyle.Render("(tab)"),
 			key.Render("↓")+label.Render(" player")+dimmerStyle.Render("(shift+tab)"),
 			key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
@@ -398,6 +400,12 @@ func renderPlayerControls(m *Model) string {
 			parts = append(parts,
 				key.Render("▶")+label.Render(" play")+dimmerStyle.Render("(enter)"),
 				key.Render("+")+label.Render(" add queue")+dimmerStyle.Render("(a)"),
+			)
+			if hasTrack {
+				parts = append(parts, key.Render("📋")+label.Render(" playlist")+dimmerStyle.Render("(ctrl+p)"))
+			}
+			parts = append(parts,
+				key.Render("✨")+label.Render(" new playlist")+dimmerStyle.Render("(ctrl+t)"),
 				key.Render("→")+label.Render(" queue")+dimmerStyle.Render("(tab)"),
 				key.Render("←")+label.Render(" sidebar")+dimmerStyle.Render("(shift+tab)"),
 				key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
@@ -407,6 +415,11 @@ func renderPlayerControls(m *Model) string {
 	case QueueList:
 		parts = append(parts,
 			key.Render("▶")+label.Render(" play")+dimmerStyle.Render("(enter)"),
+		)
+		if hasTrack {
+			parts = append(parts, key.Render("📋")+label.Render(" playlist")+dimmerStyle.Render("(ctrl+p)"))
+		}
+		parts = append(parts,
 			key.Render("✕")+label.Render(" remove")+dimmerStyle.Render("(r)"),
 			key.Render("↓")+label.Render(" player")+dimmerStyle.Render("(tab)"),
 			key.Render("←")+label.Render(" main view")+dimmerStyle.Render("(shift+tab)"),
@@ -419,6 +432,12 @@ func renderPlayerControls(m *Model) string {
 			key.Render("⏮")+label.Render(" prev")+dimmerStyle.Render("(b)"),
 			key.Render("⏭")+label.Render(" next")+dimmerStyle.Render("(n)"),
 			key.Render("♥")+label.Render(" like")+dimmerStyle.Render("(l)"),
+		)
+		if hasTrack {
+			parts = append(parts, key.Render("📋")+label.Render(" playlist")+dimmerStyle.Render("(ctrl+p)"))
+		}
+		parts = append(parts,
+			key.Render("✨")+label.Render(" new playlist")+dimmerStyle.Render("(ctrl+t)"),
 			key.Render("📝")+label.Render(" lyrics")+dimmerStyle.Render("(ctrl+l)"),
 			key.Render("←")+label.Render(" sidebar")+dimmerStyle.Render("(tab)"),
 			key.Render("→")+label.Render(" queue")+dimmerStyle.Render("(shift+tab)"),
@@ -429,12 +448,18 @@ func renderPlayerControls(m *Model) string {
 			key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(enter)"),
 			key.Render("✕")+label.Render(" cancel")+dimmerStyle.Render("(esc)"),
 		)
+		if hasTrack {
+			parts = append(parts, key.Render("📋")+label.Render(" playlist")+dimmerStyle.Render("(ctrl+p)"))
+		}
 	default:
 		parts = append(parts,
 			key.Render(playPauseIcon)+label.Render(playPauseLabel)+dimmerStyle.Render("(space)"),
 			key.Render("🔍")+label.Render(" search")+dimmerStyle.Render("(ctrl+k)"),
 			key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
 		)
+		if hasTrack {
+			parts = append(parts, key.Render("📋")+label.Render(" playlist")+dimmerStyle.Render("(ctrl+p)"))
+		}
 	}
 
 	return strings.Join(parts, sep)

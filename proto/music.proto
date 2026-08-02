@@ -37,6 +37,8 @@ service MusicService {
   rpc GetSongRelated(GetSongRelatedRequest) returns (GetSongRelatedResponse);
   rpc GetLyrics(GetLyricsRequest) returns (GetLyricsResponse);
   rpc CreatePlaylist(CreatePlaylistRequest) returns (CreatePlaylistResponse);
+  rpc AddPlaylistItems(AddPlaylistItemsRequest) returns (AddPlaylistItemsResponse);
+  rpc RemovePlaylistItems(RemovePlaylistItemsRequest) returns (RemovePlaylistItemsResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
 
@@ -56,6 +58,7 @@ message Song {
   repeated Thumbnail thumbnails = 8;
   bool is_explicit = 9;
   string url = 10;
+  string set_video_id = 11;
 }
 
 message Artist {
@@ -431,6 +434,35 @@ message CreatePlaylistRequest {
 
 message CreatePlaylistResponse {
   string playlist_id = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+message AddPlaylistItemsRequest {
+  string playlist_id = 1;
+  repeated string video_ids = 2;
+  string source_playlist = 3;
+  bool duplicates = 4;
+}
+
+message AddPlaylistItemsResponse {
+  string status = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+message PlaylistItemRef {
+  string video_id = 1;
+  string set_video_id = 2;
+}
+
+message RemovePlaylistItemsRequest {
+  string playlist_id = 1;
+  repeated PlaylistItemRef videos = 2;
+}
+
+message RemovePlaylistItemsResponse {
+  string status = 1;
   bool success = 2;
   string error = 3;
 }
