@@ -791,6 +791,45 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             print(f"Error in GetLyrics: {e}")
             return music_pb2.GetLyricsResponse()
 
+    @override
+    def CreatePlaylist(
+        self,
+        request: music_pb2.CreatePlaylistRequest,
+        context: grpc.ServicerContext,
+    ) -> music_pb2.CreatePlaylistResponse:
+        try:
+            title = request.title
+            description = request.description
+            privacy_status = request.privacy_status or "PRIVATE"
+            video_ids = list(request.video_ids) if request.video_ids else None
+            source_playlist = request.source_playlist if request.source_playlist else None
+
+            result = self.client.create_playlist(
+                title=title,
+                description=description,
+                privacy_status=privacy_status,
+                video_ids=video_ids,
+                source_playlist=source_playlist,
+            )
+
+            if isinstance(result, str):
+                return music_pb2.CreatePlaylistResponse(playlist_id=result, success=True)
+            else:
+                playlist_id = str(result.get("playlistId") or result.get("id") or "")
+                error_msg = str(result.get("error") or "")
+                return music_pb2.CreatePlaylistResponse(
+                    playlist_id=playlist_id,
+                    success=bool(playlist_id and not error_msg),
+                    error=error_msg,
+                )
+        except Exception as e:
+            print(f"Error in CreatePlaylist: {e}")
+            return music_pb2.CreatePlaylistResponse(
+                playlist_id="",
+                success=False,
+                error=str(e),
+            )
+
 
 
 def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:

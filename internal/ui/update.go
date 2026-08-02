@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -42,6 +44,27 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case types.CreatePlaylistMsg:
+		cmd := func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			response, err := m.YtMusicClient.CreatePlaylist(ctx, &musicpb.CreatePlaylistRequest{
+				Title:         msg.Title,
+				Description:   msg.Description,
+				PrivacyStatus: msg.PrivacyStatus,
+			})
+			if err != nil {
+				slog.Error(err.Error())
+				return types.CreatePlaylistResponseMsg{Success: false, Err: err}
+			}
+			if response == nil || response.PlaylistId == "" {
+				err := errors.New(response.GetError())
+				slog.Error(err.Error())
+				return types.CreatePlaylistResponseMsg{Success: false, Err: err}
+			}
+			return types.CreatePlaylistResponseMsg{Success: true, PlaylistID: response.PlaylistId}
+		}
+		return m, cmd
 	case types.GetLibraryMsg:
 		m.IsSearchLoading = false
 		if msg.Err != nil {
@@ -277,7 +300,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.LyricsView.Height = max(dims.ContentHeight-6, 10)
 		return m, nil
 	case types.UpdatePlaylistMsg:
+		m.IsSearchLoading = false
 		if msg.Playlist != nil {
+			fmt.Println("it is not null btw we but it doesnt have nay dat inside")
 			var playListItemSongs []list.Item
 			for _, item := range msg.Playlist {
 				if msg.ShouldAppendQueue {
@@ -313,11 +338,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.PaginationInfo = nil
 			}
 			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
 		}
 		if msg.Err != nil {
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
 			cmds = append(cmds, alertCmd)
+			return m, tea.Batch(cmds...)
 		}
+		dims := CalculateLayoutDimensions(&m)
+		m.SelectedPlayListItems = list.New([]list.Item{}, CustomDelegate{}, dims.MainWidth, dims.ContentHeight)
 	case types.RelatedSongsMsg:
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
@@ -438,6 +467,13 @@ func (m Model) handlePagination(listModel *list.Model, ShouldAppendQueue bool, c
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
+	case "ctrl+t":
+		openCreatePlaylistModal := func() tea.Msg {
+			return types.OpenModalMsg{
+				ModalType: types.ModalTypeCreatePlaylist,
+			}
+		}
+		return m, openCreatePlaylistModal
 	case "down", "j":
 		if m.MainViewMode == LyricsMode && m.FocusedOn == MainView {
 			var cmd tea.Cmd

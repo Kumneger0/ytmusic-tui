@@ -138,3 +138,30 @@ type LyricsMsg struct {
 	LyricsResponse *musicpb.GetLyricsResponse
 	Err            error
 }
+
+type ModalType int
+
+const (
+	ModalTypeCreatePlaylist ModalType = iota
+)
+
+type OpenModalMsg struct {
+	ModalType ModalType
+}
+
+type CloseModalMsg struct {
+	ModalType ModalType
+}
+
+type CreatePlaylistMsg struct {
+	Title         string
+	Description   string
+	PrivacyStatus string
+	VideoIDs      []string
+}
+
+type CreatePlaylistResponseMsg struct {
+	PlaylistID string
+	Success    bool
+	Err        error
+}

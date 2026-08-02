@@ -22,6 +22,7 @@ import (
 	logSetup "github.com/kumneger0/ytmusic-tui/internal/logger"
 	"github.com/kumneger0/ytmusic-tui/internal/youtube"
 	ytMusicClient "github.com/kumneger0/ytmusic-tui/internal/yt-music-client"
+	overlay "github.com/rmhubbert/bubbletea-overlay"
 	"go.dalton.dog/bubbleup"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -364,7 +365,25 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		Model:          musicQueueList,
 		PaginationInfo: nil,
 	}
-	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+	fgModel := ui.NewForegroundModel()
+	manager := ui.Manager{
+		State:        ui.Background,
+		WindowWidth:  termWidth,
+		WindowHeight: termHeight,
+		Foreground:   fgModel,
+		Background:   model,
+		Overlay: overlay.New(
+			fgModel,
+			&model,
+			overlay.Center,
+			overlay.Center,
+			0,
+			0,
+		),
+		OverlayMode: ui.Search,
+	}
+	Program := tea.NewProgram(manager, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	go func() {
 		if messageChan == nil {

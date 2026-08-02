@@ -36,6 +36,7 @@ service MusicService {
   rpc GetHomePage(GetHomePageRequest) returns (GetHomePageResponse);
   rpc GetSongRelated(GetSongRelatedRequest) returns (GetSongRelatedResponse);
   rpc GetLyrics(GetLyricsRequest) returns (GetLyricsResponse);
+  rpc CreatePlaylist(CreatePlaylistRequest) returns (CreatePlaylistResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
 
@@ -418,4 +419,18 @@ message GetLyricsResponse {
   string source = 2;
   bool has_timestamps = 3;
   repeated LyricLine lines = 4;
+}
+
+message CreatePlaylistRequest {
+  string title = 1;
+  string description = 2;
+  string privacy_status = 3;
+  repeated string video_ids = 4;
+  string source_playlist = 5;
+}
+
+message CreatePlaylistResponse {
+  string playlist_id = 1;
+  bool success = 2;
+  string error = 3;
 }

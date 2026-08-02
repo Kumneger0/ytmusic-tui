@@ -1,5 +1,5 @@
 import threading
-from typing import cast, Callable, TypeVar
+from typing import cast, Callable, TypeVar, Any
 from ytmusicapi.type_alias import JsonDict
 from ytmusicapi.models.lyrics import Lyrics, TimedLyrics
 from ytmusicapi import YTMusic, LikeStatus
@@ -298,3 +298,21 @@ class MusicClient:
         except Exception as e:
             print(f"Error in get_watch_playlist: {e}")
             return {}
+
+    def create_playlist(
+        self,
+        title: str,
+        description: str,
+        privacy_status: str = "PRIVATE",
+        video_ids: list[str] | None = None,
+        source_playlist: str | None = None,
+    ) :
+        return self.execute(
+            lambda c:  c.create_playlist(
+                    title=title,
+                    description=description,
+                    privacy_status=privacy_status,
+                    video_ids=video_ids,
+                    source_playlist=source_playlist,
+                )
+        )
