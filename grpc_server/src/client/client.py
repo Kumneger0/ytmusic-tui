@@ -265,12 +265,18 @@ class MusicClient:
                 lid = 0
                 if isinstance(cue, dict):
                     cue_map = cast(dict[str, object], cue)
-                    start = int(str(cue_map.get("startTimeMilliseconds") or 0))
-                    end = int(str(cue_map.get("endTimeMilliseconds") or 0))
+            def _coerce_int(value: object) -> int:
+                try:
+                    return int(str(value))
+                except (TypeError, ValueError):
+                    return 0
+
+                    start = _coerce_int(cue_map.get("startTimeMilliseconds"))
+                    end = _coerce_int(cue_map.get("endTimeMilliseconds"))
                     metadata = cue_map.get("metadata")
                     if isinstance(metadata, dict):
                         metadata_map = cast(dict[str, object], metadata)
-                        lid = int(str(metadata_map.get("id") or 0))
+                        lid = _coerce_int(metadata_map.get("id"))
                 lines.append(LyricLine(text=text, start_time=start, end_time=end, id=lid))
 
             return TimedLyrics(
