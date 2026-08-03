@@ -42,7 +42,6 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case types.CreatePlaylistMsg:
 		cmd := func() tea.Msg {
@@ -274,7 +273,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Err:      nil,
 			}
 		}
-		cmds = append(cmds, SendLoadingCmd(), homePageFeed)
+		return m, tea.Batch(SendLoadingCmd(), homePageFeed)
 	case types.PlaylistDetailMsg:
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
@@ -354,8 +353,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Err:   err,
 			}
 		}
-		cmds = append(cmds, likedCmd)
 		m.PlayerProcess = msg.Player
+		return m, likedCmd
 	case types.CheckUserSavedTrackResponseMsg:
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
@@ -370,15 +369,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var alertCmd tea.Cmd
 		if msg.Err != nil {
 			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
-			cmds = append(cmds, alertCmd)
+			return m, alertCmd
 		}
 		if msg.Result != nil {
 			m.FocusedOn = MainView
 			m.MainViewMode = SearchResultMode
 			model, cmd := m.getSearchResultModel(msg.Result)
 			m = model
-			cmds = append(cmds, cmd)
 			m.IsSearchLoading = false
+			return m, cmd
 		}
 	case types.HomePageResponseMsg:
 		var alertCmd tea.Cmd
@@ -386,8 +385,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
 			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
-			cmds = append(cmds, alertCmd)
-			return m, tea.Batch(cmds...)
+			return m, alertCmd
 		}
 		m.HomePageData = msg.Response
 		var items []list.Item
@@ -406,14 +404,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.MainViewMode = HomePageMode
 		return m, nil
 	case types.DBusMessage:
-		model, cmd := m.handleDbusMessage(msg.MessageType, cmds)
+		model, cmd := m.handleDbusMessage(msg.MessageType)
 		m = model
-		cmds = append(cmds, cmd)
+		return m, cmd
 	case types.LikeUnlikeTrackResponseMsg:
 		if msg.Err != nil {
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
-			cmds = append(cmds, alertCmd)
-			return m, tea.Batch(cmds...)
+			return m, alertCmd
 		}
 		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && m.SelectedTrack.Track.Track.VideoId == msg.TrackID {
 			m.SelectedTrack.isLiked = msg.Liked
@@ -431,7 +428,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.PlayedSeconds = 0
 			model, cmd := m.handleMusicChange(true)
 			m = model
-			cmds = append(cmds, cmd)
+			return m, cmd
 		}
 
 	case tea.WindowSizeMsg:
@@ -481,13 +478,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.PaginationInfo = nil
 			}
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
+			return m, cmd
 		}
 		if msg.Err != nil {
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
-			cmds = append(cmds, alertCmd)
-			return m, tea.Batch(cmds...)
+			return m, alertCmd
 		}
 		dims := CalculateLayoutDimensions(&m)
 		m.SelectedPlayListItems = list.New([]list.Item{}, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight)
@@ -495,7 +490,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
-			cmds = append(cmds, alertCmd)
+			return m, alertCmd
 		}
 		if msg.Related == nil || len(msg.Related.Sections) == 0 {
 			slog.Error("Failed to Fetch Related Songs")
@@ -541,7 +536,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		model, cmd := m.handleKeyPress(msg)
 		m = model
-		cmds = append(cmds, cmd)
+		if cmd != nil {
+			return m, cmd
+		}
 	case tea.MouseMsg:
 		x := msg.X
 		y := msg.Y
@@ -549,37 +546,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.MainViewMode == LyricsMode && m.FocusedOn != SearchBar {
 				lyricsModel, cmd := m.LyricsView.Update(msg)
 				m.LyricsView = lyricsModel
-				cmds = append(cmds, cmd)
+				return m, cmd
 			}
 		}
 
 	default:
 	}
-	model, cmd := updateFocusedComponent(&m, msg, &cmds)
+	model, cmd := updateFocusedComponent(&m, msg)
 	m = model
 	outAlert, outCmd := m.Alert.Update(msg)
-	cmds = append(cmds, outCmd, cmd)
 	m.Alert = outAlert.(bubbleup.AlertModel)
-	return m, tea.Batch(cmds...)
+	return m, tea.Batch(outCmd, cmd)
 }
 
-func (m Model) handleDbusMessage(msg types.MessageType, cmds []tea.Cmd) (Model, tea.Cmd) {
+func (m Model) handleDbusMessage(msg types.MessageType) (Model, tea.Cmd) {
 	switch msg {
 	case types.NextTrack:
 		model, cmd := m.handleMusicChange(true)
 		m = model
-		cmds = append(cmds, cmd)
-		return m, tea.Batch(cmds...)
+		return m, cmd
 	case types.PreviousTrack:
 		model, cmd := m.handleMusicChange(false)
 		m = model
-		cmds = append(cmds, cmd)
-		return m, tea.Batch(cmds...)
+		return m, cmd
 	case types.PlayPause:
 		model, cmd := m.HandleMusicPausePlay()
 		m = model
-		cmds = append(cmds, cmd)
-		return m, tea.Batch(cmds...)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -1779,19 +1772,17 @@ func updateDelegate(m *Model) {
 	m.RelatedList.SetDelegate(CustomDelegate{Model: m})
 }
 
-func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (Model, tea.Cmd) {
+func updateFocusedComponent(m *Model, msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
-	var cmds = *cmdsFromParent
-	cmds = append(cmds, cmd)
 	switch m.FocusedOn {
 	case SearchBar:
 		m.Search.Focus()
 		m.Search, cmd = m.Search.Update(msg)
-		cmds = append(cmds, cmd)
+		return *m, cmd
 	case SideView:
 		m.Search.Blur()
 		m.SideBarList, cmd = m.SideBarList.Update(msg)
-		cmds = append(cmds, cmd)
+		return *m, cmd
 	case QueueList:
 		var cmd tea.Cmd
 		showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
@@ -1800,19 +1791,19 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 		} else if m.MusicQueueList != nil {
 			m.MusicQueueList.Model, cmd = m.MusicQueueList.Model.Update(msg)
 		}
-		cmds = append(cmds, cmd)
+		return *m, cmd
 	case MainView:
 		switch m.MainViewMode {
 		case NormalMode:
 			m.SelectedPlayListItems, cmd = m.SelectedPlayListItems.Update(msg)
-			cmds = append(cmds, cmd)
+			return *m, cmd
 		case SearchResultMode:
 			m.SearchResult, cmd = m.SearchResult.Update(msg)
-			cmds = append(cmds, cmd)
+			return *m, cmd
 		}
 	default:
 	}
-	return *m, tea.Batch(cmds...)
+	return *m, nil
 }
 
 func SendLoadingCmd() tea.Cmd {
