@@ -364,7 +364,17 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		Model:          musicQueueList,
 		PaginationInfo: nil,
 	}
-	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+	fgModel := ui.NewForegroundModel()
+	manager := ui.Manager{
+		State:        ui.Background,
+		WindowWidth:  termWidth,
+		WindowHeight: termHeight,
+		Foreground:   fgModel,
+		Background:   model,
+		OverlayMode:  ui.Search,
+	}
+	Program := tea.NewProgram(manager, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	go func() {
 		if messageChan == nil {

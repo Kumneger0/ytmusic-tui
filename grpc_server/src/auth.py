@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import final, override
 
 from ytmusicapi import YTMusic, setup
+from ytmusicapi.type_alias import JsonDict
 
 
 def get_config_dir() -> Path:
@@ -374,7 +375,7 @@ class WebLoginHandler(BaseHTTPRequestHandler):
             body = self.rfile.read(content_length).decode("utf-8")
             raw_headers = ""
             try:
-                data = json.loads(body)
+                data:JsonDict = json.loads(body)
                 raw_headers = data.get("headers", "")
             except Exception:
                 raw_headers = body
@@ -455,10 +456,9 @@ def _process_login_headers(raw_headers: str) -> None:
 
     success, err_msg, browser_json_path = process_raw_headers_via_ytmusicapi(raw_headers)
     if success:
-        print("  AUTHENTICATION SUCCESSFUL!")
         print(f" Saved credentials to: {browser_json_path}")
         print("  You may now close your browser, exit the server (Ctrl+C), and run")
         print("  your program normally without the --login flag!")
     else:
-        print(f"\n[Error] {err_msg}")
+        print(err_msg)
         sys.exit(1)

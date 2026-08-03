@@ -1,5 +1,5 @@
 import threading
-from typing import cast, Callable, TypeVar
+from typing import cast, Callable, TypeVar, Any
 from ytmusicapi.type_alias import JsonDict
 from ytmusicapi.models.lyrics import Lyrics, TimedLyrics
 from ytmusicapi import YTMusic, LikeStatus
@@ -212,8 +212,7 @@ class MusicClient:
             return []
         try:
             return self.execute(lambda c: cast(list[dict[str, object]], cast(object, c.get_song_related(browseId=browse_id))))
-        except Exception as e:
-            print(f"Error in get_song_related: {e}")
+        except Exception:
             return []
 
     def get_lyrics(self, browse_id: str, timestamps: bool = False) -> Lyrics | TimedLyrics | dict[str, object] | None:
@@ -226,12 +225,11 @@ class MusicClient:
                 if res and (res.get("hasTimestamps") or res.get("lyrics")):
                     return cast(dict[str, object], cast(object, res))
             except Exception as e:
-                print(f"Failed to fetch timed lyrics via web API: {e}")
+                print(f"failed to fetch timed lyrics via web API: {e}")
 
         try:
             return self.execute(lambda c: c.get_lyrics(browseId=browse_id, timestamps=False))
         except Exception as e:
-            print(f"Failed to fetch plain lyrics: {e}")
             return None
 
     def _get_timed_lyrics_raw(self, browse_id: str) -> TimedLyrics | None:
@@ -243,7 +241,6 @@ class MusicClient:
 
             with c.as_mobile():
                 response = c._send_request("browse", {"browseId": browse_id})  # pyright: ignore[reportPrivateUsage]
-
             data = nav(response, TIMESTAMPED_LYRICS, True)
             if not isinstance(data, dict):
                 return None
@@ -253,6 +250,14 @@ class MusicClient:
             if not isinstance(timed_lyrics_data, list):
                 return None
 
+            def _coerce_int(value: object) -> int:
+                try:
+                    return int(str(value))
+                except (TypeError, ValueError):
+                    return 0
+
+
+          
             lines: list[LyricLine] = []
             for item in cast(list[object], timed_lyrics_data):
                 if not isinstance(item, dict):
@@ -265,12 +270,6 @@ class MusicClient:
                 lid = 0
                 if isinstance(cue, dict):
                     cue_map = cast(dict[str, object], cue)
-            def _coerce_int(value: object) -> int:
-                try:
-                    return int(str(value))
-                except (TypeError, ValueError):
-                    return 0
-
                     start = _coerce_int(cue_map.get("startTimeMilliseconds"))
                     end = _coerce_int(cue_map.get("endTimeMilliseconds"))
                     metadata = cue_map.get("metadata")
@@ -295,6 +294,57 @@ class MusicClient:
         try:
             res = self.execute(lambda c: c.get_watch_playlist(videoId=video_id))
             return cast(dict[str, object], res)
-        except Exception as e:
-            print(f"Error in get_watch_playlist: {e}")
+        except Exception:
             return {}
+
+    def create_playlist(
+        self,
+        title: str,
+        description: str,
+        privacy_status: str = "PRIVATE",
+        video_ids: list[str] | None = None,
+        source_playlist: str | None = None,
+    ):
+        try:
+            return self.get_client().create_playlist(
+                    title=title,
+                    description=description,
+                    privacy_status=privacy_status,
+                    video_ids=video_ids,
+                    source_playlist=source_playlist,
+            )
+        except Exception:
+            self.reset_client()
+            raise
+
+    def add_playlist_items(
+        self,
+        playlist_id: str,
+        video_ids: list[str] | None = None,
+        source_playlist: str | None = None,
+        duplicates: bool = False,
+    )  :
+        try:
+            return self.get_client().add_playlist_items(
+                    playlistId=playlist_id,
+                    videoIds=video_ids,
+                    source_playlist=source_playlist,
+                    duplicates=duplicates,
+            )
+        except Exception as e:
+            self.reset_client()
+            raise
+
+    def remove_playlist_items(
+        self,
+        playlist_id: str,
+        videos: list[dict[str, Any]],
+    ) :
+        try:
+            return self.get_client().remove_playlist_items(
+                    playlistId=playlist_id,
+                    videos=videos,
+            )
+        except Exception:
+            self.reset_client()
+            raise

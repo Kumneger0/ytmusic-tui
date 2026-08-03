@@ -1,4 +1,4 @@
-projectname?=ytmusic-tui
+project_name?=ytmusic-tui
 
 default: help
 
@@ -10,18 +10,18 @@ help: ## show this help message
 .PHONY: build
 build: ## build the Go application
 	@echo "--> Building Go application..."
-	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(projectname)
+	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(project_name)
 
 
 .PHONY: install
 install: build ## build and install ytmusic-tui to /usr/local/bin
 	@echo "--> Installing ytmusic-tui to /usr/local/bin..."
-	@sudo cp $(projectname) /usr/local/bin/
+	@sudo cp $(project_name) /usr/local/bin/
 	@echo "--> Installation complete. Run 'ytmusic-tui' to start."
 
 .PHONY: run
 run: build ## build and run ytmusic-tui
-	@./$(projectname)
+	@./$(project_name)
 
 .PHONY: bootstrap	
 bootstrap: ## bootstrap go tools
@@ -142,7 +142,7 @@ server-sync: ## sync python virtual environment dependencies
 .PHONY: clean
 clean: ## clean up both go and python generated files
 	@echo "--> Cleaning up..."
-	@rm -rf coverage.out dist/ $(projectname)
+	@rm -rf coverage.out dist/ $(project_name)
 	@rm -f gen/*.go
 	@rm -f grpc_server/gen/music_pb2.py grpc_server/gen/music_pb2.pyi grpc_server/gen/music_pb2_grpc.py
 	@find grpc_server -type d -name "__pycache__" -exec rm -rf {} +

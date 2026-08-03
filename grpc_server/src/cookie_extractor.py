@@ -34,18 +34,14 @@ def _extract_cookies(browser_name: str) -> CookieJar:
     browser_fn = SUPPORTED_BROWSERS.get(browser_name)
     if browser_fn is None:
         supported = ", ".join(sorted(SUPPORTED_BROWSERS.keys()))
-        print(f"[Error] Unsupported browser: '{browser_name}'", file=sys.stderr)
+        print(f" Unsupported browser: '{browser_name}'", file=sys.stderr)
         print(f"  Supported browsers: {supported}", file=sys.stderr)
         sys.exit(1)
 
     try:
         return  browser_fn(domain_name=".youtube.com")
     except Exception as e:
-        print(f"[Error] Failed to extract cookies from {browser_name}: {e}", file=sys.stderr)
-        print(
-            f"\n  Hint: Make sure {browser_name} is closed before running this command.",
-            file=sys.stderr,
-        )
+        print(f"Failed to extract cookies from {browser_name}: {e}", file=sys.stderr)
         print(
             "  browser-cookie3 cannot read cookies while the browser holds a lock on its database.",
             file=sys.stderr,
@@ -119,17 +115,14 @@ def run_cookie_extraction(browser_name: str) -> None:
     via ytmusicapi.
     """
     print("  COOKIE EXTRACTION")
-    print(f"  Browser: {browser_name}")
-    print()
-    print(f"  ⚠️  Please make sure {browser_name} is CLOSED before continuing.")
+    print(f" Browser: {browser_name}")
     print("  browser-cookie3 cannot read cookies while the browser is running.")
-    print()
 
     cj = _extract_cookies(browser_name)
 
     cookie_count = sum(1 for _ in cj)
     if cookie_count == 0:
-        print(f"[Error] No YouTube cookies found in {browser_name}.", file=sys.stderr)
+        print(f" No YouTube cookies found in {browser_name}.", file=sys.stderr)
         print(
             "  Make sure you are logged into YouTube Music in this browser.",
             file=sys.stderr,
@@ -165,7 +158,7 @@ def run_cookie_extraction(browser_name: str) -> None:
         print(f"  Saved credentials to: {browser_json_path}")
         print("  You can now run clispot normally.")
     else:
-        print(f"\n[Error] Authentication failed: {err_msg}", file=sys.stderr)
+        print(f"\n Authentication failed: {err_msg}", file=sys.stderr)
         print(
             "  The cookies were extracted but YouTube Music API rejected them.",
             file=sys.stderr,

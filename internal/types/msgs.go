@@ -138,3 +138,89 @@ type LyricsMsg struct {
 	LyricsResponse *musicpb.GetLyricsResponse
 	Err            error
 }
+
+type ModalType int
+
+const (
+	ModalTypeNone ModalType = iota
+	ModalTypeCreatePlaylist
+	ModalTypePlaylistManagement
+	ModalTypeDuplicateConfirm
+)
+
+type OpenModalMsg struct {
+	ModalType ModalType
+}
+
+type CloseModalMsg struct {
+	ModalType ModalType
+}
+
+type CreatePlaylistMsg struct {
+	Title         string
+	Description   string
+	PrivacyStatus string
+	VideoIDs      []string
+}
+
+type CreatePlaylistResponseMsg struct {
+	PlaylistID string
+	Success    bool
+	Err        error
+}
+
+type OpenAddToPlaylistLoadingMsg struct {
+	TrackID    string
+	TrackTitle string
+}
+
+type OpenAddToPlaylistModalMsg struct {
+	TrackID    string
+	TrackTitle string
+	Playlists  []*musicpb.Playlist
+	Membership map[string]string
+	Err        error
+}
+
+type AddToPlaylistMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+	Duplicates   bool
+}
+
+type AddToPlaylistResponseMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+	Status       string
+	Success      bool
+	IsDuplicate  bool
+	Err          error
+}
+
+type RemoveFromPlaylistMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+	SetVideoID   string
+}
+
+type RemoveFromPlaylistResponseMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+	Success      bool
+	Err          error
+}
+
+type PromptDuplicateConfirmMsg struct {
+	PlaylistID   string
+	PlaylistName string
+	TrackID      string
+	TrackTitle   string
+}

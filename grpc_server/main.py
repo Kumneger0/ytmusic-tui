@@ -3,7 +3,7 @@ from types import FrameType
 import grpc
 import os
 import sys
-from typing import Callable, cast, override
+from typing import Any, Callable, cast, override
 import signal
 from dotenv import load_dotenv
 _= load_dotenv()
@@ -81,6 +81,7 @@ def _to_proto_song(song: YTSong) -> music_pb2.Song:
         duration_seconds=song.get("duration_seconds") or 0,
         liked=(song.get("likeStatus") == "LIKE"),
         is_explicit=bool(song.get("isExplicit")),
+        set_video_id=song.get("setVideoId") or "",
     )
 
     for artist in (song.get("artists") or []):
@@ -720,8 +721,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                             sec_msg.contents.append(to_proto_song_related_content(cast(dict[str, object], item)))
                 response.sections.append(sec_msg)
             return response
-        except Exception as e:
-            print(f"Error in GetSongRelated: {e}")
+        except Exception:
             return music_pb2.GetSongRelatedResponse()
 
     @override
@@ -787,15 +787,142 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 response.lyrics = lyrics_data
 
             return response
-        except Exception as e:
-            print(f"Error in GetLyrics: {e}")
+        except Exception:
             return music_pb2.GetLyricsResponse()
+
+    @override
+    def CreatePlaylist(
+        self,
+        request: music_pb2.CreatePlaylistRequest,
+        context: grpc.ServicerContext,
+    ) -> music_pb2.CreatePlaylistResponse:
+        try:
+            title = request.title
+            description = request.description
+            privacy_status = request.privacy_status or "PRIVATE"
+            video_ids = list(request.video_ids) if request.video_ids else None
+            source_playlist = request.source_playlist if request.source_playlist else None
+
+            result = self.client.create_playlist(
+                title=title,
+                description=description,
+                privacy_status=privacy_status,
+                video_ids=video_ids,
+                source_playlist=source_playlist,
+            )
+
+            if isinstance(result, str):
+                return music_pb2.CreatePlaylistResponse(playlist_id=result, success=True)
+            else:
+                playlist_id = str(result.get("playlistId") or result.get("id") or "")
+                error_msg = str(result.get("error") or "")
+                return music_pb2.CreatePlaylistResponse(
+                    playlist_id=playlist_id,
+                    success=bool(playlist_id and not error_msg),
+                    error=error_msg,
+                )
+        except Exception as e:
+            return music_pb2.CreatePlaylistResponse(
+                playlist_id="",
+                success=False,
+                error=str(e),
+            )
+
+    @override
+    def AddPlaylistItems(
+        self,
+        request: music_pb2.AddPlaylistItemsRequest,
+        context: grpc.ServicerContext,
+    ) -> music_pb2.AddPlaylistItemsResponse:
+        try:
+            playlist_id = request.playlist_id
+            video_ids = list(request.video_ids) if request.video_ids else None
+            source_playlist = request.source_playlist if request.source_playlist else None
+            duplicates = request.duplicates
+
+            result = self.client.add_playlist_items(
+                playlist_id=playlist_id,
+                video_ids=video_ids,
+                source_playlist=source_playlist,
+                duplicates=duplicates,
+            )
+
+            if isinstance(result, str):
+                success = result == "STATUS_SUCCEEDED"
+                final_status = result if result else "STATUS_FAILED"
+                return music_pb2.AddPlaylistItemsResponse(
+                    status=final_status,
+                    success=success,
+                    error="" if success else final_status,
+                )
+            else:
+                status_str = str(result.get("status") or "")
+                error_msg = str(result.get("error") or "")
+                success = status_str == "STATUS_SUCCEEDED" and not error_msg
+                final_status = status_str if status_str else "STATUS_FAILED"
+                if not success and not error_msg:
+                    error_msg = final_status
+                return music_pb2.AddPlaylistItemsResponse(
+                    status=final_status,
+                    success=success,
+                    error=error_msg,
+                )
+        except Exception as e:
+            return music_pb2.AddPlaylistItemsResponse(
+                status="STATUS_FAILED",
+                success=False,
+                error=str(e),
+            )
+
+    @override
+    def RemovePlaylistItems(
+        self,
+        request: music_pb2.RemovePlaylistItemsRequest,
+        context: grpc.ServicerContext,
+    ) -> music_pb2.RemovePlaylistItemsResponse:
+        try:
+            playlist_id = request.playlist_id
+            videos: list[dict[str, Any]] = [
+                {"videoId": v.video_id, "setVideoId": v.set_video_id}
+                for v in request.videos
+            ]
+
+            result = self.client.remove_playlist_items(
+                playlist_id=playlist_id,
+                videos=videos,
+            )
+
+            if isinstance(result, str):
+                success = result == "STATUS_SUCCEEDED"
+                final_status = result if result else "STATUS_FAILED"
+                return music_pb2.RemovePlaylistItemsResponse(
+                    status=final_status,
+                    success=success,
+                    error="" if success else final_status,
+                )
+            else:
+                status_str = str(result.get("status") or "")
+                error_msg = str(result.get("error") or "")
+                success = status_str == "STATUS_SUCCEEDED" and not error_msg
+                final_status = status_str if status_str else "STATUS_FAILED"
+                if not success and not error_msg:
+                    error_msg = final_status
+                return music_pb2.RemovePlaylistItemsResponse(
+                    status=final_status,
+                    success=success,
+                    error=error_msg,
+                )
+        except Exception as e:
+            return music_pb2.RemovePlaylistItemsResponse(
+                status="STATUS_FAILED",
+                success=False,
+                error=str(e),
+            )
 
 
 
 def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:
-    def shutdown(signum: int, _frame: FrameType | None) -> None:
-        print(f"Received {signal.Signals(signum).name}")
+    def shutdown(_signum: int, _frame: FrameType | None) -> None:
         _ = server.stop(grace=5)
     return shutdown
 
