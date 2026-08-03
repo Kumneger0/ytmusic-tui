@@ -8,12 +8,11 @@ check the [docs](https://ytmusic-tui.kumneger.dev) for the full lowdown on how t
 
 ## todo
 - [x] home page
-- [x] search with filters
+- [x] search tracks
 - [x] queue management
 - [x] library support
-- [ ] like/unlike songs
-- [ ] add to playlist
-- [ ] playlist management
+- [x] like/unlike songs
+- [x] playlist management
 - [ ] more browsing features
 
 ## contributing

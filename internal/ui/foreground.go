@@ -93,6 +93,9 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.IsLoading = false
 			return m, textinput.Blink
 		}
+		if msg.ModalType == types.ModalTypePlaylistManagement {
+			m.IsLoading = true
+		}
 		return m, nil
 
 	case types.OpenAddToPlaylistLoadingMsg:
@@ -133,13 +136,22 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.TargetPlaylistName = msg.PlaylistName
 		m.SelectedTrackID = msg.TrackID
 		m.SelectedTrackTitle = msg.TrackTitle
-		m.ConfirmDuplicateIndex = 0 // Default: Yes
+		m.ConfirmDuplicateIndex = 0
 		m.IsSubmitting = false
 		m.IsLoading = false
 		return m, nil
 
 	case types.CloseModalMsg:
 		m.ActiveModal = types.ModalTypeNone
+		m.SelectedTrackID = ""
+		m.SelectedTrackTitle = ""
+		m.Playlists = nil
+		m.Membership = nil
+		m.PlaylistSelectIndex = 0
+		m.IsLoading = false
+		m.IsSubmitting = false
+		m.ErrorMsg = ""
+		m.SuccessMsg = ""
 		m.TitleInput.Blur()
 		m.DescInput.Blur()
 		return m, nil
@@ -608,8 +620,17 @@ func (m *ForegroundModel) renderDuplicateConfirmModal() string {
 
 	header := accentStyle.Render("⚠️ Duplicate Song Notice")
 	divider := dimStyle.Render(strings.Repeat("─", modalWidth-4))
-
-	msgText := textStyle.Render(fmt.Sprintf("\"%s\" is already in playlist \"%s\".\nDo you want to add it as a duplicate?", m.SelectedTrackTitle, m.TargetPlaylistName))
+	var msgText string
+	if m.IsSubmitting {
+		msgText = lipgloss.NewStyle().
+			Height(2).
+			Align(lipgloss.Center, lipgloss.Center).
+			Width(modalWidth - 4).
+			Foreground(lipgloss.Color("#A1A1AA")).
+			Render("⏳ Updating playlist...")
+	} else {
+		msgText = textStyle.Render(fmt.Sprintf("\"%s\" is already in playlist \"%s\".\nDo you want to add it as a duplicate?", m.SelectedTrackTitle, m.TargetPlaylistName))
+	}
 
 	var btnYes, btnNo string
 	if m.ConfirmDuplicateIndex == 0 {
@@ -638,9 +659,12 @@ func (m *ForegroundModel) renderDuplicateConfirmModal() string {
 			Render("● No (Cancel)")
 	}
 
-	btnRow := fmt.Sprintf("%s    %s", btnYes, btnNo)
-	btnContainer := lipgloss.NewStyle().Align(lipgloss.Center).Width(modalWidth - 4).Render(btnRow)
+	var btnRow string
+	if !m.IsSubmitting {
+		btnRow = fmt.Sprintf("%s    %s", btnYes, btnNo)
+	}
 
+	btnContainer := lipgloss.NewStyle().Align(lipgloss.Center).Width(modalWidth - 4).Render(btnRow)
 	keybindHelp := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#A1A1AA")).
 		Align(lipgloss.Center).

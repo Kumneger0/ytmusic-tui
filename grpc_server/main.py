@@ -721,8 +721,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                             sec_msg.contents.append(to_proto_song_related_content(cast(dict[str, object], item)))
                 response.sections.append(sec_msg)
             return response
-        except Exception as e:
-            print(f"Error in GetSongRelated: {e}")
+        except Exception:
             return music_pb2.GetSongRelatedResponse()
 
     @override
@@ -788,8 +787,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 response.lyrics = lyrics_data
 
             return response
-        except Exception as e:
-            print(f"Error in GetLyrics: {e}")
+        except Exception:
             return music_pb2.GetLyricsResponse()
 
     @override
@@ -815,7 +813,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
             if isinstance(result, str):
                 return music_pb2.CreatePlaylistResponse(playlist_id=result, success=True)
-            elif isinstance(result, dict):
+            else:
                 playlist_id = str(result.get("playlistId") or result.get("id") or "")
                 error_msg = str(result.get("error") or "")
                 return music_pb2.CreatePlaylistResponse(
@@ -823,13 +821,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     success=bool(playlist_id and not error_msg),
                     error=error_msg,
                 )
-            return music_pb2.CreatePlaylistResponse(
-                playlist_id="",
-                success=False,
-                error="Unexpected response from YouTube Music API",
-            )
         except Exception as e:
-            print(f"Error in CreatePlaylist: {e}")
             return music_pb2.CreatePlaylistResponse(
                 playlist_id="",
                 success=False,
@@ -876,7 +868,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     error=error_msg,
                 )
         except Exception as e:
-            print(f"Error in AddPlaylistItems: {e}")
             return music_pb2.AddPlaylistItemsResponse(
                 status="STATUS_FAILED",
                 success=False,
@@ -909,7 +900,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     success=success,
                     error="" if success else final_status,
                 )
-            elif isinstance(result, dict):
+            else:
                 status_str = str(result.get("status") or "")
                 error_msg = str(result.get("error") or "")
                 success = status_str == "STATUS_SUCCEEDED" and not error_msg
@@ -921,13 +912,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                     success=success,
                     error=error_msg,
                 )
-            return music_pb2.RemovePlaylistItemsResponse(
-                status="STATUS_FAILED",
-                success=False,
-                error="Unexpected response from YouTube Music API",
-            )
         except Exception as e:
-            print(f"Error in RemovePlaylistItems: {e}")
             return music_pb2.RemovePlaylistItemsResponse(
                 status="STATUS_FAILED",
                 success=False,
@@ -937,8 +922,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
 
 def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:
-    def shutdown(signum: int, _frame: FrameType | None) -> None:
-        print(f"Received {signal.Signals(signum).name}")
+    def shutdown(_signum: int, _frame: FrameType | None) -> None:
         _ = server.stop(grace=5)
     return shutdown
 
