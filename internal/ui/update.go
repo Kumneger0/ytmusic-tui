@@ -537,8 +537,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd := m.handleKeyPress(msg)
 		m = model
 		if cmd != nil {
-			return m, cmd
+			var searchCmd tea.Cmd
+			if m.FocusedOn == SearchBar {
+				m.Search, searchCmd = m.Search.Update(msg)
+			}
+			return m, tea.Batch(cmd, searchCmd)
 		}
+
 	case tea.MouseMsg:
 		x := msg.X
 		y := msg.Y
