@@ -63,8 +63,8 @@ func TestForegroundModel_AddToPlaylistModal(t *testing.T) {
 	})
 	fg = model.(*ForegroundModel)
 
-	if fg.ActiveModal != types.ModalTypeAddToPlaylist || !fg.IsLoading {
-		t.Fatalf("expected ModalTypeAddToPlaylist with IsLoading=true")
+	if fg.ActiveModal != types.ModalTypePlaylistManagement || !fg.IsLoading {
+		t.Fatalf("expected ModalTypePlaylistManagement with IsLoading=true")
 	}
 
 	loadingView := fg.View()

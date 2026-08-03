@@ -144,7 +144,7 @@ type ModalType int
 const (
 	ModalTypeNone ModalType = iota
 	ModalTypeCreatePlaylist
-	ModalTypeAddToPlaylist
+	ModalTypePlaylistManagement
 	ModalTypeDuplicateConfirm
 )
 

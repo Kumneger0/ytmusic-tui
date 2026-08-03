@@ -96,7 +96,7 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case types.OpenAddToPlaylistLoadingMsg:
-		m.ActiveModal = types.ModalTypeAddToPlaylist
+		m.ActiveModal = types.ModalTypePlaylistManagement
 		m.SelectedTrackID = msg.TrackID
 		m.SelectedTrackTitle = msg.TrackTitle
 		m.Playlists = nil
@@ -110,7 +110,7 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case types.OpenAddToPlaylistModalMsg:
 		if msg.TrackID == m.SelectedTrackID || m.SelectedTrackID == "" {
-			m.ActiveModal = types.ModalTypeAddToPlaylist
+			m.ActiveModal = types.ModalTypePlaylistManagement
 			m.SelectedTrackID = msg.TrackID
 			m.SelectedTrackTitle = msg.TrackTitle
 			m.Playlists = msg.Playlists
@@ -260,7 +260,7 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		if m.ActiveModal == types.ModalTypeAddToPlaylist {
+		if m.ActiveModal == types.ModalTypePlaylistManagement {
 			if m.IsLoading || m.IsSubmitting {
 				return m, nil
 			}
@@ -275,6 +275,22 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.PlaylistSelectIndex = (m.PlaylistSelectIndex - 1 + len(m.Playlists)) % len(m.Playlists)
 				}
 				return m, nil
+			case "r":
+				if len(m.Playlists) > 0 && m.PlaylistSelectIndex >= 0 && m.PlaylistSelectIndex < len(m.Playlists) {
+					pl := m.Playlists[m.PlaylistSelectIndex]
+					trackID := m.SelectedTrackID
+					trackTitle := m.SelectedTrackTitle
+					m.IsSubmitting = true
+					m.ErrorMsg = ""
+					return m, func() tea.Msg {
+						return types.RemoveFromPlaylistMsg{
+							PlaylistID:   pl.PlaylistId,
+							PlaylistName: pl.Title,
+							TrackID:      trackID,
+							TrackTitle:   trackTitle,
+						}
+					}
+				}
 			case "enter", "a":
 				if len(m.Playlists) > 0 && m.PlaylistSelectIndex >= 0 && m.PlaylistSelectIndex < len(m.Playlists) {
 					pl := m.Playlists[m.PlaylistSelectIndex]
@@ -306,7 +322,6 @@ func (m *ForegroundModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "enter":
 				if m.ConfirmDuplicateIndex == 0 {
-					// Yes (Add Duplicate)
 					plID := m.TargetPlaylistID
 					plName := m.TargetPlaylistName
 					trID := m.SelectedTrackID
@@ -353,8 +368,8 @@ func (m *ForegroundModel) View() string {
 	switch m.ActiveModal {
 	case types.ModalTypeCreatePlaylist:
 		return m.renderCreatePlaylistModal()
-	case types.ModalTypeAddToPlaylist:
-		return m.renderAddToPlaylistModal()
+	case types.ModalTypePlaylistManagement:
+		return m.renderPlaylistManagementModal()
 	case types.ModalTypeDuplicateConfirm:
 		return m.renderDuplicateConfirmModal()
 	default:
@@ -498,7 +513,7 @@ func (m *ForegroundModel) renderCreatePlaylistModal() string {
 	return modalBox
 }
 
-func (m *ForegroundModel) renderAddToPlaylistModal() string {
+func (m *ForegroundModel) renderPlaylistManagementModal() string {
 	modalWidth := 58
 	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A"))
@@ -520,7 +535,7 @@ func (m *ForegroundModel) renderAddToPlaylistModal() string {
 		Foreground(lipgloss.Color("#A1A1AA")).
 		Align(lipgloss.Center).
 		Width(modalWidth - 4).
-		Render("↑/↓ Select • Enter Add to Playlist • Esc Close")
+		Render("↑/↓ Select • R to Remove • Enter Add to Playlist • Esc Close")
 
 	var middleSection string
 

@@ -85,11 +85,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 
 			isDup := false
-			if err != nil && (strings.Contains(strings.ToLower(err.Error()), "duplicate") || strings.Contains(strings.ToLower(err.Error()), "already")) {
-				isDup = true
-			}
-			if response != nil && (strings.Contains(strings.ToLower(response.Status), "duplicate") || strings.Contains(strings.ToLower(response.Error), "duplicate") || strings.Contains(strings.ToLower(response.Error), "already")) {
-				isDup = true
+			if err != nil || response == nil || !response.Success {
+				itemsRes, itemsErr := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
+					PlaylistId: msg.PlaylistID,
+					Limit:      200,
+				})
+				if itemsErr == nil && itemsRes != nil {
+					for _, t := range itemsRes.Tracks {
+						if t.VideoId == msg.TrackID {
+							isDup = true
+							break
+						}
+					}
+				}
 			}
 
 			if !msg.Duplicates && isDup {
@@ -645,7 +653,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 					}
 				},
 				func() tea.Msg {
-					return types.OpenModalMsg{ModalType: types.ModalTypeAddToPlaylist}
+					return types.OpenModalMsg{ModalType: types.ModalTypePlaylistManagement}
 				},
 			),
 			openAddToPlaylistCmd,
