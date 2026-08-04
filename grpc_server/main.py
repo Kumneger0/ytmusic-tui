@@ -18,7 +18,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 
 from grpc_server.gen import music_pb2, music_pb2_grpc  # pyright: ignore[reportImplicitRelativeImport]
 
-from grpc_server.src.auth import get_browser_json_path, run_login_flow  # pyright: ignore[reportImplicitRelativeImport]
+from grpc_server.src.auth import get_browser_json_path, get_ytmusic_client, run_login_flow  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.cookie_extractor import run_cookie_extraction  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.client import MusicClient  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]
@@ -272,12 +272,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         if context is not None:
             try:
                 metadata = dict(context.invocation_metadata())
-                auth_data = (
-                    metadata.get("x-auth-json")
-                    or metadata.get("x-auth-file")
-                    or metadata.get("x-auth-data")
-                    or metadata.get("authorization")
-                )
+                auth_data = metadata.get("x-auth-json")
                 if auth_data:
                     return MusicClient(auth=auth_data)
             except Exception as e:
@@ -291,7 +286,75 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         )
     @override
     def Login(self, request: music_pb2.LoginRequest, context: grpc.ServicerContext) -> music_pb2.LoginResponse:
-        return music_pb2.LoginResponse(authenticated=True)
+        auth_json = request.auth_json
+        if not auth_json:
+            metadata = dict(context.invocation_metadata())
+            auth_json = metadata.get("x-auth-json") or ""
+
+        if not auth_json:
+            return music_pb2.LoginResponse(
+                authenticated=False,
+                error="No auth credentials provided.",
+                user_name="",
+            )
+
+        try:
+            yt = get_ytmusic_client(str(auth_json))
+            err: str | None = None
+            try:
+                playlists = yt.get_library_playlists(limit=5)
+                if playlists and len(playlists) > 0:
+                    return music_pb2.LoginResponse(
+                        authenticated=True,
+                        error="",
+                        user_name="",
+                    )
+            except Exception as e:
+                err = str(e)
+                pass
+
+            try:
+                songs_data = yt.get_liked_songs(limit=5)
+                tracks = None
+                tracks = songs_data.get("tracks")
+                if isinstance(tracks, list) and len(tracks) > 0:  # pyright: ignore[reportUnknownArgumentType]
+                    return music_pb2.LoginResponse(
+                        authenticated=True,
+                        error="",
+                        user_name="",
+                    )
+            except Exception as e:
+                if err is None:
+                    err = str(e)
+                pass
+
+            user_name = ""
+            try:
+                info = yt.get_account_info()
+                user_name = str(info.get("accountName") or "")
+            except Exception as e:
+                if err is None:
+                    err = str(e)
+                pass
+
+            if user_name:
+                return music_pb2.LoginResponse(
+                    authenticated=True,
+                    error="",
+                    user_name=user_name,
+                )
+
+            return music_pb2.LoginResponse(
+                authenticated=False,
+                error=err or "Failed to Authenticate User",
+                user_name="",
+            )
+        except Exception as e:
+            return music_pb2.LoginResponse(
+                authenticated=False,
+                error=f"Verification failed: {e}",
+                user_name="",
+            )
 
     @override
     def GetLibrary(self, request: music_pb2.GetLibraryRequest, context: grpc.ServicerContext) -> music_pb2.GetLibraryResponse:

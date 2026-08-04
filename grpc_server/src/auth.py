@@ -88,10 +88,8 @@ def get_ytmusic_client(auth_input: str | JsonDict | Path | None = None) -> YTMus
             except Exception:
                 return YTMusic()
 
-    if isinstance(auth_input, dict):
-        return YTMusic(auth=auth_input)
+    return YTMusic(auth=auth_input)
 
-    return YTMusic()
 
 
 

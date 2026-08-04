@@ -161,7 +161,10 @@ class MusicClient:
         return self.execute(lambda c: cast(list[YTLibraryArtist], c.get_library_subscriptions(limit=limit)))
 
     def get_user_profile(self) -> YTAccountInfo:
-        return self.execute(lambda c: cast(YTAccountInfo, cast(object, c.get_account_info())))
+        try:
+            return self.execute(lambda c: cast(YTAccountInfo, cast(object, c.get_account_info())))
+        except Exception:
+            return cast(YTAccountInfo, cast(object, {}))
 
     def get_user_top_items(self) -> list[YTSong]:
         return self.execute(lambda c: cast(list[YTSong], c.get_history()))

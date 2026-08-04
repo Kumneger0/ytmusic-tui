@@ -104,10 +104,14 @@ message UserProfile {
   repeated Thumbnail thumbnails = 3;
 }
 
-message LoginRequest {}
+message LoginRequest {
+  string auth_json = 1;
+}
 
 message LoginResponse {
   bool authenticated = 1;
+  string error = 2;
+  string user_name = 3;
 }
 
 message GetLibraryRequest {
