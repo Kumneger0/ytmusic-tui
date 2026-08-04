@@ -60,6 +60,41 @@ def test_authentication(filepath: Path) -> tuple[bool, str]:
         return False, str(e)
 
 
+def get_ytmusic_client(auth_input: str | JsonDict | Path | None = None) -> YTMusic:
+    """
+    Creates a YTMusic instance from a file path, raw JSON string, or dict object.
+    Supports in-memory / virtual auth without requiring disk persistence.
+    """
+    if not auth_input:
+        return YTMusic()
+
+    if isinstance(auth_input, Path):
+        return YTMusic(auth=str(auth_input))
+
+    if isinstance(auth_input, str):
+        trimmed = auth_input.strip()
+        if trimmed.startswith("{") and trimmed.endswith("}"):
+            try:
+                _ = json.loads(trimmed)
+                return YTMusic(auth=trimmed)
+            except Exception as e:
+                print(f"Error parsing auth JSON string: {e}")
+                return YTMusic()
+        elif os.path.isfile(trimmed):
+            return YTMusic(auth=trimmed)
+        else:
+            try:
+                return YTMusic(auth=trimmed)
+            except Exception:
+                return YTMusic()
+
+    if isinstance(auth_input, dict):
+        return YTMusic(auth=auth_input)
+
+    return YTMusic()
+
+
+
 LOGIN_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>

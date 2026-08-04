@@ -25,9 +25,11 @@ from .types import (
     YTSearchFilter
 )
 
+from grpc_server.src.auth import get_ytmusic_client  # pyright: ignore[reportImplicitRelativeImport]
+
 class MusicClient:
-    def __init__(self, auth_file: str | None = None) -> None:
-        self.auth_file: str | None = auth_file
+    def __init__(self, auth: str | JsonDict | None = None) -> None:
+        self.auth: str | JsonDict | None = auth
         self._client: YTMusic | None = None
         self._lock = threading.Lock()
         self._generation: int = 0
@@ -41,13 +43,13 @@ class MusicClient:
         return self._client
 
     def _init_client(self) -> None:
-        if self.auth_file:
+        if self.auth:
             try:
-                self._client = YTMusic(auth=self.auth_file)
+                self._client = get_ytmusic_client(self.auth)
                 self._generation += 1
                 return
             except Exception as e:
-                print(f"Error initializing YTMusic with auth_file {self.auth_file}: {e}")
+                print(f"Error initializing YTMusic with auth input {self.auth}: {e}")
         self._client = YTMusic()
         self._generation += 1
 

@@ -1,0 +1,15 @@
+.git
+.venv
+dist
+build
+main.dist
+main.build
+ytmusic-tui
+backend/binaries
+coverage.out
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.vscode
+.idea

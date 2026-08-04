@@ -266,7 +266,23 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     """gRPC Servicer implementing the MusicService interface, mapping requests to MusicClient."""
 
     def __init__(self, auth_file: str) -> None:
-            self.client: MusicClient = MusicClient(auth_file)
+        self.client: MusicClient = MusicClient(auth_file)
+
+    def _get_client_for_request(self, context: grpc.ServicerContext | None) -> MusicClient:
+        if context is not None:
+            try:
+                metadata = dict(context.invocation_metadata())
+                auth_data = (
+                    metadata.get("x-auth-json")
+                    or metadata.get("x-auth-file")
+                    or metadata.get("x-auth-data")
+                    or metadata.get("authorization")
+                )
+                if auth_data:
+                    return MusicClient(auth=auth_data)
+            except Exception as e:
+                print(f"Error resolving virtual auth from gRPC metadata: {e}")
+        return self.client
 
     @override
     def HealthCheck(self, request:music_pb2.HealthCheckRequest, context:grpc.ServicerContext) -> music_pb2.HealthCheckResponse:
@@ -280,7 +296,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetLibrary(self, request: music_pb2.GetLibraryRequest, context: grpc.ServicerContext) -> music_pb2.GetLibraryResponse:
         limit = request.limit if request.limit > 0 else 25
-        library_data = self.client.get_library(limit=limit)
+        client = self._get_client_for_request(context)
+        library_data = client.get_library(limit=limit)
         albums_list = [_to_proto_album(album) for album in library_data.get("albums", [])]
         playlists_list = [_to_proto_playlist(playlist) for playlist in library_data.get("playlists", [])]
         channels_list = [_to_proto_channel(channel) for channel in library_data.get("channels", [])]
@@ -298,27 +315,31 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetUserSavedTracks(self, request: music_pb2.GetUserSavedTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetUserSavedTracksResponse:
         limit = request.limit if request.limit > 0 else 100
-        songs_data = self.client.get_user_saved_tracks(limit=limit)
+        client = self._get_client_for_request(context)
+        songs_data = client.get_user_saved_tracks(limit=limit)
         songs_list = [_to_proto_song(song) for song in songs_data]
         return music_pb2.GetUserSavedTracksResponse(tracks=songs_list, total=len(songs_list))
 
     @override
     def GetUserSavedAlbums(self, request: music_pb2.GetUserSavedAlbumsRequest, context: grpc.ServicerContext) -> music_pb2.GetUserSavedAlbumsResponse:
         limit = request.limit if request.limit > 0 else 25
-        albums_data = self.client.get_user_saved_albums(limit=limit)
+        client = self._get_client_for_request(context)
+        albums_data = client.get_user_saved_albums(limit=limit)
         albums_list = [_to_proto_album(album) for album in albums_data]
         return music_pb2.GetUserSavedAlbumsResponse(albums=albums_list, total=len(albums_list))
 
     @override
     def GetUserPlaylists(self, request: music_pb2.GetUserPlaylistsRequest, context: grpc.ServicerContext) -> music_pb2.GetUserPlaylistsResponse:
         limit = request.limit if request.limit > 0 else 25
-        playlists_data = self.client.get_user_playlists(limit=limit)
+        client = self._get_client_for_request(context)
+        playlists_data = client.get_user_playlists(limit=limit)
         playlists_list = [_to_proto_playlist(playlist) for playlist in playlists_data]
         return music_pb2.GetUserPlaylistsResponse(playlists=playlists_list, total=len(playlists_list))
 
     @override
     def GetTrack(self, request: music_pb2.GetTrackRequest, context: grpc.ServicerContext) -> music_pb2.GetTrackResponse:
-        track_details = self.client.get_track(video_id=request.video_id)
+        client = self._get_client_for_request(context)
+        track_details = client.get_track(video_id=request.video_id)
         if not track_details:
             return music_pb2.GetTrackResponse()
         
@@ -352,7 +373,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def GetAlbumTracks(self, request: music_pb2.GetAlbumTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetAlbumTracksResponse:
-        album_data = self.client.get_album_tracks(browse_id=request.browse_id) or {}
+        client = self._get_client_for_request(context)
+        album_data = client.get_album_tracks(browse_id=request.browse_id) or {}
         
         response = music_pb2.GetAlbumTracksResponse(
             title=album_data.get("title") or "",
@@ -372,7 +394,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetPlaylistItems(self, request: music_pb2.GetPlaylistItemsRequest, context: grpc.ServicerContext) -> music_pb2.GetPlaylistItemsResponse:
         limit = request.limit if request.limit > 0 else 100
-        playlist_data = self.client.get_playlist_items(playlist_id=request.playlist_id, limit=limit) or {}
+        client = self._get_client_for_request(context)
+        playlist_data = client.get_playlist_items(playlist_id=request.playlist_id, limit=limit) or {}
         
         author_name = ""
         author_val = playlist_data.get("author")
@@ -402,7 +425,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         if request.filter in ("songs", "videos", "albums", "artists", "playlists", "podcasts", "episodes"):
             filter_val = request.filter
         
-        raw_results: list[YTSearchResult] = self.client.get_search_results(query=request.query, filter_type=filter_val, limit=limit)
+        client = self._get_client_for_request(context)
+        raw_results: list[YTSearchResult] = client.get_search_results(query=request.query, filter_type=filter_val, limit=limit)
         response: music_pb2.GetSearchResultsResponse = music_pb2.GetSearchResultsResponse()
         
         for result in raw_results:
@@ -541,7 +565,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def GetArtistTopTracks(self, request: music_pb2.GetArtistTopTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetArtistTopTracksResponse:
-        artist_data = self.client.get_artist_top_tracks(channel_id=request.channel_id) or {}
+        client = self._get_client_for_request(context)
+        artist_data = client.get_artist_top_tracks(channel_id=request.channel_id) or {}
         response = music_pb2.GetArtistTopTracksResponse(
             name=artist_data.get("name") or "",
             subscribers=artist_data.get("subscribers") or "",
@@ -559,7 +584,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetFollowedArtists(self, request: music_pb2.GetFollowedArtistsRequest, context: grpc.ServicerContext) -> music_pb2.GetFollowedArtistsResponse:
         limit = request.limit if request.limit > 0 else 25
-        artists_data = self.client.get_followed_artists(limit=limit) or []
+        client = self._get_client_for_request(context)
+        artists_data = client.get_followed_artists(limit=limit) or []
         
         response = music_pb2.GetFollowedArtistsResponse(total=len(artists_data))
         for artist in artists_data:
@@ -576,7 +602,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def GetUserProfile(self, request: music_pb2.GetUserProfileRequest, context: grpc.ServicerContext) -> music_pb2.GetUserProfileResponse:
-        user_info = self.client.get_user_profile()
+        client = self._get_client_for_request(context)
+        user_info = client.get_user_profile()
         response = music_pb2.GetUserProfileResponse(
             name=user_info.get("accountName") or "",
             channel_id=user_info.get("channelHandle") or "",
@@ -589,42 +616,49 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def GetUserTopItems(self, request: music_pb2.GetUserTopItemsRequest, context: grpc.ServicerContext) -> music_pb2.GetUserTopItemsResponse:
         limit = request.limit if request.limit > 0 else 25
-        songs_data = self.client.get_user_top_items()
+        client = self._get_client_for_request(context)
+        songs_data = client.get_user_top_items()
         songs_list = [_to_proto_song(song) for song in songs_data[:limit]]
         return music_pb2.GetUserTopItemsResponse(tracks=songs_list, total=len(songs_list))
 
     @override
     def CheckUserSavedTrack(self, request: music_pb2.CheckUserSavedTrackRequest, context: grpc.ServicerContext) -> music_pb2.CheckUserSavedTrackResponse:
-        is_saved = self.client.check_user_saved_track(video_id=request.video_id)
+        client = self._get_client_for_request(context)
+        is_saved = client.check_user_saved_track(video_id=request.video_id)
         return music_pb2.CheckUserSavedTrackResponse(is_saved=is_saved)
 
     @override
     def SaveRemoveTrack(self, request: music_pb2.SaveRemoveTrackRequest, context: grpc.ServicerContext) -> music_pb2.SaveRemoveTrackResponse:
         print('SaveRemoveTrackRequest:', request)
-        save_result = self.client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
+        client = self._get_client_for_request(context)
+        save_result = client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
         print('save_result:', save_result)
         return music_pb2.SaveRemoveTrackResponse()
 
     @override
     def SearchSongs(self, request: music_pb2.SearchSongsRequest, context: grpc.ServicerContext) -> music_pb2.SearchSongsResponse:
-        songs_data = self.client.search(query=request.query)
+        client = self._get_client_for_request(context)
+        songs_data = client.search(query=request.query)
         songs_list = [_to_proto_song(song) for song in songs_data]
         return music_pb2.SearchSongsResponse(songs=songs_list)
 
     @override
     def LikeSong(self, request: music_pb2.LikeSongRequest, context: grpc.ServicerContext) -> music_pb2.LikeSongResponse:
-        like_song_result = self.client.like_song(request.video_id)
+        client = self._get_client_for_request(context)
+        like_song_result = client.like_song(request.video_id)
         print('like_song_result:', like_song_result)
         return music_pb2.LikeSongResponse()
 
     @override
     def UnlikeSong(self, request: music_pb2.UnlikeSongRequest, context: grpc.ServicerContext) -> music_pb2.UnlikeSongResponse:
-        unlike_song_result = self.client.unlike_song(request.video_id)
+        client = self._get_client_for_request(context)
+        unlike_song_result = client.unlike_song(request.video_id)
         print('unlike_song_result:', unlike_song_result)
         return music_pb2.UnlikeSongResponse()
     @override
     def GetVideoStreamURLAndDuration(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, context:grpc.ServicerContext) -> music_pb2.GetVideoStreamURLAndDurationResponse:
-        stream_url_and_duration= self.client.get_stream_url_and_duration(request.videoId)
+        client = self._get_client_for_request(context)
+        stream_url_and_duration= client.get_stream_url_and_duration(request.videoId)
         duration = stream_url_and_duration.get('duration')
         return  music_pb2.GetVideoStreamURLAndDurationResponse(
             url=stream_url_and_duration.get('url'),
@@ -632,7 +666,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         )
     @override
     def GetHomePage(self, request: music_pb2.GetHomePageRequest, context: grpc.ServicerContext) -> music_pb2.GetHomePageResponse:
-        home_sections: list[YTHomeSection] = self.client.get_home()
+        client = self._get_client_for_request(context)
+        home_sections: list[YTHomeSection] = client.get_home()
         
         response = music_pb2.GetHomePageResponse()
         
@@ -691,12 +726,13 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.GetSongRelatedResponse:
         try:
+            client = self._get_client_for_request(context)
             if not request.videoId and not getattr(request, "browse_id", None):
                 return music_pb2.GetSongRelatedResponse()
             browse_id = getattr(request, "browse_id", None) or getattr(request, "videoId", None)
             browse_id_str = str(browse_id or "")
             if not browse_id_str.startswith("MPTRt_"):
-                watch_data = self.client.get_watch_playlist(request.videoId)
+                watch_data = client.get_watch_playlist(request.videoId)
                 related_id = watch_data.get("related")
                 if isinstance(related_id, str) and related_id:
                     browse_id_str = related_id
@@ -704,7 +740,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             if not browse_id_str.startswith("MPTRt_"):
                 return music_pb2.GetSongRelatedResponse()
 
-            sections_data = self.client.get_song_related(browse_id_str)
+            sections_data = client.get_song_related(browse_id_str)
 
             response = music_pb2.GetSongRelatedResponse()
             for section in sections_data:
@@ -731,12 +767,13 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.GetLyricsResponse:
         try:
-            watch_data = self.client.get_watch_playlist(request.videoId)
+            client = self._get_client_for_request(context)
+            watch_data = client.get_watch_playlist(request.videoId)
             lyrics_id = watch_data.get("lyrics")
             if not isinstance(lyrics_id, str) or not lyrics_id:
                 return music_pb2.GetLyricsResponse()
 
-            raw_lyrics = self.client.get_lyrics(
+            raw_lyrics = client.get_lyrics(
                 browse_id=lyrics_id,
                 timestamps=request.timestamps,
             )
@@ -797,13 +834,14 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.CreatePlaylistResponse:
         try:
+            client = self._get_client_for_request(context)
             title = request.title
             description = request.description
             privacy_status = request.privacy_status or "PRIVATE"
             video_ids = list(request.video_ids) if request.video_ids else None
             source_playlist = request.source_playlist if request.source_playlist else None
 
-            result = self.client.create_playlist(
+            result = client.create_playlist(
                 title=title,
                 description=description,
                 privacy_status=privacy_status,
@@ -835,12 +873,13 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.AddPlaylistItemsResponse:
         try:
+            client = self._get_client_for_request(context)
             playlist_id = request.playlist_id
             video_ids = list(request.video_ids) if request.video_ids else None
             source_playlist = request.source_playlist if request.source_playlist else None
             duplicates = request.duplicates
 
-            result = self.client.add_playlist_items(
+            result = client.add_playlist_items(
                 playlist_id=playlist_id,
                 video_ids=video_ids,
                 source_playlist=source_playlist,
@@ -881,13 +920,14 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         context: grpc.ServicerContext,
     ) -> music_pb2.RemovePlaylistItemsResponse:
         try:
+            client = self._get_client_for_request(context)
             playlist_id = request.playlist_id
             videos: list[dict[str, Any]] = [
                 {"videoId": v.video_id, "setVideoId": v.set_video_id}
                 for v in request.videos
             ]
 
-            result = self.client.remove_playlist_items(
+            result = client.remove_playlist_items(
                 playlist_id=playlist_id,
                 videos=videos,
             )
@@ -929,7 +969,7 @@ def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:
 
 
 def serve() -> None:
-    port = "50051"
+    port = os.environ.get("PORT", "50051")
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     auth_file = str(get_browser_json_path())
     servicer = MusicService(auth_file)
