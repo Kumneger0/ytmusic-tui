@@ -22,7 +22,8 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY . .
 
 # Generate Python Protobuf & gRPC files
-RUN uv run python -m grpc_tools.protoc \
+RUN mkdir -p grpc_server/gen && \
+    uv run --no-dev python -m grpc_tools.protoc \
         -Iproto \
         --python_out=grpc_server/gen \
         --grpc_python_out=grpc_server/gen \
