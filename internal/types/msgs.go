@@ -206,7 +206,6 @@ type RemoveFromPlaylistMsg struct {
 	PlaylistName string
 	TrackID      string
 	TrackTitle   string
-	SetVideoID   string
 }
 
 type RemoveFromPlaylistResponseMsg struct {

@@ -156,12 +156,45 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		removeCmd := func() tea.Msg {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+			result, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
+				PlaylistId: msg.PlaylistID,
+				Limit:      200,
+			})
+			if err != nil {
+				return types.RemoveFromPlaylistResponseMsg{
+					PlaylistID:   msg.PlaylistID,
+					PlaylistName: msg.PlaylistName,
+					TrackID:      msg.TrackID,
+					TrackTitle:   msg.TrackTitle,
+					Success:      false,
+					Err:          err,
+				}
+			}
+
+			var setVideoID *string
+			for _, track := range result.Tracks {
+				if track.VideoId == msg.TrackID {
+					setVideoID = &track.SetVideoId
+					break
+				}
+			}
+
+			if setVideoID == nil {
+				return types.RemoveFromPlaylistResponseMsg{
+					PlaylistID:   msg.PlaylistID,
+					PlaylistName: msg.PlaylistName,
+					TrackID:      msg.TrackID,
+					TrackTitle:   msg.TrackTitle,
+					Success:      false,
+					Err:          errors.New("Failed to Find the track in this playlist"),
+				}
+			}
 			response, err := m.YtMusicClient.RemovePlaylistItems(ctx, &musicpb.RemovePlaylistItemsRequest{
 				PlaylistId: msg.PlaylistID,
 				Videos: []*musicpb.PlaylistItemRef{
 					{
 						VideoId:    msg.TrackID,
-						SetVideoId: msg.SetVideoID,
+						SetVideoId: *setVideoID,
 					},
 				},
 			})
