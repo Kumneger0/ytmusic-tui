@@ -1,3 +1,4 @@
+import base64
 from concurrent import futures
 from types import FrameType
 import grpc
@@ -7,6 +8,19 @@ from typing import Any, Callable, cast, override
 import signal
 from dotenv import load_dotenv
 _= load_dotenv()
+
+
+def _parse_auth_metadata(auth_data: str) -> str:
+    auth_data = auth_data.strip()
+    if not auth_data:
+        return ""
+    try:
+        decoded = base64.b64decode(auth_data).decode("utf-8")
+        if decoded.startswith("{"):
+            return decoded
+    except Exception:
+        pass
+    return auth_data
 
 
 def _coerce_str(value: object) -> str:
@@ -263,21 +277,18 @@ def to_proto_song_related_content(content: dict[str, object]) -> music_pb2.SongR
 
 
 class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
-    """gRPC Servicer implementing the MusicService interface, mapping requests to MusicClient."""
 
-    def __init__(self, auth_file: str) -> None:
-        self.client: MusicClient = MusicClient(auth_file)
+    def __init__(self) -> None:
+        pass
 
     def _get_client_for_request(self, context: grpc.ServicerContext | None) -> MusicClient:
         if context is not None:
-            try:
-                metadata = dict(context.invocation_metadata())
-                auth_data = metadata.get("x-auth-json")
-                if auth_data:
-                    return MusicClient(auth=auth_data)
-            except Exception as e:
-                print(f"Error resolving virtual auth from gRPC metadata: {e}")
-        return self.client
+            metadata = dict(context.invocation_metadata())
+            auth_data = metadata.get("x-auth-json")
+            if auth_data:
+                parsed_auth = _parse_auth_metadata(auth_data)
+                return MusicClient(auth=parsed_auth)
+        return MusicClient(auth=None)
 
     @override
     def HealthCheck(self, request:music_pb2.HealthCheckRequest, context:grpc.ServicerContext) -> music_pb2.HealthCheckResponse:
@@ -290,6 +301,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         if not auth_json:
             metadata = dict(context.invocation_metadata())
             auth_json = metadata.get("x-auth-json") or ""
+
+        auth_json = _parse_auth_metadata(auth_json)
 
         if not auth_json:
             return music_pb2.LoginResponse(
@@ -692,10 +705,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def SaveRemoveTrack(self, request: music_pb2.SaveRemoveTrackRequest, context: grpc.ServicerContext) -> music_pb2.SaveRemoveTrackResponse:
-        print('SaveRemoveTrackRequest:', request)
         client = self._get_client_for_request(context)
-        save_result = client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
-        print('save_result:', save_result)
+        _ = client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
         return music_pb2.SaveRemoveTrackResponse()
 
     @override
@@ -708,15 +719,13 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     @override
     def LikeSong(self, request: music_pb2.LikeSongRequest, context: grpc.ServicerContext) -> music_pb2.LikeSongResponse:
         client = self._get_client_for_request(context)
-        like_song_result = client.like_song(request.video_id)
-        print('like_song_result:', like_song_result)
+        _ = client.like_song(request.video_id)
         return music_pb2.LikeSongResponse()
 
     @override
     def UnlikeSong(self, request: music_pb2.UnlikeSongRequest, context: grpc.ServicerContext) -> music_pb2.UnlikeSongResponse:
         client = self._get_client_for_request(context)
-        unlike_song_result = client.unlike_song(request.video_id)
-        print('unlike_song_result:', unlike_song_result)
+        _ = client.unlike_song(request.video_id)
         return music_pb2.UnlikeSongResponse()
     @override
     def GetVideoStreamURLAndDuration(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, context:grpc.ServicerContext) -> music_pb2.GetVideoStreamURLAndDurationResponse:
@@ -1034,8 +1043,7 @@ def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:
 def serve() -> None:
     port = os.environ.get("PORT", "50051")
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    auth_file = str(get_browser_json_path())
-    servicer = MusicService(auth_file)
+    servicer = MusicService()
     music_pb2_grpc.add_MusicServiceServicer_to_server(servicer, server) # type: ignore  # pyright: ignore[reportUnknownMemberType]
 
     _ = server.add_insecure_port("[::]:" + port)

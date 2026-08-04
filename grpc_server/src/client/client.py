@@ -48,24 +48,22 @@ class MusicClient:
                 self._client = get_ytmusic_client(self.auth)
                 self._generation += 1
                 return
-            except Exception as e:
-                print(f"Error initializing YTMusic with auth input {self.auth}: {e}")
+            except Exception:
+                pass
         self._client = YTMusic()
         self._generation += 1
 
     def reset_client(self, known_generation: int | None = None) -> None:
         with self._lock:
             if known_generation is not None and known_generation != self._generation:
-                return  # Another thread already reset the client for this failure.
-            print("Resetting YTMusic client due to error/session corruption...")
+                return
             self._init_client()
 
     def execute(self, func: Callable[[YTMusic], T]) -> T:
         generation = self._generation
         try:
             return func(self.get_client())
-        except Exception as e:
-            print(f"YTMusic request execution failed ({e}). Resetting client and retrying once...")
+        except Exception:
             self.reset_client(known_generation=generation)
             return func(self.get_client())
     def get_stream_url_and_duration(self, video_id:str)  -> GetStreamURLResponse:
