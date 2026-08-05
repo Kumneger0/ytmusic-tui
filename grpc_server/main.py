@@ -1,11 +1,12 @@
-import asyncio
 import base64
 import os
 import sys
-from typing import Any, Callable, cast, override
-import signal
-from dotenv import load_dotenv
-_= load_dotenv()
+from typing import Any, cast
+try:
+    from dotenv import load_dotenv
+    _ = load_dotenv()
+except ImportError:
+    pass
 
 from connectrpc.request import RequestContext
 
@@ -33,7 +34,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 from grpc_server.gen import music_pb2  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.gen.music_connect import MusicServiceASGIApplication  # pyright: ignore[reportImplicitRelativeImport]
 
-from grpc_server.src.auth import get_browser_json_path, get_ytmusic_client, run_login_flow  # pyright: ignore[reportImplicitRelativeImport]
+from grpc_server.src.auth import get_ytmusic_client, run_login_flow  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.cookie_extractor import run_cookie_extraction  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.client import MusicClient  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]
@@ -282,7 +283,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
     def __init__(self) -> None:
         pass
 
-    def _get_client_for_request(self, ctx: RequestContext | None) -> MusicClient:
+    def _get_client_for_request(self, ctx: RequestContext[Any, Any] | None) -> MusicClient:
         if ctx is not None:
             auth_data = ctx.request_headers.get("x-auth-json")
             if auth_data:
@@ -290,11 +291,11 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
                 return MusicClient(auth=parsed_auth)
         return MusicClient(auth=None)
 
-    async def health_check(self, request: music_pb2.HealthCheckRequest, ctx: RequestContext) -> music_pb2.HealthCheckResponse:
+    async def health_check(self, request: music_pb2.HealthCheckRequest, ctx: RequestContext[Any, Any]) -> music_pb2.HealthCheckResponse:
         return music_pb2.HealthCheckResponse(
             ok=True
         )
-    async def login(self, request: music_pb2.LoginRequest, ctx: RequestContext) -> music_pb2.LoginResponse:
+    async def login(self, request: music_pb2.LoginRequest, ctx: RequestContext[Any, Any]) -> music_pb2.LoginResponse:
         auth_json = request.auth_json
         if not auth_json:
             auth_json = ctx.request_headers.get("x-auth-json", "")
@@ -365,7 +366,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
                 error=f"Verification failed: {e}",
                 user_name="",
             )
-    async def get_library(self, request: music_pb2.GetLibraryRequest, ctx: RequestContext) -> music_pb2.GetLibraryResponse:
+    async def get_library(self, request: music_pb2.GetLibraryRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetLibraryResponse:
         try:
             limit = request.limit if request.limit > 0 else 25
             client = self._get_client_for_request(ctx)
@@ -384,7 +385,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             )
         except Exception:
             return music_pb2.GetLibraryResponse()
-    async def get_user_saved_tracks(self, request: music_pb2.GetUserSavedTracksRequest, ctx: RequestContext) -> music_pb2.GetUserSavedTracksResponse:
+    async def get_user_saved_tracks(self, request: music_pb2.GetUserSavedTracksRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetUserSavedTracksResponse:
         try:
             limit = request.limit if request.limit > 0 else 100
             client = self._get_client_for_request(ctx)
@@ -393,7 +394,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             return music_pb2.GetUserSavedTracksResponse(tracks=songs_list, total=len(songs_list))
         except Exception:
             return music_pb2.GetUserSavedTracksResponse(tracks=[], total=0)
-    async def get_user_saved_albums(self, request: music_pb2.GetUserSavedAlbumsRequest, ctx: RequestContext) -> music_pb2.GetUserSavedAlbumsResponse:
+    async def get_user_saved_albums(self, request: music_pb2.GetUserSavedAlbumsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetUserSavedAlbumsResponse:
         try:
             limit = request.limit if request.limit > 0 else 25
             client = self._get_client_for_request(ctx)
@@ -402,7 +403,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             return music_pb2.GetUserSavedAlbumsResponse(albums=albums_list, total=len(albums_list))
         except Exception:
             return music_pb2.GetUserSavedAlbumsResponse(albums=[], total=0)
-    async def get_user_playlists(self, request: music_pb2.GetUserPlaylistsRequest, ctx: RequestContext) -> music_pb2.GetUserPlaylistsResponse:
+    async def get_user_playlists(self, request: music_pb2.GetUserPlaylistsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetUserPlaylistsResponse:
         try:
             limit = request.limit if request.limit > 0 else 25
             client = self._get_client_for_request(ctx)
@@ -411,7 +412,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             return music_pb2.GetUserPlaylistsResponse(playlists=playlists_list, total=len(playlists_list))
         except Exception:
             return music_pb2.GetUserPlaylistsResponse(playlists=[], total=0)
-    async def get_track(self, request: music_pb2.GetTrackRequest, ctx: RequestContext) -> music_pb2.GetTrackResponse:
+    async def get_track(self, request: music_pb2.GetTrackRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetTrackResponse:
         client = self._get_client_for_request(ctx)
         track_details = client.get_track(video_id=request.video_id)
         if not track_details:
@@ -444,7 +445,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
                 pass
 
         return music_pb2.GetTrackResponse(track=song_msg)
-    async def get_album_tracks(self, request: music_pb2.GetAlbumTracksRequest, ctx: RequestContext) -> music_pb2.GetAlbumTracksResponse:
+    async def get_album_tracks(self, request: music_pb2.GetAlbumTracksRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetAlbumTracksResponse:
         client = self._get_client_for_request(ctx)
         album_data = client.get_album_tracks(browse_id=request.browse_id) or {}
         
@@ -462,7 +463,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             response.tracks.append(_to_proto_song(track))
         
         return response
-    async def get_playlist_items(self, request: music_pb2.GetPlaylistItemsRequest, ctx: RequestContext) -> music_pb2.GetPlaylistItemsResponse:
+    async def get_playlist_items(self, request: music_pb2.GetPlaylistItemsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetPlaylistItemsResponse:
         limit = request.limit if request.limit > 0 else 100
         client = self._get_client_for_request(ctx)
         playlist_data = client.get_playlist_items(playlist_id=request.playlist_id, limit=limit) or {}
@@ -487,7 +488,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             response.tracks.append(_to_proto_song(track))
             
         return response
-    async def get_search_results(self, request: music_pb2.GetSearchResultsRequest, ctx: RequestContext) -> music_pb2.GetSearchResultsResponse:
+    async def get_search_results(self, request: music_pb2.GetSearchResultsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetSearchResultsResponse:
         limit = request.limit if request.limit > 0 else 50
         filter_val: YTSearchFilter | None = None
         if request.filter in ("songs", "videos", "albums", "artists", "playlists", "podcasts", "episodes"):
@@ -630,7 +631,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
                 response.songs.append(song_item)
 
         return response
-    async def get_artist_top_tracks(self, request: music_pb2.GetArtistTopTracksRequest, ctx: RequestContext) -> music_pb2.GetArtistTopTracksResponse:
+    async def get_artist_top_tracks(self, request: music_pb2.GetArtistTopTracksRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetArtistTopTracksResponse:
         client = self._get_client_for_request(ctx)
         artist_data = client.get_artist_top_tracks(channel_id=request.channel_id) or {}
         response = music_pb2.GetArtistTopTracksResponse(
@@ -646,7 +647,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
                 response.tracks.append(_to_proto_song(song))
                 
         return response
-    async def get_followed_artists(self, request: music_pb2.GetFollowedArtistsRequest, ctx: RequestContext) -> music_pb2.GetFollowedArtistsResponse:
+    async def get_followed_artists(self, request: music_pb2.GetFollowedArtistsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetFollowedArtistsResponse:
         limit = request.limit if request.limit > 0 else 25
         client = self._get_client_for_request(ctx)
         artists_data = client.get_followed_artists(limit=limit) or []
@@ -663,7 +664,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             response.artists.append(artist_msg)
             
         return response
-    async def get_user_profile(self, request: music_pb2.GetUserProfileRequest, ctx: RequestContext) -> music_pb2.GetUserProfileResponse:
+    async def get_user_profile(self, request: music_pb2.GetUserProfileRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetUserProfileResponse:
         client = self._get_client_for_request(ctx)
         user_info = client.get_user_profile()
         response = music_pb2.GetUserProfileResponse(
@@ -674,34 +675,34 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
         if photo_url:
             response.thumbnails.append(music_pb2.Thumbnail(url=photo_url, width=0, height=0))
         return response
-    async def get_user_top_items(self, request: music_pb2.GetUserTopItemsRequest, ctx: RequestContext) -> music_pb2.GetUserTopItemsResponse:
+    async def get_user_top_items(self, request: music_pb2.GetUserTopItemsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetUserTopItemsResponse:
         limit = request.limit if request.limit > 0 else 25
         client = self._get_client_for_request(ctx)
         songs_data = client.get_user_top_items()
         songs_list = [_to_proto_song(song) for song in songs_data[:limit]]
         return music_pb2.GetUserTopItemsResponse(tracks=songs_list, total=len(songs_list))
-    async def check_user_saved_track(self, request: music_pb2.CheckUserSavedTrackRequest, ctx: RequestContext) -> music_pb2.CheckUserSavedTrackResponse:
+    async def check_user_saved_track(self, request: music_pb2.CheckUserSavedTrackRequest, ctx: RequestContext[Any, Any]) -> music_pb2.CheckUserSavedTrackResponse:
         client = self._get_client_for_request(ctx)
         is_saved = client.check_user_saved_track(video_id=request.video_id)
         return music_pb2.CheckUserSavedTrackResponse(is_saved=is_saved)
-    async def save_remove_track(self, request: music_pb2.SaveRemoveTrackRequest, ctx: RequestContext) -> music_pb2.SaveRemoveTrackResponse:
+    async def save_remove_track(self, request: music_pb2.SaveRemoveTrackRequest, ctx: RequestContext[Any, Any]) -> music_pb2.SaveRemoveTrackResponse:
         client = self._get_client_for_request(ctx)
         _ = client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
         return music_pb2.SaveRemoveTrackResponse()
-    async def search_songs(self, request: music_pb2.SearchSongsRequest, ctx: RequestContext) -> music_pb2.SearchSongsResponse:
+    async def search_songs(self, request: music_pb2.SearchSongsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.SearchSongsResponse:
         client = self._get_client_for_request(ctx)
         songs_data = client.search(query=request.query)
         songs_list = [_to_proto_song(song) for song in songs_data]
         return music_pb2.SearchSongsResponse(songs=songs_list)
-    async def like_song(self, request: music_pb2.LikeSongRequest, ctx: RequestContext) -> music_pb2.LikeSongResponse:
+    async def like_song(self, request: music_pb2.LikeSongRequest, ctx: RequestContext[Any, Any]) -> music_pb2.LikeSongResponse:
         client = self._get_client_for_request(ctx)
         _ = client.like_song(request.video_id)
         return music_pb2.LikeSongResponse()
-    async def unlike_song(self, request: music_pb2.UnlikeSongRequest, ctx: RequestContext) -> music_pb2.UnlikeSongResponse:
+    async def unlike_song(self, request: music_pb2.UnlikeSongRequest, ctx: RequestContext[Any, Any]) -> music_pb2.UnlikeSongResponse:
         client = self._get_client_for_request(ctx)
         _ = client.unlike_song(request.video_id)
         return music_pb2.UnlikeSongResponse()
-    async def get_video_stream_u_r_l_and_duration(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, ctx: RequestContext) -> music_pb2.GetVideoStreamURLAndDurationResponse:
+    async def get_video_stream_u_r_l_and_duration(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetVideoStreamURLAndDurationResponse:
         client = self._get_client_for_request(ctx)
         stream_url_and_duration= client.get_stream_url_and_duration(request.videoId)
         duration = stream_url_and_duration.get('duration')
@@ -709,7 +710,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             url=stream_url_and_duration.get('url'),
             duration= "" if duration is None else str(duration)
         )
-    async def get_home_page(self, request: music_pb2.GetHomePageRequest, ctx: RequestContext) -> music_pb2.GetHomePageResponse:
+    async def get_home_page(self, request: music_pb2.GetHomePageRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetHomePageResponse:
         client = self._get_client_for_request(ctx)
         home_sections: list[YTHomeSection] = client.get_home()
         
@@ -762,7 +763,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             response.sections.append(section_msg)
 
         return response
-    async def get_song_related(self, request: music_pb2.GetSongRelatedRequest, ctx: RequestContext) -> music_pb2.GetSongRelatedResponse:
+    async def get_song_related(self, request: music_pb2.GetSongRelatedRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetSongRelatedResponse:
         try:
             client = self._get_client_for_request(ctx)
             if not request.videoId and not getattr(request, "browse_id", None):
@@ -797,7 +798,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             return response
         except Exception:
             return music_pb2.GetSongRelatedResponse()
-    async def get_lyrics(self, request: music_pb2.GetLyricsRequest, ctx: RequestContext) -> music_pb2.GetLyricsResponse:
+    async def get_lyrics(self, request: music_pb2.GetLyricsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetLyricsResponse:
         try:
             client = self._get_client_for_request(ctx)
             watch_data = client.get_watch_playlist(request.videoId)
@@ -858,7 +859,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             return response
         except Exception:
             return music_pb2.GetLyricsResponse()
-    async def create_playlist(self, request: music_pb2.CreatePlaylistRequest, ctx: RequestContext) -> music_pb2.CreatePlaylistResponse:
+    async def create_playlist(self, request: music_pb2.CreatePlaylistRequest, ctx: RequestContext[Any, Any]) -> music_pb2.CreatePlaylistResponse:
         try:
             client = self._get_client_for_request(ctx)
             title = request.title
@@ -891,7 +892,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
                 success=False,
                 error=str(e),
             )
-    async def add_playlist_items(self, request: music_pb2.AddPlaylistItemsRequest, ctx: RequestContext) -> music_pb2.AddPlaylistItemsResponse:
+    async def add_playlist_items(self, request: music_pb2.AddPlaylistItemsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.AddPlaylistItemsResponse:
         try:
             client = self._get_client_for_request(ctx)
             playlist_id = request.playlist_id
@@ -932,7 +933,7 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
                 success=False,
                 error=str(e),
             )
-    async def remove_playlist_items(self, request: music_pb2.RemovePlaylistItemsRequest, ctx: RequestContext) -> music_pb2.RemovePlaylistItemsResponse:
+    async def remove_playlist_items(self, request: music_pb2.RemovePlaylistItemsRequest, ctx: RequestContext[Any, Any]) -> music_pb2.RemovePlaylistItemsResponse:
         try:
             client = self._get_client_for_request(ctx)
             playlist_id = request.playlist_id

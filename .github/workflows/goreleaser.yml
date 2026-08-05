@@ -54,10 +54,12 @@ jobs:
           uv run python -m grpc_tools.protoc \
             -Iproto \
             --python_out=grpc_server/gen \
-            --grpc_python_out=grpc_server/gen \
             --pyi_out=grpc_server/gen \
+            --plugin=protoc-gen-connect-python=.venv/bin/protoc-gen-connect-python \
+            --connect-python_out=grpc_server/gen \
             proto/music.proto
-          python -c "p='grpc_server/gen/music_pb2_grpc.py'; content=open(p).read(); open(p,'w').write(content.replace('import music_pb2 as', 'from . import music_pb2 as'))"
+          python -c "p='grpc_server/gen/music_connect.py'; content=open(p).read(); open(p,'w').write(content.replace('import music_pb2 as', 'from . import music_pb2 as'))"
+          python -c "p='grpc_server/gen/music_connect.py'; content=open(p).read(); content=content.replace('from connectrpc.compression import Compression', 'from connectrpc.codec import Codec\nfrom connectrpc.compression import Compression').replace('compressions: Iterable[Compression] | None = None) -> None:', 'compressions: Iterable[Compression] | None = None, codecs: Iterable[Codec] | None = None) -> None:').replace('compressions=compressions,', 'compressions=compressions,\n            codecs=codecs,'); open(p,'w').write(content)"
 
       - name: Build PyInstaller executable
         run: uv run pyinstaller main.spec
@@ -103,7 +105,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
 
       - name: Generate Go Protobuf files
         run: make proto-go
