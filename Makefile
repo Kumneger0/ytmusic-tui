@@ -95,11 +95,15 @@ proto-python:
 	.venv/bin/python -m grpc_tools.protoc \
 		-Iproto \
 		--python_out=grpc_server/gen \
-		--grpc_python_out=grpc_server/gen \
 		--pyi_out=grpc_server/gen \
+		--plugin=protoc-gen-connect-python=.venv/bin/protoc-gen-connect-python \
+		--connect-python_out=grpc_server/gen \
 		proto/music.proto
 
-	@sed -i 's/^import music_pb2 as/from . import music_pb2 as/' grpc_server/gen/music_pb2_grpc.py
+	@sed -i 's/^import music_pb2 as/from . import music_pb2 as/' grpc_server/gen/music_connect.py
+	@sed -i 's/from connectrpc.compression import Compression/from connectrpc.codec import Codec\nfrom connectrpc.compression import Compression/' grpc_server/gen/music_connect.py
+	@sed -i 's/compressions: Iterable\[Compression\] | None = None) -> None:/compressions: Iterable[Compression] | None = None, codecs: Iterable[Codec] | None = None) -> None:/' grpc_server/gen/music_connect.py
+	@sed -i 's/compressions=compressions,/compressions=compressions,\n            codecs=codecs,/' grpc_server/gen/music_connect.py
 
 	@echo "Generated Python files successfully."
 
@@ -107,7 +111,7 @@ proto-python:
 proto-go: 
 	@echo "Generating Go protobuf files..."
 	@mkdir -p gen
-	protoc -Iproto --go_out=gen --go_opt=module=github.com/kumneger0/ytmusic-tui/gen --go-grpc_out=gen --go-grpc_opt=module=github.com/kumneger0/ytmusic-tui/gen proto/music.proto
+	protoc -Iproto --go_out=gen --go_opt=module=github.com/kumneger0/ytmusic-tui/gen --connect-go_out=gen --connect-go_opt=module=github.com/kumneger0/ytmusic-tui/gen proto/music.proto
 	@echo "Generated Go files successfully."
 
 .PHONY: server-watch
@@ -116,19 +120,14 @@ server-watch:
 	nodemon --watch proto/music.proto --exec "make proto"
 
 .PHONY: server-run
-server-run: ## run the python gRPC server
-	@echo "Starting gRPC server..."
+server-run: ## run the python Connect RPC server
+	@echo "Starting Connect RPC server..."
 	nodemon --ext py --exec ".venv/bin/python grpc_server/main.py"
 
 .PHONY: server-login
 server-login: ## spin up http server for login
-	@echo "Starting gRPC server..."
+	@echo "Starting login flow..."
 	.venv/bin/python grpc_server/main.py --login
-
-.PHONY: server-ui
-server-ui: ## open interactive gRPC web UI using grpcui
-	@echo "Starting grpcui client (make sure the server is running first)..."
-	grpcui -plaintext -proto proto/music.proto localhost:50051
 
 .PHONY: server-sync
 server-sync: ## sync python virtual environment dependencies
@@ -143,7 +142,7 @@ server-sync: ## sync python virtual environment dependencies
 clean: ## clean up both go and python generated files
 	@echo "--> Cleaning up..."
 	@rm -rf coverage.out dist/ $(project_name)
-	@rm -f gen/*.go
-	@rm -f grpc_server/gen/music_pb2.py grpc_server/gen/music_pb2.pyi grpc_server/gen/music_pb2_grpc.py
+	@rm -rf gen/*.go gen/genconnect
+	@rm -f grpc_server/gen/music_pb2.py grpc_server/gen/music_pb2.pyi grpc_server/gen/music_connect.py grpc_server/gen/music_pb2_grpc.py
 	@find grpc_server -type d -name "__pycache__" -exec rm -rf {} +
 	@echo "--> Clean completed."

@@ -2,17 +2,17 @@ package ytmusicclient
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
-	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"connectrpc.com/connect"
+	"github.com/kumneger0/ytmusic-tui/gen/genconnect"
 	"github.com/kumneger0/ytmusic-tui/internal/config"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 )
 
 func encodeAuthJSON(authJSON string) string {
@@ -23,34 +23,43 @@ func encodeAuthJSON(authJSON string) string {
 	return base64.StdEncoding.EncodeToString([]byte(authJSON))
 }
 
-func authInterceptor(
-	ctx context.Context,
-	method string,
-	req, reply any,
-	cc *grpc.ClientConn,
-	invoker grpc.UnaryInvoker,
-	opts ...grpc.CallOption,
-) error {
-	if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("x-auth-json")) == 0 {
-		authJSON := LoadAuthJSON()
-		if authJSON != "" {
-			ctx = metadata.AppendToOutgoingContext(ctx, "x-auth-json", encodeAuthJSON(authJSON))
+func newAuthInterceptor() connect.UnaryInterceptorFunc {
+	return func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			if req.Header().Get("x-auth-json") == "" {
+				authJSON := LoadAuthJSON()
+				if authJSON != "" {
+					req.Header().Set("x-auth-json", encodeAuthJSON(authJSON))
+				}
+			}
+			return next(ctx, req)
 		}
 	}
-	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
-func GetYtMusicClient(addr string) (musicpb.MusicServiceClient, *grpc.ClientConn, error) {
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(authInterceptor),
-	)
-	if err != nil {
-		return nil, nil, err
+func GetYtMusicClient(addr string) genconnect.MusicServiceClient {
+	cleanAddr := strings.TrimSpace(addr)
+	if !strings.HasPrefix(cleanAddr, "http://") && !strings.HasPrefix(cleanAddr, "https://") {
+		if strings.HasSuffix(cleanAddr, ":443") {
+			cleanAddr = "https://" + cleanAddr
+		} else {
+			cleanAddr = "http://" + cleanAddr
+		}
 	}
-	client := musicpb.NewMusicServiceClient(conn)
-	return client, conn, nil
+
+	httpClient := &http.Client{}
+	if strings.HasPrefix(cleanAddr, "https://") {
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{},
+		}
+	}
+
+	client := genconnect.NewMusicServiceClient(
+		httpClient,
+		cleanAddr,
+		connect.WithInterceptors(newAuthInterceptor()),
+	)
+	return client
 }
 
 func LoadAuthJSON() string {
@@ -61,15 +70,4 @@ func LoadAuthJSON() string {
 		return ""
 	}
 	return string(data)
-}
-
-func WithAuthContext(ctx context.Context, authJSON string) context.Context {
-	if authJSON == "" {
-		authJSON = LoadAuthJSON()
-	}
-	if authJSON == "" {
-		return ctx
-	}
-	md := metadata.Pairs("x-auth-json", encodeAuthJSON(authJSON))
-	return metadata.NewOutgoingContext(ctx, md)
 }

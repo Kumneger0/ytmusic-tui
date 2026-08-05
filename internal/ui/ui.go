@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -17,6 +18,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
 	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"github.com/kumneger0/ytmusic-tui/gen/genconnect"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"github.com/kumneger0/ytmusic-tui/internal/youtube"
 	"go.dalton.dog/bubbleup"
@@ -94,7 +96,7 @@ type Model struct {
 	PlayerSectionHeight int
 	Search              textinput.Model
 	MusicQueueList      *MusicQueueList
-	YtMusicClient       musicpb.MusicServiceClient
+	YtMusicClient       genconnect.MusicServiceClient
 	DBusConn            *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
 	//at that time when he selects artist or playlist the search were hidden from mainView
@@ -129,11 +131,11 @@ func (m Model) Init() tea.Cmd {
 	cmd := func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
+		followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, connect.NewRequest(&musicpb.GetFollowedArtistsRequest{}))
 		if err != nil {
 			return nil
 		}
-		return followedArtist
+		return followedArtist.Msg
 	}
 	pythonBackendHealthCheckCmd := func() tea.Msg {
 		var count int
@@ -142,12 +144,16 @@ func (m Model) Init() tea.Cmd {
 			count++
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			response, err := m.YtMusicClient.HealthCheck(ctx, &musicpb.HealthCheckRequest{})
+			response, err := m.YtMusicClient.HealthCheck(ctx, connect.NewRequest(&musicpb.HealthCheckRequest{}))
 			if err != nil && count <= 5 {
 				continue
 			}
+			var res *musicpb.HealthCheckResponse
+			if response != nil {
+				res = response.Msg
+			}
 			return types.PythonBackendHealthResponseMsg{
-				Response: response,
+				Response: res,
 				Err:      err,
 			}
 		}

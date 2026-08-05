@@ -295,12 +295,7 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 			_ = backendCmd.Wait()
 		}
 	}()
-	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-	defer conn.Close()
+	client := ytMusicClient.GetYtMusicClient("http://localhost:8080")
 	var termWidth, termHeight int
 
 	if !isHeadlessMode {

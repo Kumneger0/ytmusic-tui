@@ -15,10 +15,10 @@ import (
 	"github.com/kumneger0/ytmusic-tui/internal/config"
 	ytMusicClient "github.com/kumneger0/ytmusic-tui/internal/yt-music-client"
 
+	"connectrpc.com/connect"
 	"github.com/browserutils/kooky"
 	_ "github.com/browserutils/kooky/browser/all" // register cookie store finders!
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc/metadata"
 )
 
 var supportedBrowsers = []string{
@@ -183,24 +183,20 @@ Example:
 
 			fmt.Println(" Verifying credentials with YouTube Music API...")
 
-			client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
-			if err != nil {
-				return fmt.Errorf("failed to connect to backend: %w", err)
-			}
-			defer conn.Close()
+			client := ytMusicClient.GetYtMusicClient("http://localhost:8080")
 
 			rpcCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			resp, err := client.Login(rpcCtx, &musicpb.LoginRequest{
+			resp, err := client.Login(rpcCtx, connect.NewRequest(&musicpb.LoginRequest{
 				AuthJson: authJSON,
-			})
+			}))
 			if err != nil {
 				return fmt.Errorf("verification RPC failed: %w", err)
 			}
 
-			if !resp.Authenticated {
-				return fmt.Errorf("authentication failed: %s", resp.Error)
+			if !resp.Msg.Authenticated {
+				return fmt.Errorf("authentication failed: %s", resp.Msg.Error)
 			}
 
 			savedPath, err := saveAuthJSON(authJSON)
@@ -208,7 +204,7 @@ Example:
 				return fmt.Errorf("credentials verified but failed to save: %w", err)
 			}
 
-			userName := resp.UserName
+			userName := resp.Msg.UserName
 			if userName != "" {
 				fmt.Printf("  ✓ Authenticated as: %s\n", userName)
 			} else {
@@ -217,10 +213,10 @@ Example:
 			fmt.Printf("  ✓ Saved credentials to: %s\n", savedPath)
 			fmt.Println("  You can now run clispot normally.")
 
-			md := metadata.Pairs("x-auth-json", authJSON)
-			verifyCtx := metadata.NewOutgoingContext(rpcCtx, md)
-			healthResp, err := client.HealthCheck(verifyCtx, &musicpb.HealthCheckRequest{})
-			if err != nil || !healthResp.Ok {
+			healthReq := connect.NewRequest(&musicpb.HealthCheckRequest{})
+			healthReq.Header().Set("x-auth-json", authJSON)
+			healthResp, err := client.HealthCheck(rpcCtx, healthReq)
+			if err != nil || !healthResp.Msg.Ok {
 				fmt.Println("  ⚠ Warning: health check with saved credentials failed, but credentials were saved.")
 			}
 
