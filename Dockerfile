@@ -40,6 +40,9 @@ FROM python:3.13-slim AS runner
 
 WORKDIR /app
 
+# Copy Deno binary for yt-dlp JS runtime evaluation
+COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     PORT=8080 \
