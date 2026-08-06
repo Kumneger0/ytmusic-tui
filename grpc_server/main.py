@@ -10,7 +10,6 @@ except ImportError:
 
 from connectrpc.request import RequestContext
 
-
 def _parse_auth_metadata(auth_data: str) -> str:
     auth_data = auth_data.strip()
     if not auth_data:
@@ -414,7 +413,8 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
             return music_pb2.GetUserPlaylistsResponse(playlists=[], total=0)
     async def get_track(self, request: music_pb2.GetTrackRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetTrackResponse:
         client = self._get_client_for_request(ctx)
-        track_details = client.get_track(video_id=request.video_id)
+        auth_data = ctx.request_headers.get("x-auth-json")
+        track_details = client.get_track(video_id=request.video_id, user_cookie=auth_data)
         if not track_details:
             return music_pb2.GetTrackResponse()
         
@@ -704,7 +704,8 @@ class MusicService:  # implements the MusicService Protocol from music_connect.p
         return music_pb2.UnlikeSongResponse()
     async def get_video_stream_u_r_l_and_duration(self, request: music_pb2.GetVideoStreamURLAndDurationRequest, ctx: RequestContext[Any, Any]) -> music_pb2.GetVideoStreamURLAndDurationResponse:
         client = self._get_client_for_request(ctx)
-        stream_url_and_duration= client.get_stream_url_and_duration(request.videoId)
+        auth_data = ctx.request_headers.get("x-auth-json")
+        stream_url_and_duration= client.get_stream_url_and_duration(request.videoId, user_cookie=auth_data)
         duration = stream_url_and_duration.get('duration')
         return  music_pb2.GetVideoStreamURLAndDurationResponse(
             url=stream_url_and_duration.get('url'),

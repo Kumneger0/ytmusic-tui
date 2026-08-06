@@ -128,15 +128,6 @@ type SafeModel struct {
 }
 
 func (m Model) Init() tea.Cmd {
-	cmd := func() tea.Msg {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, connect.NewRequest(&musicpb.GetFollowedArtistsRequest{}))
-		if err != nil {
-			return nil
-		}
-		return followedArtist.Msg
-	}
 	pythonBackendHealthCheckCmd := func() tea.Msg {
 		var count int
 		for {
@@ -158,7 +149,7 @@ func (m Model) Init() tea.Cmd {
 			}
 		}
 	}
-	return tea.Batch(cmd, m.Alert.Init(), SendLoadingCmd(), pythonBackendHealthCheckCmd)
+	return tea.Batch(m.Alert.Init(), SendLoadingCmd(), pythonBackendHealthCheckCmd)
 }
 
 func renderBreadcrumbs(items []types.Breadcrumb) string {

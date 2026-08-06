@@ -295,7 +295,8 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 			_ = backendCmd.Wait()
 		}
 	}()
-	client := ytMusicClient.GetYtMusicClient("http://localhost:8080")
+	// client := ytMusicClient.GetYtMusicClient("http://localhost:8080")
+	client := ytMusicClient.GetYtMusicClient("https://ytmusic-tui.vercel.app")
 	var termWidth, termHeight int
 
 	if !isHeadlessMode {
