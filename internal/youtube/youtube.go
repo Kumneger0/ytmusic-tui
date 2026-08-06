@@ -227,8 +227,20 @@ type StreamAndDuration struct {
 	Duration string
 }
 
+var (
+	ytClient     *youtube.Client
+	ytClientOnce sync.Once
+)
+
+func GetSharedClient() *youtube.Client {
+	ytClientOnce.Do(func() {
+		ytClient = &youtube.Client{}
+	})
+	return ytClient
+}
+
 func GetStreamURLAndDuration(videoID string) (*StreamAndDuration, error) {
-	client := youtube.Client{}
+	client := GetSharedClient()
 	video, err := client.GetVideo(videoID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch video metadata: %w", err)
