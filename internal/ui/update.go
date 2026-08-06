@@ -1728,14 +1728,9 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	playCtx, cancel := context.WithCancel(context.Background())
 	m.playbackCancel = cancel
 
-	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.VideoId, m.CoreDepsPath, func() (*musicpb.GetVideoStreamURLAndDurationResponse, error) {
-		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURLAndDuration(playCtx, connect.NewRequest(&musicpb.GetVideoStreamURLAndDurationRequest{
-			VideoId: selectedMusic.Track.VideoId,
-		}))
-		if err != nil {
-			return nil, err
-		}
-		return getStreamURLResponse.Msg, nil
+	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.VideoId, m.CoreDepsPath, func() (*youtube.StreamAndDuration, error) {
+		videoID := selectedMusic.Track.VideoId
+		return youtube.GetStreamURLAndDuration(videoID)
 	})
 
 	m.CurrentLyrics = nil
