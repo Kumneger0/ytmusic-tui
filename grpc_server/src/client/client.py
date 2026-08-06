@@ -27,6 +27,7 @@ from .types import (
 
 from grpc_server.src.auth import get_ytmusic_client  # pyright: ignore[reportImplicitRelativeImport]
 import json
+import os
 import re
 import tempfile
 
@@ -185,27 +186,37 @@ class MusicClient:
         options = {
             "format": "bestaudio[abr>=120][abr<=250]/bestaudio",
             "format_sort": ["abr"],
-             "quiet": True,
-         }
+            "quiet": True,
+        }
 
+        cookie_file: str | None = None
+        proxy = os.getenv("HTTP_PROXY")
+        if proxy:
+            options["proxy"] = proxy
         if user_cookie is not None:
             cookie_file = create_cookie_file(cookie_text=user_cookie)
             options['cookiefile'] = cookie_file
 
-
-        with YoutubeDL(options) as ydl:  # pyright: ignore[reportArgumentType]
-            info = ydl.extract_info(
-                full_url,
-                download=False,
-            )
-        url = info.get("url")
-        duration: int | None = info.get("duration") 
-        if not isinstance(url, str):        
-            raise RuntimeError("Unable to extract stream URL")
-        return {
-            "url":url,
-            "duration" : duration,
-        }
+        try:
+            with YoutubeDL(options) as ydl:  # pyright: ignore[reportArgumentType]
+                info = ydl.extract_info(
+                    full_url,
+                    download=False,
+                )
+            url = info.get("url")
+            duration: int | None = info.get("duration") 
+            if not isinstance(url, str):        
+                raise RuntimeError("Unable to extract stream URL")
+            return {
+                "url": url,
+                "duration": duration,
+            }
+        finally:
+            if cookie_file is not None and os.path.exists(cookie_file):
+                try:
+                    os.remove(cookie_file)
+                except OSError:
+                    pass
 
     def get_home(self) -> list[YTHomeSection]:
         return self.execute(lambda c: cast(list[YTHomeSection], c.get_home(limit=10)))
