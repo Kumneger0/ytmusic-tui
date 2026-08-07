@@ -42,7 +42,6 @@ jobs:
         run: |
           export PATH="$(go env GOPATH)/bin:$PATH"
           make proto
-          make server-build
           make build
 
       - name: golangci-lint

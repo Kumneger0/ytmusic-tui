@@ -8,7 +8,7 @@ Thank you for your interest in contributing to **ytmusic-tui**! This document pr
 
 `ytmusic-tui` consists of two main components:
 - **Go TUI Frontend**: Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea), Lipgloss, and Cobra.
-- **Python Backend Service**: A gRPC server managing YouTube Music API interactions, authentication, and metadata. In release builds, this is compiled into a single binary via PyInstaller and embedded directly into the Go executable.
+- **Python Backend Service**: A gRPC / Connect RPC server managing YouTube Music API interactions, authentication, and metadata.
 
 ---
 
@@ -53,7 +53,6 @@ Before starting, ensure you have the following installed:
 | `make proto` | Generate Protobuf & gRPC code for both Go and Python |
 | `make proto-go` | Generate Go protobuf code (`gen/`) |
 | `make proto-python` | Generate Python protobuf code (`grpc_server/gen/`) |
-| `make server-build` | Compile Python backend into single executable via PyInstaller |
 | `make hooks` | Set up local git commit hooks |
 
 ---
@@ -70,12 +69,6 @@ make proto
 Run the Go unit test suite:
 ```bash
 go test -v ./...
-```
-
-### Building the Embedded Backend
-To test backend binary embedding locally:
-```bash
-make server-build
 ```
 
 ---
