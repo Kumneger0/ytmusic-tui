@@ -13,7 +13,7 @@ builds:
   - id: ytmusic-tui
     main: .
     ldflags:
-      - -s -w -X main.version={{ .Version }}
+      - -s -w -X main.version={{ .Version }} -X main.serverURL={{ .Env.SERVER_URL }}
     binary: ytmusic-tui
     env:
       - CGO_ENABLED=0

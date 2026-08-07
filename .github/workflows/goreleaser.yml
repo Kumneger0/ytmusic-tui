@@ -48,4 +48,5 @@ jobs:
         env:
           CGO_ENABLED: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERVER_URL: ${{ secrets.SERVER_URL }}
 

@@ -90,7 +90,7 @@ func saveAuthJSON(authJSON string) (string, error) {
 	return path, nil
 }
 
-func newExtractCookieCmd() *cobra.Command {
+func newExtractCookieCmd(serverURL string) *cobra.Command {
 	cmd := &cobra.Command{Use: "extract-cookies",
 		Short:        "Extract YouTube Music cookies and verify",
 		Long:         `Extract YouTube Music authentication cookies from supported browsers, verify via API, and store locally.`,
@@ -108,7 +108,7 @@ func newExtractCookieCmd() *cobra.Command {
 					continue
 				}
 
-				client := ytMusicClient.GetYtMusicClient("https://clispot.vercel.app/")
+				client := ytMusicClient.GetYtMusicClient(serverURL)
 				rpcCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
 				resp, err := client.Login(rpcCtx, connect.NewRequest(&musicpb.LoginRequest{AuthJson: jsonStr}))

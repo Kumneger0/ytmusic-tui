@@ -26,4 +26,4 @@ dev = [
 [tool.basedpyright]
 typeCheckingMode = "recommended"
 exclude = ["grpc_server/gen"]
-extraPaths = ["grpc_server/gen"]
+extraPaths = [".", "grpc_server", "grpc_server/gen"]

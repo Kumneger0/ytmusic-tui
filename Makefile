@@ -10,7 +10,7 @@ help: ## show this help message
 .PHONY: build
 build: ## build the Go application
 	@echo "--> Building Go application..."
-	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(project_name)
+	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true -X main.serverURL=http://localhost:8080" -o $(project_name)
 
 
 .PHONY: install
@@ -97,7 +97,7 @@ server-watch:
 .PHONY: server-run
 server-run: ## run the python Connect RPC server
 	@echo "Starting Connect RPC server..."
-	nodemon --ext py --exec ".venv/bin/python grpc_server/main.py"
+	nodemon --ext py --exec ".venv/bin/python -m grpc_server.main"
 
 .PHONY: server-login
 server-login: ## spin up http server for login
@@ -109,9 +109,6 @@ server-sync: ## sync python virtual environment dependencies
 	@echo "Syncing virtual environment dependencies using uv..."
 	uv sync
 
-# ==============================================================================
-# General Targets
-# ==============================================================================
 
 .PHONY: clean
 clean: ## clean up both go and python generated files

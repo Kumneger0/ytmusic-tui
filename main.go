@@ -7,12 +7,13 @@ import (
 )
 
 var (
-	version = ""
-	Debug   = "false"
+	version   = ""
+	Debug     = "false"
+	serverURL = ""
 )
 
 func main() {
-	err := cmd.Execute(version, Debug == "true")
+	err := cmd.Execute(version, Debug == "true", serverURL)
 	if err != nil {
 		slog.Error(err.Error())
 	}

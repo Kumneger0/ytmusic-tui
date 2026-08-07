@@ -38,7 +38,7 @@ var (
 	Program *tea.Program
 )
 
-func newRootCmd(version string, debug bool) *cobra.Command {
+func newRootCmd(version string, debug bool, serverURL string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ytmusic-tui",
 		Short: "youtube music player",
@@ -78,7 +78,7 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 					fmt.Fprintf(os.Stderr, "Warning: could not write PID to lock file: %v\n", err)
 				}
 			}
-			return runRoot(cmd, debug)
+			return runRoot(cmd, serverURL)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if memFile != "" && debug {
@@ -102,7 +102,7 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 	cmd.AddCommand(ManCmd(cmd))
 	cmd.AddCommand(installDeps())
 	cmd.AddCommand(newLoginCmd())
-	cmd.AddCommand(newExtractCookieCmd())
+	cmd.AddCommand(newExtractCookieCmd(serverURL))
 	return cmd
 }
 
@@ -143,7 +143,7 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 	fmt.Fprintf(os.Stderr, "Another instance of ytmusic-tui is already running (PID: %d).\n", pid)
 }
 
-func runRoot(cmd *cobra.Command, debug bool) error {
+func runRoot(cmd *cobra.Command, serverURL string) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
 	configFromFile := config.GetUserConfig(runtime.GOOS)
 
@@ -275,7 +275,7 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		slog.Error(err.Error())
 	}
 
-	client := ytMusicClient.GetYtMusicClient("https://ytmusic-tui.vercel.app")
+	client := ytMusicClient.GetYtMusicClient(serverURL)
 	var termWidth, termHeight int
 
 	if !isHeadlessMode {
@@ -475,8 +475,8 @@ var (
 	memFile string
 )
 
-func Execute(version string, debug bool) error {
-	cmd := newRootCmd(version, debug)
+func Execute(version string, debug bool, serverURL string) error {
+	cmd := newRootCmd(version, debug, serverURL)
 	if debug {
 		cmd.PersistentFlags().StringVar(&cpuFile, "cpuprofile", "", "write cpu profile to `file`")
 		cmd.PersistentFlags().StringVar(&memFile, "memprofile", "", "write memory profile to `file`")
