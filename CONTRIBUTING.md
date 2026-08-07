@@ -20,7 +20,7 @@ Before starting, ensure you have the following installed:
 - **Python**: `3.13` or higher
 - **uv**: Fast Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
 - **Protobuf Compiler (`protoc`)**: Required if modifying `.proto` files
-  - Go plugins: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` and `go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest`
+  - Go plugins: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` and `go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest`
 - **System Dependencies**: `ffmpeg` (for audio playback support)
 
 ---

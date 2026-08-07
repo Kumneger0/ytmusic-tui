@@ -7,6 +7,7 @@ from yt_dlp import YoutubeDL
 
 T = TypeVar("T")
 
+from grpc_server.src.mappers import parse_auth_metadata
 from .types import (
     GetStreamURLResponse,
     YTSong,
@@ -194,7 +195,8 @@ class MusicClient:
         if proxy:
             options["proxy"] = proxy
         if user_cookie is not None:
-            cookie_file = create_cookie_file(cookie_text=user_cookie)
+            decoded_cookie = parse_auth_metadata(user_cookie)
+            cookie_file = create_cookie_file(cookie_text=decoded_cookie)
             options['cookiefile'] = cookie_file
 
         try:
@@ -253,7 +255,7 @@ class MusicClient:
     def get_user_playlists(self, limit: int = 25) -> list[YTLibraryPlaylist]:
         return self.execute(lambda c: cast(list[YTLibraryPlaylist], c.get_library_playlists(limit=limit)))
 
-    def get_track(self, video_id: str, user_cookie: str | None) -> YTSongResponse:
+    def get_track(self, video_id: str, user_cookie: str | None = None) -> YTSongResponse:
         def _fetch(c: YTMusic) -> YTSongResponse:
             raw_song: object = c.get_song(videoId=video_id)
             song_dict = cast(dict[str, object], raw_song)

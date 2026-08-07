@@ -3,6 +3,7 @@ project_name: ytmusic-tui
 
 env:
   - GO111MODULE=on
+  - SERVER_URL={{.Env.SERVER_URL }}
 
 before:
   hooks:

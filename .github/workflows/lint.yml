@@ -36,7 +36,7 @@ jobs:
         run: |
           export PATH="$(go env GOPATH)/bin:$PATH"
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.10
-          go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
+          go install connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.18.1
 
       - name: generate protobuf files
         run: |

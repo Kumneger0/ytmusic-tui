@@ -15,12 +15,14 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY . .
 
 RUN mkdir -p grpc_server/gen && \
+    touch grpc_server/gen/__init__.py && \
     uv run --no-dev python -m grpc_tools.protoc \
         -Iproto \
         --python_out=grpc_server/gen \
         --pyi_out=grpc_server/gen \
         --plugin=protoc-gen-connect-python=/app/.venv/bin/protoc-gen-connect-python \
         --connect-python_out=grpc_server/gen \
+        --connect-python_opt=protobuf=google \
         proto/music.proto && \
     sed -i 's/^import music_pb2 as/from . import music_pb2 as/' grpc_server/gen/music_connect.py && \
     sed -i 's/from connectrpc.compression import Compression/from connectrpc.codec import Codec\nfrom connectrpc.compression import Compression/' grpc_server/gen/music_connect.py && \
@@ -41,6 +43,9 @@ ENV PYTHONUNBUFFERED=1 \
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/grpc_server /app/grpc_server
 COPY --from=builder /app/proto /app/proto
+
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8080
 

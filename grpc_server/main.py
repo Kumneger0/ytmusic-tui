@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import os
 import sys
 from typing import Any, cast
@@ -36,6 +37,7 @@ from .src.cookie_extractor import (
     run_cookie_extraction,
 )
 from .src.mappers import (
+    coerce_int,
     coerce_str,
     parse_auth_metadata,
     to_proto_album,
@@ -55,14 +57,22 @@ class MusicService:
         self._clients: dict[str, MusicClient] = {}
 
     def _get_client_for_request(self, ctx: RequestContext[Any, Any] | None) -> MusicClient:
-        key = ""
+        auth_data = ""
         if ctx is not None:
-            auth_data = ctx.request_headers.get("x-auth-json")
-            if auth_data:
-                key = parse_auth_metadata(auth_data)
-        if key not in self._clients:
-            self._clients[key] = MusicClient(auth=key if key else None)
-        return self._clients[key]
+            raw_auth = ctx.request_headers.get("x-auth-json")
+            if raw_auth:
+                auth_data = parse_auth_metadata(raw_auth)
+
+        if not auth_data:
+            cache_key = ""
+        else:
+            cache_key = hashlib.sha256(auth_data.encode("utf-8")).hexdigest()
+
+        if cache_key not in self._clients:
+            if len(self._clients) >= 100:
+                self._clients.pop(next(iter(self._clients)))
+            self._clients[cache_key] = MusicClient(auth=auth_data if auth_data else None)
+        return self._clients[cache_key]
 
     async def health_check(
         self, request: music_pb2.HealthCheckRequest, ctx: RequestContext[Any, Any]
@@ -170,7 +180,8 @@ class MusicService:
         self, request: music_pb2.GetTrackRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetTrackResponse:
         client = self._get_client_for_request(ctx)
-        auth_data = ctx.request_headers.get("x-auth-json")
+        raw_auth = ctx.request_headers.get("x-auth-json")
+        auth_data = parse_auth_metadata(raw_auth) if raw_auth else None
         track_details = await asyncio.to_thread(
             client.get_track, video_id=request.video_id, user_cookie=auth_data
         )
@@ -217,7 +228,7 @@ class MusicService:
         response = music_pb2.GetAlbumTracksResponse(
             title=album_data.get("title") or "",
             year=album_data.get("year") or "",
-            total=album_data.get("trackCount") or 0,
+            total=coerce_int(album_data.get("trackCount")),
             description=album_data.get("description") or "",
         )
         for artist in album_data.get("artists") or []:
@@ -252,7 +263,7 @@ class MusicService:
             description=playlist_data.get("description") or "",
             author=author_name,
             year=playlist_data.get("year") or "",
-            track_count=playlist_data.get("trackCount") or 0,
+            track_count=coerce_int(playlist_data.get("trackCount")),
         )
         for thumbnail in playlist_data.get("thumbnails") or []:
             response.thumbnails.append(to_proto_thumbnail(thumbnail))
@@ -279,7 +290,7 @@ class MusicService:
             result_type = result.get("resultType")
             if result_type in ("song", "video"):
                 dur_val = result.get("duration_seconds")
-                dur_int = dur_val if isinstance(dur_val, int) else 0
+                dur_int = coerce_int(dur_val)
 
                 song_item = music_pb2.SearchResultSong(
                     video_id=str(result.get("videoId") or ""),
@@ -408,14 +419,7 @@ class MusicService:
 
         response = music_pb2.GetFollowedArtistsResponse(total=len(artists_data))
         for artist in artists_data:
-            artist_msg = music_pb2.FollowedArtist(
-                channel_id=artist.get("browseId") or "",
-                name=artist.get("artist") or "",
-                subscribers=artist.get("subscribers") or "",
-            )
-            for thumbnail in artist.get("thumbnails") or []:
-                artist_msg.thumbnails.append(to_proto_thumbnail(thumbnail))
-            response.artists.append(artist_msg)
+            response.artists.append(to_proto_followed_artist(artist))
 
         return response
 
@@ -484,7 +488,8 @@ class MusicService:
         self, request: music_pb2.GetVideoStreamURLAndDurationRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetVideoStreamURLAndDurationResponse:
         client = self._get_client_for_request(ctx)
-        auth_data = ctx.request_headers.get("x-auth-json")
+        raw_auth = ctx.request_headers.get("x-auth-json")
+        auth_data = parse_auth_metadata(raw_auth) if raw_auth else None
         stream_url_and_duration = await asyncio.to_thread(
             client.get_stream_url_and_duration, request.videoId, user_cookie=auth_data
         )
@@ -614,14 +619,14 @@ class MusicService:
                 if isinstance(line, dict):
                     line_map = cast(dict[str, object], line)
                     line_text = coerce_str(line_map.get("text"))
-                    start_time = int(coerce_str(line_map.get("start_time")) or 0)
-                    end_time = int(coerce_str(line_map.get("end_time")) or 0)
-                    line_id = int(coerce_str(line_map.get("id")) or 0)
+                    start_time = coerce_int(line_map.get("start_time"))
+                    end_time = coerce_int(line_map.get("end_time"))
+                    line_id = coerce_int(line_map.get("id"))
                 else:
                     line_text = coerce_str(getattr(line, "text", None))
-                    start_time = int(getattr(line, "start_time", 0) or 0)
-                    end_time = int(getattr(line, "end_time", 0) or 0)
-                    line_id = int(getattr(line, "id", 0) or 0)
+                    start_time = coerce_int(getattr(line, "start_time", 0))
+                    end_time = coerce_int(getattr(line, "end_time", 0))
+                    line_id = coerce_int(getattr(line, "id", 0))
 
                 response.lines.append(
                     music_pb2.LyricLine(
@@ -728,9 +733,10 @@ class MusicService:
 
 def serve() -> None:
     import uvicorn
+    from connectrpc.compat import google_protobuf_codecs
 
     port = int(os.environ.get("PORT", "8080"))
-    app = MusicServiceASGIApplication(MusicService())
+    app = MusicServiceASGIApplication(MusicService(), codecs=google_protobuf_codecs())
     print(f"Server started, listening on {port}")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
 

@@ -1,3 +1,4 @@
+SERVER_URL ?= http://localhost:8080
 project_name?=ytmusic-tui
 
 default: help
@@ -10,7 +11,7 @@ help: ## show this help message
 .PHONY: build
 build: ## build the Go application
 	@echo "--> Building Go application..."
-	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true -X main.serverURL=http://localhost:8080" -o $(project_name)
+	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true -X main.serverURL=$(SERVER_URL)" -o $(project_name)
 
 
 .PHONY: install
@@ -77,6 +78,9 @@ proto-python:
 		proto/music.proto
 
 	@sed -i 's/^import music_pb2 as/from . import music_pb2 as/' grpc_server/gen/music_connect.py
+	@sed -i 's/from connectrpc.compression import Compression/from connectrpc.codec import Codec\nfrom connectrpc.compression import Compression/' grpc_server/gen/music_connect.py
+	@sed -i 's/compressions: Iterable\[Compression\] | None = None) -> None:/compressions: Iterable[Compression] | None = None, codecs: Iterable[Codec] | None = None) -> None:/' grpc_server/gen/music_connect.py
+	@sed -i 's/compressions=compressions,/compressions=compressions,\n            codecs=codecs,/' grpc_server/gen/music_connect.py
 
 	@echo "Generated Python files successfully."
 
@@ -95,7 +99,7 @@ server-watch:
 .PHONY: server-run
 server-run: ## run the python Connect RPC server
 	@echo "Starting Connect RPC server..."
-	nodemon --ext py --exec ".venv/bin/python -m grpc_server.main"
+	.venv/bin/python -m grpc_server.main
 
 .PHONY: server-login
 server-login: ## spin up http server for login
@@ -114,5 +118,3 @@ clean: ## clean up both go and python generated files
 	@rm -rf coverage.out dist/ $(project_name)
 	@rm -rf gen/*.go gen/genconnect
 	@rm -f grpc_server/gen/music_pb2.py grpc_server/gen/music_pb2.pyi grpc_server/gen/music_connect.py grpc_server/gen/music_pb2_grpc.py
-	@find grpc_server -type d -name "__pycache__" -exec rm -rf {} +
-	@echo "--> Clean completed."

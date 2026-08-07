@@ -1,8 +1,8 @@
 import base64
 from typing import cast
 
-from grpc_server.gen import music_pb2  # pyright: ignore[reportImplicitRelativeImport]
-from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]
+from grpc_server.gen import music_pb2
+from grpc_server.src.client.types import (
     YTLibraryAlbum,
     YTLibraryArtist,
     YTLibraryChannel,
@@ -15,6 +15,8 @@ def parse_auth_metadata(auth_data: str) -> str:
     auth_data = auth_data.strip()
     if not auth_data:
         return ""
+    if auth_data.startswith("{"):
+        return auth_data
     try:
         decoded = base64.b64decode(auth_data).decode("utf-8")
         if decoded.startswith("{"):
@@ -28,6 +30,19 @@ def coerce_str(value: object) -> str:
     return str(value) if value is not None else ""
 
 
+def coerce_int(value: object, default: int = 0) -> int:
+    if value is None:
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    try:
+        return int(str(value))
+    except (ValueError, TypeError):
+        return default
+
+
 def to_proto_thumbnail(thumb: object | str) -> music_pb2.Thumbnail:
     if isinstance(thumb, str):
         return music_pb2.Thumbnail(url=thumb, width=0, height=0)
@@ -35,8 +50,8 @@ def to_proto_thumbnail(thumb: object | str) -> music_pb2.Thumbnail:
         thumb_map = cast(dict[str, object], thumb)
         return music_pb2.Thumbnail(
             url=coerce_str(thumb_map.get("url")),
-            width=int(coerce_str(thumb_map.get("width")) or 0),
-            height=int(coerce_str(thumb_map.get("height")) or 0),
+            width=coerce_int(thumb_map.get("width")),
+            height=coerce_int(thumb_map.get("height")),
         )
     return music_pb2.Thumbnail(url="", width=0, height=0)
 
@@ -72,7 +87,7 @@ def to_proto_song(song: YTSong) -> music_pb2.Song:
         title=song.get("title") or "",
         album=album_name,
         album_id=album_id,
-        duration_seconds=song.get("duration_seconds") or 0,
+        duration_seconds=coerce_int(song.get("duration_seconds")),
         liked=(song.get("likeStatus") == "LIKE"),
         is_explicit=bool(song.get("isExplicit")),
         set_video_id=song.get("setVideoId") or "",
@@ -103,23 +118,18 @@ def to_proto_album(album: YTLibraryAlbum) -> music_pb2.Album:
 
 
 def to_proto_playlist(playlist: YTLibraryPlaylist) -> music_pb2.Playlist:
-    count_val = playlist.get("count")
-    count_int = 0
-    if isinstance(count_val, int):
-        count_int = count_val
-    elif isinstance(count_val, str):
-        try:
-            count_int = int(count_val)
-        except ValueError:
-            pass
+    count_int = coerce_int(playlist.get("count"))
 
     author_name = ""
     author_val = playlist.get("author")
     if isinstance(author_val, list) and len(author_val) > 0:
         first_author = author_val[0]
-        name_val = str(first_author.get("name") or "")
-        if name_val:
-            author_name = name_val
+        if isinstance(first_author, dict):
+            name_val = str(first_author.get("name") or "")
+            if name_val:
+                author_name = name_val
+        elif isinstance(first_author, str):
+            author_name = first_author
     elif isinstance(author_val, str):
         author_name = author_val
 
@@ -170,9 +180,12 @@ def to_proto_podcast(podcast: YTLibraryPlaylist) -> music_pb2.Podcast:
         author_val = podcast.get("author")
         if isinstance(author_val, list) and len(author_val) > 0:
             first_author = author_val[0]
-            val = str(first_author.get("name") or "")
-            if val:
-                author_name = val
+            if isinstance(first_author, dict):
+                val = str(first_author.get("name") or "")
+                if val:
+                    author_name = val
+            elif isinstance(first_author, str):
+                author_name = first_author
         elif isinstance(author_val, str):
             author_name = author_val
 
@@ -244,13 +257,11 @@ def to_proto_song_related_content(content: dict[str, object]) -> music_pb2.SongR
     raw_artists = content.get("artists")
     if isinstance(raw_artists, list):
         for artist in cast(list[object], raw_artists):
-            if isinstance(artist, dict):
-                content_msg.artists.append(to_proto_artist(cast(dict[str, object], artist)))
+            content_msg.artists.append(to_proto_artist(artist))
 
     raw_thumbnails = content.get("thumbnails")
     if isinstance(raw_thumbnails, list):
         for thumbnail in cast(list[object], raw_thumbnails):
-            if isinstance(thumbnail, dict):
-                content_msg.thumbnails.append(to_proto_thumbnail(cast(dict[str, object], thumbnail)))
+            content_msg.thumbnails.append(to_proto_thumbnail(thumbnail))
 
     return content_msg
