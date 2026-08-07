@@ -122,6 +122,7 @@ func newExtractCookieCmd(serverURL string) *cobra.Command {
 				fmt.Printf("Authenticated as: %s (%s)\n", resp.Msg.UserName, b)
 				fmt.Printf("Saved credentials to: %s\n", path)
 				authJSON = jsonStr
+				break
 			}
 			if authJSON == "" {
 				return fmt.Errorf("could not find valid YouTube Music cookies in any supported browser")
