@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	backend "github.com/kumneger0/ytmusic-tui/backend"
 	"github.com/kumneger0/ytmusic-tui/internal/config"
 	"github.com/kumneger0/ytmusic-tui/internal/headless"
 	logSetup "github.com/kumneger0/ytmusic-tui/internal/logger"
@@ -142,13 +141,6 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stderr, "Another instance of ytmusic-tui is already running (PID: %d).\n", pid)
-}
-
-func startPythonBackend(debug bool) (*exec.Cmd, error) {
-	if debug {
-		return nil, nil
-	}
-	return backend.StartBackend(backend.PythonBackend)
 }
 
 func runRoot(cmd *cobra.Command, debug bool) error {
@@ -283,18 +275,6 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		slog.Error(err.Error())
 	}
 
-	backendCmd, err := startPythonBackend(debug)
-	if err != nil {
-		slog.Error(err.Error())
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	defer func() {
-		if backendCmd != nil && backendCmd.Process != nil {
-			_ = backendCmd.Process.Signal(syscall.SIGTERM)
-			_ = backendCmd.Wait()
-		}
-	}()
 	client := ytMusicClient.GetYtMusicClient("https://ytmusic-tui.vercel.app")
 	var termWidth, termHeight int
 
@@ -314,7 +294,6 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		MainViewMode:    ui.HomePageMode,
 		YtMusicClient:   client,
 		CoreDepsPath:    coreDepsPath,
-		BackendProcess:  backendCmd,
 		Width:           termWidth - 4,
 		Height:          termHeight - 4,
 	}
@@ -325,8 +304,17 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 	model.PlayerSectionHeight = dims.InputHeight
 
 	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
+	model.SearchResult.SetShowTitle(false)
+	ui.RemoveListDefaults(&model.SearchResult)
+
 	model.HomePageList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
+	model.HomePageList.SetShowTitle(false)
+	ui.RemoveListDefaults(&model.HomePageList)
+
 	model.RelatedList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	model.RelatedList.Title = "Related"
+	ui.RemoveListDefaults(&model.RelatedList)
+
 	if isHeadlessMode {
 		safeModel := ui.SafeModel{
 			Model: &model,
@@ -343,6 +331,9 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		})
 	}
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
+	playlistItems.SetShowTitle(false)
+	ui.RemoveListDefaults(&playlistItems)
+
 	input := textinput.New()
 	input.Placeholder = "Search tracks, artists, albums..."
 	input.Prompt = "> "
@@ -352,13 +343,19 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 
 	model.Search = input
 	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	musicQueueList.Title = "Queue"
+	ui.RemoveListDefaults(&musicQueueList)
+
 	model.SideBarList = list.New(SideBarMenuList, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	model.SideBarList.Title = "Youtube Music tui"
+	ui.RemoveListDefaults(&model.SideBarList)
 
 	model.SelectedPlayListItems = playlistItems
 	model.MusicQueueList = &ui.MusicQueueList{
 		Model:          musicQueueList,
 		PaginationInfo: nil,
 	}
+	model.UpdateListDimensions()
 
 	fgModel := ui.NewForegroundModel()
 	manager := ui.Manager{

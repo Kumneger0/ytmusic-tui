@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -77,7 +76,6 @@ type MusicQueueList struct {
 }
 
 type Model struct {
-	BackendProcess        *exec.Cmd
 	BreadcrumbItems       []types.Breadcrumb
 	SideBarList           list.Model
 	Alert                 bubbleup.AlertModel
@@ -180,29 +178,7 @@ func renderBreadcrumbs(items []types.Breadcrumb) string {
 }
 
 func (m Model) View() string {
-	m.SideBarList.Title = "Youtube Music tui"
-	m.MusicQueueList.Model.Title = "Queue"
-	removeListDefaults(&m.SideBarList)
-	removeListDefaults(&m.SelectedPlayListItems)
-	removeListDefaults(&m.SearchResult)
-	removeListDefaults(&m.HomePageList)
-	removeListDefaults(&m.MusicQueueList.Model)
-	m.RelatedList.Title = "Related"
-	removeListDefaults(&m.RelatedList)
-	m.SearchResult.SetShowTitle(false)
-	m.SelectedPlayListItems.SetShowTitle(false)
-	m.HomePageList.SetShowTitle(false)
 	dimensions := calculateLayoutDimensions(&m)
-	m.SideBarList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
-	m.SelectedPlayListItems.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
-	m.SearchResult.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
-	m.HomePageList.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
-	if len(m.RelatedList.Items()) > 0 {
-		m.RelatedList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
-	}
-	if m.MusicQueueList != nil {
-		m.MusicQueueList.Model.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
-	}
 	sideBarView := getStyle(&m, dimensions.ContentHeight, dimensions.SidebarWidth, SideView, false).Render(m.SideBarList.View())
 	searchBar := renderSearchBar(&m, dimensions.MainWidth)
 	breadcrumb := renderBreadcrumbs(m.BreadcrumbItems)
@@ -306,13 +282,31 @@ func calculateLayoutDimensions(m *Model) LayoutDimensions {
 	return CalculateLayoutDimensions(m)
 }
 
-func removeListDefaults(listToRemoveDefaults *list.Model) {
+func (m *Model) UpdateListDimensions() {
+	dimensions := CalculateLayoutDimensions(m)
+	m.SideBarList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
+	m.SelectedPlayListItems.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
+	m.SearchResult.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
+	m.HomePageList.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
+	if len(m.RelatedList.Items()) > 0 {
+		m.RelatedList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
+	}
+	if m.MusicQueueList != nil {
+		m.MusicQueueList.Model.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
+	}
+}
+
+func RemoveListDefaults(listToRemoveDefaults *list.Model) {
 	if listToRemoveDefaults != nil {
 		listToRemoveDefaults.SetShowFilter(false)
 		listToRemoveDefaults.SetShowPagination(false)
 		listToRemoveDefaults.SetShowHelp(false)
 		listToRemoveDefaults.SetShowStatusBar(false)
 	}
+}
+
+func removeListDefaults(listToRemoveDefaults *list.Model) {
+	RemoveListDefaults(listToRemoveDefaults)
 }
 
 func (m *Model) IsPlaying() bool {

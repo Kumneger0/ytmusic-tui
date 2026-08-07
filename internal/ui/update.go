@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"connectrpc.com/connect"
 	"github.com/charmbracelet/bubbles/list"
@@ -38,7 +37,9 @@ func getMusicMetadata(music MusicMetadata) map[string]any {
 
 func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model, tea.Cmd) {
 	dims := CalculateLayoutDimensions(&m)
-	m.SearchResult = list.New(searchResponse.Items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight)
+	m.SearchResult = list.New(searchResponse.Items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight-4)
+	m.SearchResult.SetShowTitle(false)
+	removeListDefaults(&m.SearchResult)
 	return m, nil
 }
 
@@ -273,7 +274,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				items = append(items, types.PodcastItem{Podcast: pod})
 			}
 			dims := CalculateLayoutDimensions(&m)
-			m.SelectedPlayListItems = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight)
+			m.SelectedPlayListItems = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight-4)
+			m.SelectedPlayListItems.SetShowTitle(false)
 			removeListDefaults(&m.SelectedPlayListItems)
 			m.MainViewMode = NormalMode
 			m.FocusedOn = MainView
@@ -343,7 +345,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		dims := CalculateLayoutDimensions(&m)
-		m.HomePageList = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight)
+		m.HomePageList = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight-4)
+		m.HomePageList.SetShowTitle(false)
 		m.IsSearchLoading = false
 		removeListDefaults(&m.HomePageList)
 		m.HomePageList.Title = msg.Item.Title()
@@ -431,7 +434,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		dims := CalculateLayoutDimensions(&m)
-		m.HomePageList = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight)
+		m.HomePageList = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight-4)
+		m.HomePageList.SetShowTitle(false)
 		removeListDefaults(&m.HomePageList)
 		m.HomePageList.Title = "Home"
 		m.HomePageViewMode = HomePageSectionView
@@ -453,7 +457,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil || m.SelectedTrack.Track.Track == nil {
 			return m, nil
 		}
+		oldSec := int(m.PlayedSeconds)
 		m.PlayedSeconds = msg.CurrentSeconds
+		if int(m.PlayedSeconds) == oldSec {
+			return m, nil
+		}
+
 		if m.CurrentLyrics != nil {
 			m.updateLyricsView()
 		}
@@ -474,6 +483,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.PlayerSectionHeight = dims.InputHeight
 		m.LyricsView.Width = max(dims.MainWidth-6, 10)
 		m.LyricsView.Height = max(dims.ContentHeight-6, 10)
+		m.UpdateListDimensions()
 		return m, nil
 	case types.UpdatePlaylistMsg:
 		m.IsSearchLoading = false
@@ -519,7 +529,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, alertCmd
 		}
 		dims := CalculateLayoutDimensions(&m)
-		m.SelectedPlayListItems = list.New([]list.Item{}, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight)
+		m.SelectedPlayListItems = list.New([]list.Item{}, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight-4)
+		m.SelectedPlayListItems.SetShowTitle(false)
+		removeListDefaults(&m.SelectedPlayListItems)
 	case types.RelatedSongsMsg:
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
@@ -547,6 +559,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		dims := CalculateLayoutDimensions(&m)
 		m.RelatedList = list.New(items, CustomDelegate{Model: &m}, dims.SidebarWidth, dims.ContentHeight)
+		m.RelatedList.Title = "Related"
 		removeListDefaults(&m.RelatedList)
 		m.RelatedList.Title = "Related"
 		m.RightColumnMode = RightColumnRelated
@@ -739,7 +752,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 				})
 			}
 			dims := CalculateLayoutDimensions(&m)
-			m.HomePageList = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight)
+			m.HomePageList = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight-4)
+			m.HomePageList.SetShowTitle(false)
 			removeListDefaults(&m.HomePageList)
 			m.HomePageList.Title = "Home"
 			m.HomePageViewMode = HomePageSectionView
@@ -815,9 +829,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		if m.FocusedOn == SearchBar {
 			return m, nil
-		}
-		if m.BackendProcess != nil && m.BackendProcess.Process != nil {
-			_ = m.BackendProcess.Process.Signal(syscall.SIGTERM)
 		}
 		if m.playbackCancel != nil {
 			m.playbackCancel()
