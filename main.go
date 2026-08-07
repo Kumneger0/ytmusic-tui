@@ -7,12 +7,17 @@ import (
 )
 
 var (
-	version = ""
-	Debug   = "false"
+	version   = ""
+	Debug     = "false"
+	serverURL = ""
 )
 
 func main() {
-	err := cmd.Execute(version, Debug == "true")
+	targetURL := serverURL
+	if targetURL == "" {
+		panic("server url is missing")
+	}
+	err := cmd.Execute(version, Debug == "true", targetURL)
 	if err != nil {
 		slog.Error(err.Error())
 	}

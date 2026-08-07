@@ -6,11 +6,14 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "browser-cookie3>=0.20.1",
+    "connectrpc>=0.4.0",
     "grpcio>=1.82.1",
     "grpcio-tools>=1.82.1",
     "protobuf>=7.35.1",
+    "protoc-gen-connect-python>=0.9.0",
     "pyinstaller>=6.21.0",
     "python-dotenv>=1.2.2",
+    "uvicorn>=0.34.0",
     "yt-dlp>=2026.7.4",
     "ytmusicapi>=1.12.1",
 ]
@@ -23,4 +26,4 @@ dev = [
 [tool.basedpyright]
 typeCheckingMode = "recommended"
 exclude = ["grpc_server/gen"]
-extraPaths = ["grpc_server/gen"]
+extraPaths = [".", "grpc_server", "grpc_server/gen"]

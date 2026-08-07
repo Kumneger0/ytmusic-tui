@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	backend "github.com/kumneger0/ytmusic-tui/backend"
 	"github.com/kumneger0/ytmusic-tui/internal/config"
 	"github.com/kumneger0/ytmusic-tui/internal/headless"
 	logSetup "github.com/kumneger0/ytmusic-tui/internal/logger"
@@ -39,7 +38,7 @@ var (
 	Program *tea.Program
 )
 
-func newRootCmd(version string, debug bool) *cobra.Command {
+func newRootCmd(version string, debug bool, serverURL string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ytmusic-tui",
 		Short: "youtube music player",
@@ -79,7 +78,7 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 					fmt.Fprintf(os.Stderr, "Warning: could not write PID to lock file: %v\n", err)
 				}
 			}
-			return runRoot(cmd, debug)
+			return runRoot(cmd, serverURL)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if memFile != "" && debug {
@@ -102,8 +101,7 @@ func newRootCmd(version string, debug bool) *cobra.Command {
 	cmd.AddCommand(ytmusicTuiLog())
 	cmd.AddCommand(ManCmd(cmd))
 	cmd.AddCommand(installDeps())
-	cmd.AddCommand(newLoginCmd())
-	cmd.AddCommand(newExtractCookieCmd())
+	cmd.AddCommand(newExtractCookieCmd(serverURL))
 	return cmd
 }
 
@@ -144,14 +142,7 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 	fmt.Fprintf(os.Stderr, "Another instance of ytmusic-tui is already running (PID: %d).\n", pid)
 }
 
-func startPythonBackend(debug bool) (*exec.Cmd, error) {
-	if debug {
-		return nil, nil
-	}
-	return backend.StartBackend(backend.PythonBackend)
-}
-
-func runRoot(cmd *cobra.Command, debug bool) error {
+func runRoot(cmd *cobra.Command, serverURL string) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
 	configFromFile := config.GetUserConfig(runtime.GOOS)
 
@@ -283,24 +274,7 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		slog.Error(err.Error())
 	}
 
-	backendCmd, err := startPythonBackend(debug)
-	if err != nil {
-		slog.Error(err.Error())
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	defer func() {
-		if backendCmd != nil && backendCmd.Process != nil {
-			_ = backendCmd.Process.Signal(syscall.SIGTERM)
-			_ = backendCmd.Wait()
-		}
-	}()
-	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-	defer conn.Close()
+	client := ytMusicClient.GetYtMusicClient(serverURL)
 	var termWidth, termHeight int
 
 	if !isHeadlessMode {
@@ -319,7 +293,6 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		MainViewMode:    ui.HomePageMode,
 		YtMusicClient:   client,
 		CoreDepsPath:    coreDepsPath,
-		BackendProcess:  backendCmd,
 		Width:           termWidth - 4,
 		Height:          termHeight - 4,
 	}
@@ -330,8 +303,17 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 	model.PlayerSectionHeight = dims.InputHeight
 
 	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
+	model.SearchResult.SetShowTitle(false)
+	ui.RemoveListDefaults(&model.SearchResult)
+
 	model.HomePageList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
+	model.HomePageList.SetShowTitle(false)
+	ui.RemoveListDefaults(&model.HomePageList)
+
 	model.RelatedList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	model.RelatedList.Title = "Related"
+	ui.RemoveListDefaults(&model.RelatedList)
+
 	if isHeadlessMode {
 		safeModel := ui.SafeModel{
 			Model: &model,
@@ -348,6 +330,9 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 		})
 	}
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
+	playlistItems.SetShowTitle(false)
+	ui.RemoveListDefaults(&playlistItems)
+
 	input := textinput.New()
 	input.Placeholder = "Search tracks, artists, albums..."
 	input.Prompt = "> "
@@ -357,13 +342,19 @@ func runRoot(cmd *cobra.Command, debug bool) error {
 
 	model.Search = input
 	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	musicQueueList.Title = "Queue"
+	ui.RemoveListDefaults(&musicQueueList)
+
 	model.SideBarList = list.New(SideBarMenuList, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	model.SideBarList.Title = "Youtube Music tui"
+	ui.RemoveListDefaults(&model.SideBarList)
 
 	model.SelectedPlayListItems = playlistItems
 	model.MusicQueueList = &ui.MusicQueueList{
 		Model:          musicQueueList,
 		PaginationInfo: nil,
 	}
+	model.UpdateListDimensions()
 
 	fgModel := ui.NewForegroundModel()
 	manager := ui.Manager{
@@ -483,8 +474,8 @@ var (
 	memFile string
 )
 
-func Execute(version string, debug bool) error {
-	cmd := newRootCmd(version, debug)
+func Execute(version string, debug bool, serverURL string) error {
+	cmd := newRootCmd(version, debug, serverURL)
 	if debug {
 		cmd.PersistentFlags().StringVar(&cpuFile, "cpuprofile", "", "write cpu profile to `file`")
 		cmd.PersistentFlags().StringVar(&memFile, "memprofile", "", "write memory profile to `file`")
@@ -513,7 +504,7 @@ func Execute(version string, debug bool) error {
 	cmd.Flags().String("cookies", "", "cookies file the option you pass for this flag will be passed to yt-dlp checkout yt-dlp docs to learn more about this flag")
 
 	if err := cmd.Execute(); err != nil {
-		return fmt.Errorf("error executing root command: %w", err)
+		return fmt.Errorf("Error executing root command: %w", err)
 	}
 	return nil
 }

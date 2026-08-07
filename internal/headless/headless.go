@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"github.com/kumneger0/ytmusic-tui/internal/ui"
@@ -152,7 +153,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		userPlaylist, err := m.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{})
+		userPlaylist, err := m.YtMusicClient.GetUserPlaylists(ctx, connect.NewRequest(&musicpb.GetUserPlaylistsRequest{}))
 		if err != nil {
 			slog.Error("GetUserPlaylists failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch user playlists"}`, http.StatusInternalServerError)
@@ -164,7 +165,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		followedArtists, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
+		followedArtists, err := m.YtMusicClient.GetFollowedArtists(ctx, connect.NewRequest(&musicpb.GetFollowedArtistsRequest{}))
 		if err != nil {
 			slog.Error("GetFollowedArtists failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch followed artists"}`, http.StatusInternalServerError)
@@ -176,7 +177,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		albums, err := m.YtMusicClient.GetUserSavedAlbums(ctx, &musicpb.GetUserSavedAlbumsRequest{})
+		albums, err := m.YtMusicClient.GetUserSavedAlbums(ctx, connect.NewRequest(&musicpb.GetUserSavedAlbumsRequest{}))
 		if err != nil {
 			slog.Error("GetUserSavedAlbums failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch albums"}`, http.StatusInternalServerError)
@@ -189,9 +190,9 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		userLibrary := &UserLibrary{
-			Playlist:           userPlaylist.Playlists,
-			UserFollowedArtist: followedArtists.Artists,
-			Album:              albums.Albums,
+			Playlist:           userPlaylist.Msg.Playlists,
+			UserFollowedArtist: followedArtists.Msg.Artists,
+			Album:              albums.Msg.Albums,
 		}
 
 		data, err := json.Marshal(userLibrary)
@@ -228,7 +229,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		defer cancel()
 
 		if TracksType(queryType) == FollowedArtist {
-			artistSongs, err := m.YtMusicClient.GetArtistTopTracks(ctx, &musicpb.GetArtistTopTracksRequest{ChannelId: id})
+			artistSongs, err := m.YtMusicClient.GetArtistTopTracks(ctx, connect.NewRequest(&musicpb.GetArtistTopTracksRequest{ChannelId: id}))
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch artist tracks"}`, http.StatusInternalServerError)
@@ -236,7 +237,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 
 			var tracks []*types.PlaylistTrackObject
-			for _, track := range artistSongs.Tracks {
+			for _, track := range artistSongs.Msg.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
 					Track: track,
 				})
@@ -259,7 +260,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == PlaylistType {
-			playlistItems, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{PlaylistId: id})
+			playlistItems, err := m.YtMusicClient.GetPlaylistItems(ctx, connect.NewRequest(&musicpb.GetPlaylistItemsRequest{PlaylistId: id}))
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
@@ -267,7 +268,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 
 			var tracks []*types.PlaylistTrackObject
-			for _, track := range playlistItems.Tracks {
+			for _, track := range playlistItems.Msg.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
 					Track: track,
 				})
@@ -290,7 +291,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == LikedSongs {
-			savedTracks, err := m.YtMusicClient.GetUserSavedTracks(ctx, &musicpb.GetUserSavedTracksRequest{})
+			savedTracks, err := m.YtMusicClient.GetUserSavedTracks(ctx, connect.NewRequest(&musicpb.GetUserSavedTracksRequest{}))
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch saved tracks"}`, http.StatusInternalServerError)
@@ -298,7 +299,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 
 			var tracks []*types.PlaylistTrackObject
-			for _, item := range savedTracks.Tracks {
+			for _, item := range savedTracks.Msg.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
 					Track: item,
 				})
@@ -321,7 +322,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == AlbumTracks {
-			albumTracks, err := m.YtMusicClient.GetAlbumTracks(ctx, &musicpb.GetAlbumTracksRequest{BrowseId: id})
+			albumTracks, err := m.YtMusicClient.GetAlbumTracks(ctx, connect.NewRequest(&musicpb.GetAlbumTracksRequest{BrowseId: id}))
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch album tracks"}`, http.StatusInternalServerError)
@@ -329,7 +330,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 
 			var trackObject []*types.PlaylistTrackObject
-			for _, item := range albumTracks.Tracks {
+			for _, item := range albumTracks.Msg.Tracks {
 				trackObject = append(trackObject, &types.PlaylistTrackObject{
 					Track: item,
 				})
@@ -369,14 +370,14 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		searchResults, err := m.YtMusicClient.GetSearchResults(ctx, &musicpb.GetSearchResultsRequest{Query: query})
+		searchResults, err := m.YtMusicClient.GetSearchResults(ctx, connect.NewRequest(&musicpb.GetSearchResultsRequest{Query: query}))
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, `{"error":"failed to search"}`, http.StatusInternalServerError)
 			return
 		}
 
-		data, err := json.Marshal(searchResults)
+		data, err := json.Marshal(searchResults.Msg)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
@@ -461,21 +462,21 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			track, err := m.YtMusicClient.GetTrack(ctx, &musicpb.GetTrackRequest{VideoId: reqBody.TrackID})
+			track, err := m.YtMusicClient.GetTrack(ctx, connect.NewRequest(&musicpb.GetTrackRequest{VideoId: reqBody.TrackID}))
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
 				return
 			}
 
-			if track == nil {
-				slog.Error("track is nil")
+			if track == nil || track.Msg == nil || track.Msg.Track == nil {
+				slog.Error("track payload is nil")
 				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
 				return
 			}
 
 			trackObject = &types.PlaylistTrackObject{
-				Track: track.Track,
+				Track: track.Msg.Track,
 			}
 		}
 

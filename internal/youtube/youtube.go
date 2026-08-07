@@ -7,11 +7,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ebitengine/oto/v3"
-	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"github.com/kkdai/youtube/v2"
 	"github.com/kumneger0/ytmusic-tui/internal/command"
 	"github.com/kumneger0/ytmusic-tui/internal/config"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
@@ -46,7 +47,7 @@ func SearchAndDownloadMusic(
 	ctx context.Context,
 	videoID string,
 	coreDepsPath *CoreDepsPath,
-	getStreamURL func() (*musicpb.GetVideoStreamURLAndDurationResponse, error),
+	getStreamURL func() (*StreamAndDuration, error),
 ) tea.Cmd {
 	return func() tea.Msg {
 		if ctx.Err() != nil {
@@ -60,6 +61,7 @@ func SearchAndDownloadMusic(
 				Err:     errors.New("failed to find necessary dependencies"),
 			}
 		}
+
 		streamURL, err := getStreamURL()
 		if err != nil || streamURL == nil {
 			if ctx.Err() != nil {
@@ -93,7 +95,7 @@ func SearchAndDownloadMusic(
 			"-reconnect_delay_max", "5",
 			"-reconnect_on_network_error", "1",
 			"-reconnect_on_http_error", "1",
-			"-i", streamURL.Url,
+			"-i", streamURL.URL,
 			"-f", "s16le",
 			"-ac", "2",
 			"-ar", "44100",
@@ -218,4 +220,43 @@ func SearchAndDownloadMusic(
 			Err:      nil,
 		}
 	}
+}
+
+type StreamAndDuration struct {
+	URL      string
+	Duration string
+}
+
+var (
+	ytClient     *youtube.Client
+	ytClientOnce sync.Once
+)
+
+func GetSharedClient() *youtube.Client {
+	ytClientOnce.Do(func() {
+		ytClient = &youtube.Client{}
+	})
+	return ytClient
+}
+
+func GetStreamURLAndDuration(videoID string) (*StreamAndDuration, error) {
+	client := GetSharedClient()
+	video, err := client.GetVideo(videoID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch video metadata: %w", err)
+	}
+	formats := video.Formats.WithAudioChannels()
+	if len(formats) == 0 {
+		return nil, fmt.Errorf("no audio format found for video: %s", videoID)
+	}
+	formats.Sort()
+	streamURL, err := client.GetStreamURL(video, &formats[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to get stream url: %w", err)
+	}
+	durationInSeconds := int64(video.Duration.Seconds())
+	return &StreamAndDuration{
+		URL:      streamURL,
+		Duration: strconv.FormatInt(durationInSeconds, 10),
+	}, nil
 }
