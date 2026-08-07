@@ -73,12 +73,10 @@ proto-python:
 		--pyi_out=grpc_server/gen \
 		--plugin=protoc-gen-connect-python=.venv/bin/protoc-gen-connect-python \
 		--connect-python_out=grpc_server/gen \
+		--connect-python_opt=protobuf=google \
 		proto/music.proto
 
 	@sed -i 's/^import music_pb2 as/from . import music_pb2 as/' grpc_server/gen/music_connect.py
-	@sed -i 's/from connectrpc.compression import Compression/from connectrpc.codec import Codec\nfrom connectrpc.compression import Compression/' grpc_server/gen/music_connect.py
-	@sed -i 's/compressions: Iterable\[Compression\] | None = None) -> None:/compressions: Iterable[Compression] | None = None, codecs: Iterable[Codec] | None = None) -> None:/' grpc_server/gen/music_connect.py
-	@sed -i 's/compressions=compressions,/compressions=compressions,\n            codecs=codecs,/' grpc_server/gen/music_connect.py
 
 	@echo "Generated Python files successfully."
 

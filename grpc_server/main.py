@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 from typing import Any, cast
@@ -9,6 +10,7 @@ try:
 except ImportError:
     pass
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -46,17 +48,21 @@ from .src.mappers import (
     to_proto_song_related_content,
     to_proto_thumbnail,
 )
+
+
 class MusicService:
     def __init__(self) -> None:
-        pass
+        self._clients: dict[str, MusicClient] = {}
 
     def _get_client_for_request(self, ctx: RequestContext[Any, Any] | None) -> MusicClient:
+        key = ""
         if ctx is not None:
             auth_data = ctx.request_headers.get("x-auth-json")
             if auth_data:
-                parsed_auth = parse_auth_metadata(auth_data)
-                return MusicClient(auth=parsed_auth)
-        return MusicClient(auth=None)
+                key = parse_auth_metadata(auth_data)
+        if key not in self._clients:
+            self._clients[key] = MusicClient(auth=key if key else None)
+        return self._clients[key]
 
     async def health_check(
         self, request: music_pb2.HealthCheckRequest, ctx: RequestContext[Any, Any]
@@ -77,18 +83,18 @@ class MusicService:
             )
 
         try:
-            yt = get_ytmusic_client(str(auth_json))
+            yt = await asyncio.to_thread(get_ytmusic_client, str(auth_json))
             err: str | None = None
 
             try:
-                playlists = yt.get_library_playlists(limit=5)
+                playlists = await asyncio.to_thread(yt.get_library_playlists, limit=5)
                 if playlists and len(playlists) > 0:
                     return music_pb2.LoginResponse(authenticated=True, error="", user_name="")
             except Exception as e:
                 err = str(e)
 
             try:
-                songs_data = yt.get_liked_songs(limit=5)
+                songs_data = await asyncio.to_thread(yt.get_liked_songs, limit=5)
                 tracks = songs_data.get("tracks")
                 if isinstance(tracks, list) and len(tracks) > 0:
                     return music_pb2.LoginResponse(authenticated=True, error="", user_name="")
@@ -98,7 +104,7 @@ class MusicService:
 
             user_name = ""
             try:
-                info = yt.get_account_info()
+                info = await asyncio.to_thread(yt.get_account_info)
                 user_name = str(info.get("accountName") or "")
             except Exception as e:
                 if err is None:
@@ -122,62 +128,52 @@ class MusicService:
     async def get_library(
         self, request: music_pb2.GetLibraryRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetLibraryResponse:
-        try:
-            limit = request.limit if request.limit > 0 else 25
-            client = self._get_client_for_request(ctx)
-            library_data = client.get_library(limit=limit)
-            return music_pb2.GetLibraryResponse(
-                albums=[to_proto_album(album) for album in library_data.get("albums", [])],
-                playlists=[to_proto_playlist(pl) for pl in library_data.get("playlists", [])],
-                channels=[to_proto_channel(ch) for ch in library_data.get("channels", [])],
-                artists=[to_proto_followed_artist(art) for art in library_data.get("artists", [])],
-                podcasts=[to_proto_podcast(pod) for pod in library_data.get("podcasts", [])],
-            )
-        except Exception:
-            return music_pb2.GetLibraryResponse()
+        limit = request.limit if request.limit > 0 else 25
+        client = self._get_client_for_request(ctx)
+        library_data = await asyncio.to_thread(client.get_library, limit=limit)
+        return music_pb2.GetLibraryResponse(
+            albums=[to_proto_album(album) for album in library_data.get("albums", [])],
+            playlists=[to_proto_playlist(pl) for pl in library_data.get("playlists", [])],
+            channels=[to_proto_channel(ch) for ch in library_data.get("channels", [])],
+            artists=[to_proto_followed_artist(art) for art in library_data.get("artists", [])],
+            podcasts=[to_proto_podcast(pod) for pod in library_data.get("podcasts", [])],
+        )
 
     async def get_user_saved_tracks(
         self, request: music_pb2.GetUserSavedTracksRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetUserSavedTracksResponse:
-        try:
-            limit = request.limit if request.limit > 0 else 100
-            client = self._get_client_for_request(ctx)
-            songs_data = client.get_user_saved_tracks(limit=limit)
-            songs_list = [to_proto_song(song) for song in songs_data]
-            return music_pb2.GetUserSavedTracksResponse(tracks=songs_list, total=len(songs_list))
-        except Exception:
-            return music_pb2.GetUserSavedTracksResponse(tracks=[], total=0)
+        limit = request.limit if request.limit > 0 else 100
+        client = self._get_client_for_request(ctx)
+        songs_data = await asyncio.to_thread(client.get_user_saved_tracks, limit=limit)
+        songs_list = [to_proto_song(song) for song in songs_data]
+        return music_pb2.GetUserSavedTracksResponse(tracks=songs_list, total=len(songs_list))
 
     async def get_user_saved_albums(
         self, request: music_pb2.GetUserSavedAlbumsRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetUserSavedAlbumsResponse:
-        try:
-            limit = request.limit if request.limit > 0 else 25
-            client = self._get_client_for_request(ctx)
-            albums_data = client.get_user_saved_albums(limit=limit)
-            albums_list = [to_proto_album(album) for album in albums_data]
-            return music_pb2.GetUserSavedAlbumsResponse(albums=albums_list, total=len(albums_list))
-        except Exception:
-            return music_pb2.GetUserSavedAlbumsResponse(albums=[], total=0)
+        limit = request.limit if request.limit > 0 else 25
+        client = self._get_client_for_request(ctx)
+        albums_data = await asyncio.to_thread(client.get_user_saved_albums, limit=limit)
+        albums_list = [to_proto_album(album) for album in albums_data]
+        return music_pb2.GetUserSavedAlbumsResponse(albums=albums_list, total=len(albums_list))
 
     async def get_user_playlists(
         self, request: music_pb2.GetUserPlaylistsRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetUserPlaylistsResponse:
-        try:
-            limit = request.limit if request.limit > 0 else 25
-            client = self._get_client_for_request(ctx)
-            playlists_data = client.get_user_playlists(limit=limit)
-            playlists_list = [to_proto_playlist(pl) for pl in playlists_data]
-            return music_pb2.GetUserPlaylistsResponse(playlists=playlists_list, total=len(playlists_list))
-        except Exception:
-            return music_pb2.GetUserPlaylistsResponse(playlists=[], total=0)
+        limit = request.limit if request.limit > 0 else 25
+        client = self._get_client_for_request(ctx)
+        playlists_data = await asyncio.to_thread(client.get_user_playlists, limit=limit)
+        playlists_list = [to_proto_playlist(pl) for pl in playlists_data]
+        return music_pb2.GetUserPlaylistsResponse(playlists=playlists_list, total=len(playlists_list))
 
     async def get_track(
         self, request: music_pb2.GetTrackRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetTrackResponse:
         client = self._get_client_for_request(ctx)
         auth_data = ctx.request_headers.get("x-auth-json")
-        track_details = client.get_track(video_id=request.video_id, user_cookie=auth_data)
+        track_details = await asyncio.to_thread(
+            client.get_track, video_id=request.video_id, user_cookie=auth_data
+        )
         if not track_details:
             return music_pb2.GetTrackResponse()
 
@@ -214,7 +210,9 @@ class MusicService:
         self, request: music_pb2.GetAlbumTracksRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetAlbumTracksResponse:
         client = self._get_client_for_request(ctx)
-        album_data = client.get_album_tracks(browse_id=request.browse_id) or {}
+        album_data = (
+            await asyncio.to_thread(client.get_album_tracks, browse_id=request.browse_id)
+        ) or {}
 
         response = music_pb2.GetAlbumTracksResponse(
             title=album_data.get("title") or "",
@@ -236,7 +234,11 @@ class MusicService:
     ) -> music_pb2.GetPlaylistItemsResponse:
         limit = request.limit if request.limit > 0 else 100
         client = self._get_client_for_request(ctx)
-        playlist_data = client.get_playlist_items(playlist_id=request.playlist_id, limit=limit) or {}
+        playlist_data = (
+            await asyncio.to_thread(
+                client.get_playlist_items, playlist_id=request.playlist_id, limit=limit
+            )
+        ) or {}
 
         author_name = ""
         author_val = playlist_data.get("author")
@@ -268,8 +270,8 @@ class MusicService:
             filter_val = request.filter
 
         client = self._get_client_for_request(ctx)
-        raw_results: list[YTSearchResult] = client.get_search_results(
-            query=request.query, filter_type=filter_val, limit=limit
+        raw_results: list[YTSearchResult] = await asyncio.to_thread(
+            client.get_search_results, query=request.query, filter_type=filter_val, limit=limit
         )
         response = music_pb2.GetSearchResultsResponse()
 
@@ -380,7 +382,9 @@ class MusicService:
         self, request: music_pb2.GetArtistTopTracksRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetArtistTopTracksResponse:
         client = self._get_client_for_request(ctx)
-        artist_data = client.get_artist_top_tracks(channel_id=request.channel_id) or {}
+        artist_data = (
+            await asyncio.to_thread(client.get_artist_top_tracks, channel_id=request.channel_id)
+        ) or {}
         response = music_pb2.GetArtistTopTracksResponse(
             name=artist_data.get("name") or "",
             subscribers=artist_data.get("subscribers") or "",
@@ -400,7 +404,7 @@ class MusicService:
     ) -> music_pb2.GetFollowedArtistsResponse:
         limit = request.limit if request.limit > 0 else 25
         client = self._get_client_for_request(ctx)
-        artists_data = client.get_followed_artists(limit=limit) or []
+        artists_data = (await asyncio.to_thread(client.get_followed_artists, limit=limit)) or []
 
         response = music_pb2.GetFollowedArtistsResponse(total=len(artists_data))
         for artist in artists_data:
@@ -419,7 +423,7 @@ class MusicService:
         self, request: music_pb2.GetUserProfileRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetUserProfileResponse:
         client = self._get_client_for_request(ctx)
-        user_info = client.get_user_profile()
+        user_info = await asyncio.to_thread(client.get_user_profile)
         response = music_pb2.GetUserProfileResponse(
             name=user_info.get("accountName") or "",
             channel_id=user_info.get("channelHandle") or "",
@@ -434,7 +438,7 @@ class MusicService:
     ) -> music_pb2.GetUserTopItemsResponse:
         limit = request.limit if request.limit > 0 else 25
         client = self._get_client_for_request(ctx)
-        songs_data = client.get_user_top_items()
+        songs_data = await asyncio.to_thread(client.get_user_top_items)
         songs_list = [to_proto_song(song) for song in songs_data[:limit]]
         return music_pb2.GetUserTopItemsResponse(tracks=songs_list, total=len(songs_list))
 
@@ -442,21 +446,23 @@ class MusicService:
         self, request: music_pb2.CheckUserSavedTrackRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.CheckUserSavedTrackResponse:
         client = self._get_client_for_request(ctx)
-        is_saved = client.check_user_saved_track(video_id=request.video_id)
+        is_saved = await asyncio.to_thread(client.check_user_saved_track, video_id=request.video_id)
         return music_pb2.CheckUserSavedTrackResponse(is_saved=is_saved)
 
     async def save_remove_track(
         self, request: music_pb2.SaveRemoveTrackRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.SaveRemoveTrackResponse:
         client = self._get_client_for_request(ctx)
-        _ = client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
+        _ = await asyncio.to_thread(
+            client.save_remove_track, video_ids=list(request.video_ids), is_remove=request.is_remove
+        )
         return music_pb2.SaveRemoveTrackResponse()
 
     async def search_songs(
         self, request: music_pb2.SearchSongsRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.SearchSongsResponse:
         client = self._get_client_for_request(ctx)
-        songs_data = client.search(query=request.query)
+        songs_data = await asyncio.to_thread(client.search, query=request.query)
         songs_list = [to_proto_song(song) for song in songs_data]
         return music_pb2.SearchSongsResponse(songs=songs_list)
 
@@ -464,14 +470,14 @@ class MusicService:
         self, request: music_pb2.LikeSongRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.LikeSongResponse:
         client = self._get_client_for_request(ctx)
-        _ = client.like_song(request.video_id)
+        _ = await asyncio.to_thread(client.like_song, request.video_id)
         return music_pb2.LikeSongResponse()
 
     async def unlike_song(
         self, request: music_pb2.UnlikeSongRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.UnlikeSongResponse:
         client = self._get_client_for_request(ctx)
-        _ = client.unlike_song(request.video_id)
+        _ = await asyncio.to_thread(client.unlike_song, request.video_id)
         return music_pb2.UnlikeSongResponse()
 
     async def get_video_stream_u_r_l_and_duration(
@@ -479,7 +485,9 @@ class MusicService:
     ) -> music_pb2.GetVideoStreamURLAndDurationResponse:
         client = self._get_client_for_request(ctx)
         auth_data = ctx.request_headers.get("x-auth-json")
-        stream_url_and_duration = client.get_stream_url_and_duration(request.videoId, user_cookie=auth_data)
+        stream_url_and_duration = await asyncio.to_thread(
+            client.get_stream_url_and_duration, request.videoId, user_cookie=auth_data
+        )
         duration = stream_url_and_duration.get("duration")
         return music_pb2.GetVideoStreamURLAndDurationResponse(
             url=stream_url_and_duration.get("url"),
@@ -490,7 +498,7 @@ class MusicService:
         self, request: music_pb2.GetHomePageRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetHomePageResponse:
         client = self._get_client_for_request(ctx)
-        home_sections: list[YTHomeSection] = client.get_home()
+        home_sections: list[YTHomeSection] = await asyncio.to_thread(client.get_home)
 
         response = music_pb2.GetHomePageResponse()
 
@@ -544,203 +552,185 @@ class MusicService:
     async def get_song_related(
         self, request: music_pb2.GetSongRelatedRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetSongRelatedResponse:
-        try:
-            client = self._get_client_for_request(ctx)
-            if not request.videoId and not getattr(request, "browse_id", None):
-                return music_pb2.GetSongRelatedResponse()
-
-            browse_id = getattr(request, "browse_id", None) or getattr(request, "videoId", None)
-            browse_id_str = str(browse_id or "")
-            if not browse_id_str.startswith("MPTRt_"):
-                watch_data = client.get_watch_playlist(request.videoId)
-                related_id = watch_data.get("related")
-                if isinstance(related_id, str) and related_id:
-                    browse_id_str = related_id
-
-            if not browse_id_str.startswith("MPTRt_"):
-                return music_pb2.GetSongRelatedResponse()
-
-            sections_data = client.get_song_related(browse_id_str)
-            response = music_pb2.GetSongRelatedResponse()
-
-            for section in sections_data:
-                sec_msg = music_pb2.SongRelatedSection(title=str(section.get("title") or ""))
-                contents_data = section.get("contents")
-                if isinstance(contents_data, str):
-                    sec_msg.text_content = contents_data
-                elif isinstance(contents_data, list):
-                    for item in cast(list[object], contents_data):
-                        if isinstance(item, dict):
-                            sec_msg.contents.append(to_proto_song_related_content(cast(dict[str, object], item)))
-                response.sections.append(sec_msg)
-
-            return response
-        except Exception:
+        client = self._get_client_for_request(ctx)
+        if not request.videoId and not getattr(request, "browse_id", None):
             return music_pb2.GetSongRelatedResponse()
+
+        browse_id = getattr(request, "browse_id", None) or getattr(request, "videoId", None)
+        browse_id_str = str(browse_id or "")
+        if not browse_id_str.startswith("MPTRt_"):
+            watch_data = await asyncio.to_thread(client.get_watch_playlist, request.videoId)
+            related_id = watch_data.get("related")
+            if isinstance(related_id, str) and related_id:
+                browse_id_str = related_id
+
+        if not browse_id_str.startswith("MPTRt_"):
+            return music_pb2.GetSongRelatedResponse()
+
+        sections_data = await asyncio.to_thread(client.get_song_related, browse_id_str)
+        response = music_pb2.GetSongRelatedResponse()
+
+        for section in sections_data:
+            sec_msg = music_pb2.SongRelatedSection(title=str(section.get("title") or ""))
+            contents_data = section.get("contents")
+            if isinstance(contents_data, str):
+                sec_msg.text_content = contents_data
+            elif isinstance(contents_data, list):
+                for item in cast(list[object], contents_data):
+                    if isinstance(item, dict):
+                        sec_msg.contents.append(to_proto_song_related_content(cast(dict[str, object], item)))
+            response.sections.append(sec_msg)
+
+        return response
 
     async def get_lyrics(
         self, request: music_pb2.GetLyricsRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.GetLyricsResponse:
-        try:
-            client = self._get_client_for_request(ctx)
-            watch_data = client.get_watch_playlist(request.videoId)
-            lyrics_id = watch_data.get("lyrics")
-            if not isinstance(lyrics_id, str) or not lyrics_id:
-                return music_pb2.GetLyricsResponse()
-
-            raw_lyrics = client.get_lyrics(browse_id=lyrics_id, timestamps=request.timestamps)
-            if raw_lyrics is None:
-                return music_pb2.GetLyricsResponse()
-
-            def _get_val(obj: object, key: str) -> object:
-                if isinstance(obj, dict):
-                    return cast(dict[str, object], obj).get(key)
-                return getattr(obj, key, None)
-
-            source = str(_get_val(raw_lyrics, "source") or "")
-            has_timestamps = bool(_get_val(raw_lyrics, "hasTimestamps") or False)
-            lyrics_data = _get_val(raw_lyrics, "lyrics")
-
-            response = music_pb2.GetLyricsResponse(source=source, has_timestamps=has_timestamps)
-
-            if has_timestamps and isinstance(lyrics_data, list):
-                for line in cast(list[object], lyrics_data):
-                    if isinstance(line, dict):
-                        line_map = cast(dict[str, object], line)
-                        line_text = coerce_str(line_map.get("text"))
-                        start_time = int(coerce_str(line_map.get("start_time")) or 0)
-                        end_time = int(coerce_str(line_map.get("end_time")) or 0)
-                        line_id = int(coerce_str(line_map.get("id")) or 0)
-                    else:
-                        line_text = coerce_str(getattr(line, "text", None))
-                        start_time = int(getattr(line, "start_time", 0) or 0)
-                        end_time = int(getattr(line, "end_time", 0) or 0)
-                        line_id = int(getattr(line, "id", 0) or 0)
-
-                    response.lines.append(
-                        music_pb2.LyricLine(
-                            text=line_text,
-                            start_time=start_time,
-                            end_time=end_time,
-                            id=line_id,
-                        )
-                    )
-            elif isinstance(lyrics_data, str):
-                response.lyrics = lyrics_data
-
-            return response
-        except Exception:
+        client = self._get_client_for_request(ctx)
+        watch_data = await asyncio.to_thread(client.get_watch_playlist, request.videoId)
+        lyrics_id = watch_data.get("lyrics")
+        if not isinstance(lyrics_id, str) or not lyrics_id:
             return music_pb2.GetLyricsResponse()
+
+        raw_lyrics = await asyncio.to_thread(
+            client.get_lyrics, browse_id=lyrics_id, timestamps=request.timestamps
+        )
+        if raw_lyrics is None:
+            return music_pb2.GetLyricsResponse()
+
+        def _get_val(obj: object, key: str) -> object:
+            if isinstance(obj, dict):
+                return cast(dict[str, object], obj).get(key)
+            return getattr(obj, key, None)
+
+        source = str(_get_val(raw_lyrics, "source") or "")
+        has_timestamps = bool(_get_val(raw_lyrics, "hasTimestamps") or False)
+        lyrics_data = _get_val(raw_lyrics, "lyrics")
+
+        response = music_pb2.GetLyricsResponse(source=source, has_timestamps=has_timestamps)
+
+        if has_timestamps and isinstance(lyrics_data, list):
+            for line in cast(list[object], lyrics_data):
+                if isinstance(line, dict):
+                    line_map = cast(dict[str, object], line)
+                    line_text = coerce_str(line_map.get("text"))
+                    start_time = int(coerce_str(line_map.get("start_time")) or 0)
+                    end_time = int(coerce_str(line_map.get("end_time")) or 0)
+                    line_id = int(coerce_str(line_map.get("id")) or 0)
+                else:
+                    line_text = coerce_str(getattr(line, "text", None))
+                    start_time = int(getattr(line, "start_time", 0) or 0)
+                    end_time = int(getattr(line, "end_time", 0) or 0)
+                    line_id = int(getattr(line, "id", 0) or 0)
+
+                response.lines.append(
+                    music_pb2.LyricLine(
+                        text=line_text,
+                        start_time=start_time,
+                        end_time=end_time,
+                        id=line_id,
+                    )
+                )
+        elif isinstance(lyrics_data, str):
+            response.lyrics = lyrics_data
+
+        return response
 
     async def create_playlist(
         self, request: music_pb2.CreatePlaylistRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.CreatePlaylistResponse:
-        try:
-            client = self._get_client_for_request(ctx)
-            result = client.create_playlist(
-                title=request.title,
-                description=request.description,
-                privacy_status=request.privacy_status or "PRIVATE",
-                video_ids=list(request.video_ids) if request.video_ids else None,
-                source_playlist=request.source_playlist if request.source_playlist else None,
-            )
+        client = self._get_client_for_request(ctx)
+        result = await asyncio.to_thread(
+            client.create_playlist,
+            title=request.title,
+            description=request.description,
+            privacy_status=request.privacy_status or "PRIVATE",
+            video_ids=list(request.video_ids) if request.video_ids else None,
+            source_playlist=request.source_playlist if request.source_playlist else None,
+        )
 
-            if isinstance(result, str):
-                return music_pb2.CreatePlaylistResponse(playlist_id=result, success=True)
+        if isinstance(result, str):
+            return music_pb2.CreatePlaylistResponse(playlist_id=result, success=True)
 
-            playlist_id = str(result.get("playlistId") or result.get("id") or "")
-            error_msg = str(result.get("error") or "")
-            return music_pb2.CreatePlaylistResponse(
-                playlist_id=playlist_id,
-                success=bool(playlist_id and not error_msg),
-                error=error_msg,
-            )
-        except Exception as e:
-            return music_pb2.CreatePlaylistResponse(playlist_id="", success=False, error=str(e))
+        playlist_id = str(result.get("playlistId") or result.get("id") or "")
+        error_msg = str(result.get("error") or "")
+        return music_pb2.CreatePlaylistResponse(
+            playlist_id=playlist_id,
+            success=bool(playlist_id and not error_msg),
+            error=error_msg,
+        )
 
     async def add_playlist_items(
         self, request: music_pb2.AddPlaylistItemsRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.AddPlaylistItemsResponse:
-        try:
-            client = self._get_client_for_request(ctx)
-            result = client.add_playlist_items(
-                playlist_id=request.playlist_id,
-                video_ids=list(request.video_ids) if request.video_ids else None,
-                source_playlist=request.source_playlist if request.source_playlist else None,
-                duplicates=request.duplicates,
-            )
+        client = self._get_client_for_request(ctx)
+        result = await asyncio.to_thread(
+            client.add_playlist_items,
+            playlist_id=request.playlist_id,
+            video_ids=list(request.video_ids) if request.video_ids else None,
+            source_playlist=request.source_playlist if request.source_playlist else None,
+            duplicates=request.duplicates,
+        )
 
-            if isinstance(result, str):
-                success = result == "STATUS_SUCCEEDED"
-                final_status = result if result else "STATUS_FAILED"
-                return music_pb2.AddPlaylistItemsResponse(
-                    status=final_status,
-                    success=success,
-                    error="" if success else final_status,
-                )
-
-            status_str = str(result.get("status") or "")
-            error_msg = str(result.get("error") or "")
-            success = status_str == "STATUS_SUCCEEDED" and not error_msg
-            final_status = status_str if status_str else "STATUS_FAILED"
-            if not success and not error_msg:
-                error_msg = final_status
-
+        if isinstance(result, str):
+            success = result == "STATUS_SUCCEEDED"
+            final_status = result if result else "STATUS_FAILED"
             return music_pb2.AddPlaylistItemsResponse(
                 status=final_status,
                 success=success,
-                error=error_msg,
+                error="" if success else final_status,
             )
-        except Exception as e:
-            return music_pb2.AddPlaylistItemsResponse(
-                status="STATUS_FAILED",
-                success=False,
-                error=str(e),
-            )
+
+        status_str = str(result.get("status") or "")
+        error_msg = str(result.get("error") or "")
+        success = status_str == "STATUS_SUCCEEDED" and not error_msg
+        final_status = status_str if status_str else "STATUS_FAILED"
+        if not success and not error_msg:
+            error_msg = final_status
+
+        return music_pb2.AddPlaylistItemsResponse(
+            status=final_status,
+            success=success,
+            error=error_msg,
+        )
 
     async def remove_playlist_items(
         self, request: music_pb2.RemovePlaylistItemsRequest, ctx: RequestContext[Any, Any]
     ) -> music_pb2.RemovePlaylistItemsResponse:
-        try:
-            client = self._get_client_for_request(ctx)
-            videos = [{"videoId": v.video_id, "setVideoId": v.set_video_id} for v in request.videos]
-            result = client.remove_playlist_items(playlist_id=request.playlist_id, videos=videos)
+        client = self._get_client_for_request(ctx)
+        videos = [{"videoId": v.video_id, "setVideoId": v.set_video_id} for v in request.videos]
+        result = await asyncio.to_thread(
+            client.remove_playlist_items, playlist_id=request.playlist_id, videos=videos
+        )
 
-            if isinstance(result, str):
-                success = result == "STATUS_SUCCEEDED"
-                final_status = result if result else "STATUS_FAILED"
-                return music_pb2.RemovePlaylistItemsResponse(
-                    status=final_status,
-                    success=success,
-                    error="" if success else final_status,
-                )
-
-            status_str = str(result.get("status") or "")
-            error_msg = str(result.get("error") or "")
-            success = status_str == "STATUS_SUCCEEDED" and not error_msg
-            final_status = status_str if status_str else "STATUS_FAILED"
-            if not success and not error_msg:
-                error_msg = final_status
-
+        if isinstance(result, str):
+            success = result == "STATUS_SUCCEEDED"
+            final_status = result if result else "STATUS_FAILED"
             return music_pb2.RemovePlaylistItemsResponse(
                 status=final_status,
                 success=success,
-                error=error_msg,
+                error="" if success else final_status,
             )
-        except Exception as e:
-            return music_pb2.RemovePlaylistItemsResponse(
-                status="STATUS_FAILED",
-                success=False,
-                error=str(e),
-            )
+
+        status_str = str(result.get("status") or "")
+        error_msg = str(result.get("error") or "")
+        success = status_str == "STATUS_SUCCEEDED" and not error_msg
+        final_status = status_str if status_str else "STATUS_FAILED"
+        if not success and not error_msg:
+            error_msg = final_status
+
+        return music_pb2.RemovePlaylistItemsResponse(
+            status=final_status,
+            success=success,
+            error=error_msg,
+        )
 
 
 def serve() -> None:
     import uvicorn
-    from connectrpc.compat import google_protobuf_codecs
 
     port = int(os.environ.get("PORT", "8080"))
-    app = MusicServiceASGIApplication(MusicService(), codecs=google_protobuf_codecs())
+    app = MusicServiceASGIApplication(MusicService())
     print(f"Server started, listening on {port}")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
 

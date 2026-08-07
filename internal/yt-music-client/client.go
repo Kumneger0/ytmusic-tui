@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/kumneger0/ytmusic-tui/gen/genconnect"
@@ -47,7 +48,9 @@ func GetYtMusicClient(addr string) genconnect.MusicServiceClient {
 		}
 	}
 
-	httpClient := &http.Client{}
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	if strings.HasPrefix(cleanAddr, "https://") {
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{},

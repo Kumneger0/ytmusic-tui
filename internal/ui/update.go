@@ -58,7 +58,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				slog.Error(err.Error())
 				return types.CreatePlaylistResponseMsg{Success: false, Err: err}
 			}
-			if response == nil || response.Msg.PlaylistId == "" {
+			if response == nil {
+				err := errors.New("failed to create playlist: nil response")
+				slog.Error(err.Error())
+				return types.CreatePlaylistResponseMsg{Success: false, Err: err}
+			}
+			if response.Msg.PlaylistId == "" {
 				err := errors.New(response.Msg.GetError())
 				slog.Error(err.Error())
 				return types.CreatePlaylistResponseMsg{Success: false, Err: err}

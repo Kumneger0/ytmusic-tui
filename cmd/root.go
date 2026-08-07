@@ -505,7 +505,7 @@ func Execute(version string, debug bool, serverURL string) error {
 	cmd.Flags().String("cookies", "", "cookies file the option you pass for this flag will be passed to yt-dlp checkout yt-dlp docs to learn more about this flag")
 
 	if err := cmd.Execute(); err != nil {
-		return fmt.Errorf("error executing root command: %w", err)
+		return fmt.Errorf("Error executing root command: %w", err)
 	}
 	return nil
 }

@@ -469,8 +469,8 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 				return
 			}
 
-			if track == nil {
-				slog.Error("track is nil")
+			if track == nil || track.Msg == nil || track.Msg.Track == nil {
+				slog.Error("track payload is nil")
 				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
 				return
 			}
