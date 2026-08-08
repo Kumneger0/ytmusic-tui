@@ -13,11 +13,10 @@ var (
 )
 
 func main() {
-	targetURL := serverURL
-	if targetURL == "" {
+	if serverURL == "" {
 		panic("server url is missing")
 	}
-	err := cmd.Execute(version, Debug == "true", targetURL)
+	err := cmd.Execute(version, Debug == "true", serverURL)
 	if err != nil {
 		slog.Error(err.Error())
 	}

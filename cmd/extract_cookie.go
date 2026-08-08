@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +14,7 @@ import (
 
 	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 	"github.com/kumneger0/ytmusic-tui/internal/config"
+	"github.com/kumneger0/ytmusic-tui/internal/cookie"
 	ytMusicClient "github.com/kumneger0/ytmusic-tui/internal/yt-music-client"
 
 	"connectrpc.com/connect"
@@ -31,9 +33,9 @@ func extractFromBrowserStore(ctx context.Context, targetBrowser string) ([]*kook
 	for _, store := range stores {
 		if strings.Contains(strings.ToLower(store.Browser()), strings.ToLower(targetBrowser)) {
 			seq := store.TraverseCookies(kooky.Valid, kooky.DomainHasSuffix(`.youtube.com`))
-			for cookie, err := range seq {
-				if err == nil && cookie != nil {
-					cookies = append(cookies, cookie)
+			for c, err := range seq {
+				if err == nil && c != nil {
+					cookies = append(cookies, c)
 				}
 			}
 		}
@@ -86,6 +88,9 @@ func saveAuthJSON(authJSON string) (string, error) {
 	path := filepath.Join(dir, "browser.json")
 	if err := os.WriteFile(path, []byte(authJSON), 0600); err != nil {
 		return "", fmt.Errorf("failed to write browser.json: %w", err)
+	}
+	if _, err := cookie.SaveCookieFile(authJSON); err != nil {
+		slog.Error("failed to write cookie.txt", "err", err)
 	}
 	return path, nil
 }
