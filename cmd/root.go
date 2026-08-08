@@ -18,6 +18,7 @@ import (
 	"github.com/kumneger0/ytmusic-tui/internal/config"
 	"github.com/kumneger0/ytmusic-tui/internal/headless"
 	logSetup "github.com/kumneger0/ytmusic-tui/internal/logger"
+	"github.com/kumneger0/ytmusic-tui/internal/queue"
 	"github.com/kumneger0/ytmusic-tui/internal/youtube"
 	ytMusicClient "github.com/kumneger0/ytmusic-tui/internal/yt-music-client"
 	"go.dalton.dog/bubbleup"
@@ -302,6 +303,7 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	model.LibraryWidth = dims.SidebarWidth
 	model.MainViewWidth = dims.MainWidth
 	model.PlayerSectionHeight = dims.InputHeight
+	model.Queue = queue.NewRingQueue()
 
 	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
 	model.SearchResult.SetShowTitle(false)
@@ -342,19 +344,18 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	model.Alert = *bubbleup.NewAlertModel(80, true, 10*time.Second)
 
 	model.Search = input
-	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
-	musicQueueList.Title = "Queue"
-	ui.RemoveListDefaults(&musicQueueList)
 
 	model.SideBarList = list.New(SideBarMenuList, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
 	model.SideBarList.Title = "Youtube Music tui"
 	ui.RemoveListDefaults(&model.SideBarList)
 
+	queueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	queueList.Title = "Queue"
+	ui.RemoveListDefaults(&queueList)
+	model.QueueList = queueList
+
 	model.SelectedPlayListItems = playlistItems
-	model.MusicQueueList = &ui.MusicQueueList{
-		Model:          musicQueueList,
-		PaginationInfo: nil,
-	}
+	model.Queue = queue.NewRingQueue()
 	model.UpdateListDimensions()
 
 	fgModel := ui.NewForegroundModel()

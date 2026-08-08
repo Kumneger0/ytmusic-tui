@@ -19,6 +19,7 @@ import (
 	"github.com/godbus/dbus/v5/prop"
 	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 	"github.com/kumneger0/ytmusic-tui/gen/genconnect"
+	"github.com/kumneger0/ytmusic-tui/internal/queue"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"github.com/kumneger0/ytmusic-tui/internal/youtube"
 	"go.dalton.dog/bubbleup"
@@ -84,19 +85,21 @@ type Model struct {
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
 	MainViewMode
-	PlayerProcess       *types.Player
-	playbackCancel      context.CancelFunc
-	SelectedTrack       *SelectedTrack
-	PlayedSeconds       float64
-	Height              int
-	Width               int
-	LibraryWidth        int
-	MainViewWidth       int
-	PlayerSectionHeight int
-	Search              textinput.Model
-	MusicQueueList      *MusicQueueList
-	YtMusicClient       genconnect.MusicServiceClient
-	DBusConn            *Instance
+	PlayerProcess        *types.Player
+	playbackCancel       context.CancelFunc
+	SelectedTrack        *SelectedTrack
+	PlayedSeconds        float64
+	Height               int
+	Width                int
+	LibraryWidth         int
+	MainViewWidth        int
+	PlayerSectionHeight  int
+	Search               textinput.Model
+	Queue                *queue.RingQueue
+	QueueList            list.Model
+	PlaylistContextIndex int
+	YtMusicClient        genconnect.MusicServiceClient
+	DBusConn             *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
 	//at that time when he selects artist or playlist the search were hidden from mainView
 	//so that if search again we can show the previous result by comparing the query
@@ -227,8 +230,8 @@ func (m Model) View() string {
 	showRelated := m.RightColumnMode == RightColumnRelated
 	if showRelated {
 		rightColumnView = m.RelatedList.View()
-	} else if m.MusicQueueList != nil {
-		rightColumnView = m.MusicQueueList.View()
+	} else {
+		rightColumnView = m.QueueList.View()
 	}
 	queueList := getStyle(&m, dimensions.ContentHeight, dimensions.SidebarWidth, QueueList, false).Render(rightColumnView)
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
@@ -284,12 +287,26 @@ func (m *Model) UpdateListDimensions() {
 	m.SelectedPlayListItems.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
 	m.SearchResult.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
 	m.HomePageList.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
+	if m.QueueList.Items() != nil {
+		m.QueueList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
+	}
 	if len(m.RelatedList.Items()) > 0 {
 		m.RelatedList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
 	}
-	if m.MusicQueueList != nil {
-		m.MusicQueueList.Model.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
+}
+
+func (m *Model) SyncQueueList() {
+	if m.Queue == nil {
+		return
 	}
+	tracks := m.Queue.AllTracks()
+	var items []list.Item
+	for _, t := range tracks {
+		if t != nil {
+			items = append(items, *t)
+		}
+	}
+	m.QueueList.SetItems(items)
 }
 
 func RemoveListDefaults(listToRemoveDefaults *list.Model) {
