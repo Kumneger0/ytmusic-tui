@@ -495,33 +495,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Playlist != nil {
 			var playListItemSongs []list.Item
 			for _, item := range msg.Playlist {
-				if msg.ShouldAppendQueue {
-					item.IsItFromQueue = true
-				}
 				playListItemSongs = append(playListItemSongs, *item)
 			}
 			m.MainViewMode = NormalMode
 			m.IsSearchLoading = false
-			var currentItems []list.Item
-			if msg.ShouldAppendQueue && m.MusicQueueList != nil {
-				currentItems = m.MusicQueueList.Items()
-			} else {
-				currentItems = m.SelectedPlayListItems.Items()
-			}
-			if msg.ShouldAppend {
-				playListItemSongs = append(currentItems, playListItemSongs...)
-				m.IsOnPagination = false
-			}
-
 			var cmd tea.Cmd
-			if msg.ShouldAppendQueue {
-				if m.MusicQueueList != nil {
-					return m, nil
-				}
-				cmd = m.MusicQueueList.SetItems(playListItemSongs)
-			} else {
-				cmd = m.SelectedPlayListItems.SetItems(playListItemSongs)
-			}
+			cmd = m.SelectedPlayListItems.SetItems(playListItemSongs)
 			if msg.PaginationInfo != nil {
 				m.PaginationInfo = msg.PaginationInfo
 			} else {
@@ -649,11 +628,7 @@ func (m Model) handlePagination(listModel *list.Model, ShouldAppendQueue bool, c
 		}
 		m.IsOnPagination = true
 		var paginationInfo *types.PaginationInfo
-		if m.FocusedOn == QueueList && m.MusicQueueList != nil && m.MusicQueueList.PaginationInfo != nil {
-			paginationInfo = m.MusicQueueList.PaginationInfo
-		} else {
-			paginationInfo = m.PaginationInfo
-		}
+		paginationInfo = m.PaginationInfo
 		return m, getNextPageItems(&m, paginationInfo, ShouldAppendQueue)
 	}
 	return m, nil
@@ -773,10 +748,9 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 				if len(m.RelatedList.Items()) > 0 {
 					m.RelatedList.RemoveItem(m.RelatedList.Index())
 				}
-			} else if m.MusicQueueList != nil {
-				if len(m.MusicQueueList.Model.Items()) > 0 {
-					m.MusicQueueList.Model.RemoveItem(m.MusicQueueList.GlobalIndex())
-				}
+			} else if m.Queue != nil && m.Queue.Len() > 0 {
+				m.Queue.RemoveCurrent()
+				m.SyncQueueList()
 			}
 		}
 	case "ctrl+l":
@@ -880,11 +854,9 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 				})
 			}
 			return types.UpdatePlaylistMsg{
-				Playlist:          tracks,
-				Err:               nil,
-				ShouldAppend:      true,
-				PaginationInfo:    paginationInfo,
-				ShouldAppendQueue: ShouldAppendQueue,
+				Playlist:       tracks,
+				Err:            nil,
+				PaginationInfo: paginationInfo,
 			}
 		}
 	case types.NextPageURLTypeUserSavedItems:
@@ -907,11 +879,9 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 				})
 			}
 			return types.UpdatePlaylistMsg{
-				Playlist:          playlistItems,
-				Err:               nil,
-				ShouldAppend:      true,
-				PaginationInfo:    paginationInfo,
-				ShouldAppendQueue: ShouldAppendQueue,
+				Playlist:       playlistItems,
+				Err:            nil,
+				PaginationInfo: paginationInfo,
 			}
 		}
 	}
@@ -930,9 +900,6 @@ func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
 func (m *Model) toggleRightColumnMode() {
 	if m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "" {
 		m.RightColumnMode = RightColumnQueue
-		if m.MusicQueueList != nil && len(m.MusicQueueList.Model.Items()) > 0 {
-			m.MusicQueueList.Model.Select(0)
-		}
 	} else {
 		m.RightColumnMode = RightColumnRelated
 		if len(m.RelatedList.Items()) > 0 {
@@ -1005,86 +972,63 @@ func (m *Model) updateLyricsView() {
 }
 
 func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
-	if m.MusicQueueList == nil {
-		return m, nil
-	}
-
-	if len(m.MusicQueueList.Model.Items()) <= 0 {
-		return m, nil
-	}
-
-	var validItems []list.Item
-	for _, item := range m.MusicQueueList.Model.Items() {
-		if _, ok := item.(types.PlaylistTrackObject); ok {
-			validItems = append(validItems, item)
+	if m.Queue != nil && m.Queue.Len() > 0 {
+		var track *types.PlaylistTrackObject
+		if isForward {
+			track = m.Queue.Next()
+		} else {
+			track = m.Queue.Prev()
 		}
-	}
-	if len(validItems) != len(m.MusicQueueList.Model.Items()) {
-		cmd := m.MusicQueueList.Model.SetItems(validItems)
-		m.MusicQueueList.Model.Select(0)
-		return m, cmd
-	}
-
-	var currentlySelectedMusicIndex int
-	for index, track := range m.MusicQueueList.Model.Items() {
-		playlistTrack, ok := track.(types.PlaylistTrackObject)
-		if !ok {
-			continue
-		}
-		if playlistTrack.Track != nil && m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && playlistTrack.Track.VideoId == m.SelectedTrack.Track.Track.VideoId {
-			currentlySelectedMusicIndex = index
-			break
-		}
-	}
-
-	if currentlySelectedMusicIndex == 0 && !isForward {
-		return m, nil
-	}
-
-	var nextTrackIndex int
-	if isForward && len(m.MusicQueueList.Model.Items()) == (currentlySelectedMusicIndex+1) {
-		nextTrackIndex = 0
-	} else if isForward {
-		nextTrackIndex = currentlySelectedMusicIndex + 1
-	} else {
-		nextTrackIndex = currentlySelectedMusicIndex - 1
-	}
-
-	var musicToPlay types.PlaylistTrackObject
-	var found bool
-	for i := 0; i < len(m.MusicQueueList.Model.Items()); i++ {
-		idx := (nextTrackIndex + i) % len(m.MusicQueueList.Model.Items())
-		item := m.MusicQueueList.Model.Items()[idx]
-		playlistTrack, ok := item.(types.PlaylistTrackObject)
-		if ok {
-			musicToPlay = playlistTrack
-			nextTrackIndex = idx
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		slog.Error("no valid PlaylistTrackObject found in music queue")
-		return m, nil
-	}
-	m.MusicQueueList.Model.Select(nextTrackIndex)
-	var paginationCmd tea.Cmd
-	var model Model
-	if isForward {
-		if m.MusicQueueList != nil {
-			model, paginationCmd = m.handlePagination(&m.MusicQueueList.Model, true, &nextTrackIndex)
+		if track != nil {
+			m.SyncQueueList()
+			model, cmd := m.PlaySelectedMusic(*track)
 			m = model
+			return m, cmd
 		}
 	}
-	model, cmd := m.PlaySelectedMusic(musicToPlay)
-	m = model
-	return m, tea.Batch(cmd, paginationCmd)
+
+	items := m.SelectedPlayListItems.Items()
+	if len(items) == 0 {
+		return m, nil
+	}
+
+	if isForward {
+		m.PlaylistContextIndex++
+		if m.PlaylistContextIndex >= len(items) {
+			m.PlaylistContextIndex = 0
+		}
+	} else {
+		m.PlaylistContextIndex--
+		if m.PlaylistContextIndex < 0 {
+			m.PlaylistContextIndex = len(items) - 1
+		}
+	}
+
+	for i := 0; i < len(items); i++ {
+		var idx int
+		if isForward {
+			idx = (m.PlaylistContextIndex + i) % len(items)
+		} else {
+			idx = m.PlaylistContextIndex - i
+			if idx < 0 {
+				idx = len(items) + idx
+			}
+		}
+		playlistTrack, ok := items[idx].(types.PlaylistTrackObject)
+		if ok {
+			m.PlaylistContextIndex = idx
+			m.SelectedPlayListItems.Select(idx)
+			model, cmd := m.PlaySelectedMusic(playlistTrack)
+			m = model
+			return m, cmd
+		}
+	}
+
+	return m, nil
 }
 
 func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 	var itemToAdd list.Item
-	var currentlyPlayingTrackID string
 	if m.FocusedOn != MainView {
 		return m, nil
 	}
@@ -1114,55 +1058,23 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 		}
 	}
 
-	if _, ok := itemToAdd.(types.PlaylistTrackObject); !ok {
-		return m, nil
-	}
-
-	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
-		currentlyPlayingTrackID = m.SelectedTrack.Track.Track.VideoId
-	}
-
-	var musicQueue = m.MusicQueueList.Items()
-
-	if len(musicQueue) == 0 {
-		var validItems []list.Item
-		if _, ok := itemToAdd.(types.PlaylistTrackObject); ok {
-			validItems = append(validItems, itemToAdd)
-		}
-		return m, m.MusicQueueList.SetItems(validItems)
-	}
-
-	item, ok := itemToAdd.(types.PlaylistTrackObject)
+	track, ok := itemToAdd.(types.PlaylistTrackObject)
 	if !ok {
-		slog.Error("failed to cast itemToAdd to PlaylistTrackObject")
 		return m, nil
 	}
 
-	item.IsItFromQueue = true
-	itemToAdd = item
+	m.Queue.AddTrack(&track)
+	m.SyncQueueList()
 
-	var validQueueItems []list.Item
-	for _, queueItem := range m.MusicQueueList.Items() {
-		if _, ok := queueItem.(types.PlaylistTrackObject); ok {
-			validQueueItems = append(validQueueItems, queueItem)
-		}
+	toastCmd := m.Alert.NewAlertCmd(bubbleup.InfoKey, fmt.Sprintf("Added \"%s\" to queue", track.Title()))
+
+	if m.SelectedTrack == nil {
+		model, playCmd := m.handleMusicChange(true)
+		m = model
+		return m, tea.Batch(playCmd, toastCmd)
 	}
 
-	var currentlyPlayingTrackIndex int
-	for index, item := range validQueueItems {
-		playlistTrackObject, ok := item.(types.PlaylistTrackObject)
-		if !ok {
-			continue
-		}
-		if playlistTrackObject.Track != nil && playlistTrackObject.Track.VideoId == currentlyPlayingTrackID {
-			currentlyPlayingTrackIndex = index
-		}
-	}
-
-	var itemsAfterCurrentlyPlayingTrack = validQueueItems[currentlyPlayingTrackIndex+1:]
-	var itemsBeforeCurrentlyPlayingTrack = validQueueItems[:currentlyPlayingTrackIndex+1]
-	cmd := m.MusicQueueList.SetItems(append(itemsBeforeCurrentlyPlayingTrack, append([]list.Item{itemToAdd}, itemsAfterCurrentlyPlayingTrack...)...))
-	return m, cmd
+	return m, toastCmd
 }
 
 func (m Model) HandleMusicPausePlay() (Model, tea.Cmd) {
@@ -1220,9 +1132,7 @@ func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
 		if showRelated {
 			return &m.RelatedList
 		}
-		if m.MusicQueueList != nil {
-			return &m.MusicQueueList.Model
-		}
+		return &m.QueueList
 	}
 	return nil
 }
@@ -1293,54 +1203,7 @@ func (m Model) navigateToDetailView(cmd tea.Cmd) (Model, tea.Cmd) {
 }
 
 func (m Model) playTrackFromList(track types.PlaylistTrackObject, rawItems []list.Item) (Model, tea.Cmd) {
-	if m.MusicQueueList == nil {
-		return m, nil
-	}
-	var items []list.Item
-	for _, rawItem := range rawItems {
-		if homeContent, ok := rawItem.(types.HomePageContentItem); ok && homeContent.VideoID != "" {
-			playlistTrack := types.PlaylistTrackObject{
-				Track: &musicpb.Song{
-					VideoId: homeContent.VideoID,
-					Title:   homeContent.ItemTitle,
-				},
-				IsItFromQueue: true,
-			}
-			items = append(items, playlistTrack)
-		} else if songItem, ok := rawItem.(types.SongItem); ok {
-			playlistTrack := types.PlaylistTrackObject{
-				Track:         songItem.Song,
-				IsItFromQueue: true,
-			}
-			items = append(items, playlistTrack)
-		} else if srSongItem, ok := rawItem.(types.SearchResultSongItem); ok {
-			song := &musicpb.Song{
-				VideoId:         srSongItem.VideoId,
-				Title:           srSongItem.Title,
-				Artists:         srSongItem.Artists,
-				Album:           srSongItem.Album,
-				AlbumId:         srSongItem.AlbumId,
-				DurationSeconds: srSongItem.DurationSeconds,
-				Liked:           srSongItem.Liked,
-				Thumbnails:      srSongItem.Thumbnails,
-				IsExplicit:      srSongItem.IsExplicit,
-				Url:             srSongItem.Url,
-			}
-			playlistTrack := types.PlaylistTrackObject{
-				Track:         song,
-				IsItFromQueue: true,
-			}
-			items = append(items, playlistTrack)
-		} else if playlistTrack, ok := rawItem.(types.PlaylistTrackObject); ok {
-			playlistItem := types.PlaylistTrackObject{
-				Track:         playlistTrack.Track,
-				IsItFromQueue: true,
-			}
-			items = append(items, playlistItem)
-		}
-	}
-	m.MusicQueueList.Model.SetItems(items)
-	m.MusicQueueList.Model.Select(m.MusicQueueList.GlobalIndex())
+	m.PlaylistContextIndex = m.SelectedPlayListItems.Index()
 	return m.PlaySelectedMusic(track)
 }
 
@@ -1713,9 +1576,8 @@ func (m Model) getPlaylistItems(playlistID string) tea.Cmd {
 			})
 		}
 		return types.UpdatePlaylistMsg{
-			Playlist:     tracks,
-			Err:          nil,
-			ShouldAppend: false,
+			Playlist: tracks,
+			Err:      nil,
 		}
 	}
 }
@@ -1791,6 +1653,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 			slog.Error(dbusErr.Error())
 		}
 	}
+	m.PlayedSeconds = 0
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
 		Track:   &selectedMusic,
@@ -1842,9 +1705,7 @@ func updateDelegate(m *Model) {
 		return
 	}
 	m.SelectedPlayListItems.SetDelegate(CustomDelegate{Model: m})
-	if m.MusicQueueList != nil {
-		m.MusicQueueList.SetDelegate(CustomDelegate{Model: m})
-	}
+	m.QueueList.SetDelegate(CustomDelegate{Model: m})
 	m.SideBarList.SetDelegate(CustomDelegate{Model: m})
 	m.HomePageList.SetDelegate(CustomDelegate{Model: m})
 	m.SearchResult.SetDelegate(CustomDelegate{Model: m})
@@ -1867,8 +1728,8 @@ func updateFocusedComponent(m *Model, msg tea.Msg) (Model, tea.Cmd) {
 		showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
 		if showRelated {
 			m.RelatedList, cmd = m.RelatedList.Update(msg)
-		} else if m.MusicQueueList != nil {
-			m.MusicQueueList.Model, cmd = m.MusicQueueList.Model.Update(msg)
+		} else {
+			m.QueueList, cmd = m.QueueList.Update(msg)
 		}
 		return *m, cmd
 	case MainView:

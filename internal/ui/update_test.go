@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"github.com/kumneger0/ytmusic-tui/internal/queue"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"go.dalton.dog/bubbleup"
 )
@@ -28,6 +29,8 @@ func newTestModel() Model {
 	m.HomePageList = list.New(nil, d, dims.MainWidth, dims.ContentHeight)
 	m.SearchResult = list.New(nil, d, dims.MainWidth, dims.ContentHeight)
 	m.RelatedList = list.New(nil, d, dims.SidebarWidth, dims.ContentHeight)
+	m.QueueList = list.New(nil, d, dims.SidebarWidth, dims.ContentHeight)
+	m.Queue = queue.NewRingQueue()
 	m.Search = textinput.New()
 	return m
 }
@@ -324,14 +327,13 @@ func TestUpdate_QueueList_RemovalAndNavigation(t *testing.T) {
 	m.RightColumnMode = RightColumnQueue
 
 	trackObj := types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "song1", Title: "Song 1"}}
-	m.MusicQueueList = &MusicQueueList{
-		Model: list.New([]list.Item{trackObj}, CustomDelegate{Model: &m}, 20, 10),
-	}
+	m.Queue = queue.NewRingQueue()
+	m.Queue.AddTrack(&trackObj)
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	updated := result.(Model)
-	if len(updated.MusicQueueList.Model.Items()) != 0 {
-		t.Errorf("Queue items: want 0 after removal, got %d", len(updated.MusicQueueList.Model.Items()))
+	if updated.Queue.Len() != 0 {
+		t.Errorf("Queue items: want 0 after removal, got %d", updated.Queue.Len())
 	}
 
 	resultTab, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})

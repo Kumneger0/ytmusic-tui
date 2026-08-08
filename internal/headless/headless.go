@@ -11,6 +11,7 @@ import (
 
 	"connectrpc.com/connect"
 	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+	"github.com/kumneger0/ytmusic-tui/internal/queue"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"github.com/kumneger0/ytmusic-tui/internal/ui"
 )
@@ -62,6 +63,7 @@ type RemoveTrackFromQueue struct {
 type Queue struct {
 	Tracks       []*types.PlaylistTrackObject `json:"tracks"`
 	CurrentIndex int                          `json:"currentIndex"`
+	Ring         *queue.RingQueue             `json:"-"`
 }
 
 func (h *Queue) AddTrack(track *types.PlaylistTrackObject, index int) {
@@ -69,6 +71,9 @@ func (h *Queue) AddTrack(track *types.PlaylistTrackObject, index int) {
 		index = len(h.Tracks)
 	}
 	h.Tracks = append(h.Tracks[:index], append([]*types.PlaylistTrackObject{track}, h.Tracks[index:]...)...)
+	if h.Ring != nil {
+		h.Ring.AddTrack(track)
+	}
 }
 
 func (h *Queue) RemoveTrack(index int) {
@@ -82,6 +87,7 @@ func NewMusicQueue() *Queue {
 	return &Queue{
 		Tracks:       []*types.PlaylistTrackObject{},
 		CurrentIndex: 0,
+		Ring:         queue.NewRingQueue(),
 	}
 }
 
@@ -97,19 +103,12 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			mqMu.Lock()
 			switch msg.MessageType {
 			case types.NextTrack:
-				if len(musicQueue.Tracks) == 0 {
+				if musicQueue.Ring == nil || musicQueue.Ring.Len() == 0 {
+					mqMu.Unlock()
 					continue
 				}
-				nextTrackIndex := musicQueue.CurrentIndex + 1
-				if nextTrackIndex >= len(musicQueue.Tracks) {
-					nextTrackIndex = 0
-				}
-				musicQueue.CurrentIndex = nextTrackIndex
-				nextTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
+				nextTrack := musicQueue.Ring.Next()
 				if nextTrack != nil {
-					//the code this in this function is only executed when user clicks on
-					// control button on his/her desktop environment
-					//which means it is skip
 					model, _ := m.PlaySelectedMusic(*nextTrack)
 					m.Model = &model
 				}
@@ -117,15 +116,11 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 				model, _ := m.HandleMusicPausePlay()
 				m.Model = &model
 			case types.PreviousTrack:
-				if len(musicQueue.Tracks) == 0 {
+				if musicQueue.Ring == nil || musicQueue.Ring.Len() == 0 {
+					mqMu.Unlock()
 					continue
 				}
-				prevTrackIndex := musicQueue.CurrentIndex - 1
-				if prevTrackIndex < 0 {
-					prevTrackIndex = len(musicQueue.Tracks) - 1
-				}
-				musicQueue.CurrentIndex = prevTrackIndex
-				prevTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
+				prevTrack := musicQueue.Ring.Prev()
 				if prevTrack != nil {
 					model, _ := m.PlaySelectedMusic(*prevTrack)
 					m.Model = &model

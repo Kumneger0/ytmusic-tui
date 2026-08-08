@@ -23,11 +23,9 @@ type PaginationInfo struct {
 }
 
 type UpdatePlaylistMsg struct {
-	Playlist          []*PlaylistTrackObject
-	Err               error
-	PaginationInfo    *PaginationInfo
-	ShouldAppendQueue bool
-	ShouldAppend      bool
+	Playlist       []*PlaylistTrackObject
+	Err            error
+	PaginationInfo *PaginationInfo
 }
 
 var PlayedSecondsUpdateChan = make(chan PlayedSecondsUpdateMsg)
