@@ -189,6 +189,9 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		icon = "♫"
 		if item.Track != nil {
 			title = item.Track.Title
+			if d.Model != nil && d.Model.SelectedTrack != nil && d.Model.SelectedTrack.Track != nil && d.Model.SelectedTrack.Track.Track != nil && item.Track.VideoId == d.Model.SelectedTrack.Track.Track.VideoId {
+				title += " (current)"
+			}
 			if len(item.Track.Artists) > 0 {
 				var names []string
 				for _, a := range item.Track.Artists {
