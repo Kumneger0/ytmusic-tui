@@ -273,8 +273,9 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 	}
 
 	if data.URL == "" {
+		err := fmt.Errorf("empty stream url returned by yt-dlp for video: %s", videoID)
 		slog.Error(err.Error())
-		return nil, fmt.Errorf("empty stream url returned by yt-dlp for video: %s", videoID)
+		return nil, err
 	}
 
 	durationInSeconds := int64(data.Duration)
