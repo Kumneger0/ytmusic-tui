@@ -1743,12 +1743,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 
 	playCtx, cancel := context.WithCancel(context.Background())
 	m.playbackCancel = cancel
-
-	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.VideoId, m.CoreDepsPath, func() (*youtube.StreamAndDuration, error) {
-		videoID := selectedMusic.Track.VideoId
-		return youtube.GetStreamURLAndDuration(videoID)
-	})
-
+	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.VideoId, m.CoreDepsPath)
 	m.CurrentLyrics = nil
 	m.LyricsView.SetContent("  ⟳ Loading lyrics...")
 

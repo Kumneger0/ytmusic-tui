@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"sync"
@@ -126,28 +127,23 @@ type SafeModel struct {
 }
 
 func (m Model) Init() tea.Cmd {
-	pythonBackendHealthCheckCmd := func() tea.Msg {
-		var count int
-		for {
-			time.Sleep(time.Second * 5)
-			count++
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			response, err := m.YtMusicClient.HealthCheck(ctx, connect.NewRequest(&musicpb.HealthCheckRequest{}))
-			if err != nil && count <= 5 {
-				continue
-			}
-			var res *musicpb.HealthCheckResponse
-			if response != nil {
-				res = response.Msg
-			}
-			return types.PythonBackendHealthResponseMsg{
-				Response: res,
+	homePageFeed := func() tea.Msg {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		homePage, err := m.YtMusicClient.GetHomePage(ctx, connect.NewRequest(&musicpb.GetHomePageRequest{}))
+		if err != nil {
+			slog.Error(err.Error())
+			return types.HomePageResponseMsg{
+				Response: nil,
 				Err:      err,
 			}
 		}
+		return types.HomePageResponseMsg{
+			Response: homePage.Msg,
+			Err:      nil,
+		}
 	}
-	return tea.Batch(m.Alert.Init(), SendLoadingCmd(), pythonBackendHealthCheckCmd)
+	return tea.Batch(m.Alert.Init(), SendLoadingCmd(), homePageFeed)
 }
 
 func renderBreadcrumbs(items []types.Breadcrumb) string {

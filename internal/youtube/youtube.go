@@ -2,6 +2,7 @@ package youtube
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,9 +13,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ebitengine/oto/v3"
-	"github.com/kkdai/youtube/v2"
 	"github.com/kumneger0/ytmusic-tui/internal/command"
 	"github.com/kumneger0/ytmusic-tui/internal/config"
+	"github.com/kumneger0/ytmusic-tui/internal/cookie"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"github.com/smallnest/ringbuffer"
 )
@@ -41,13 +42,13 @@ func getOtoContext() (*oto.Context, chan struct{}, error) {
 
 type CoreDepsPath struct {
 	FFmpeg string
+	YtDlp  string
 }
 
 func SearchAndDownloadMusic(
 	ctx context.Context,
 	videoID string,
 	coreDepsPath *CoreDepsPath,
-	getStreamURL func() (*StreamAndDuration, error),
 ) tea.Cmd {
 	return func() tea.Msg {
 		if ctx.Err() != nil {
@@ -62,7 +63,7 @@ func SearchAndDownloadMusic(
 			}
 		}
 
-		streamURL, err := getStreamURL()
+		streamURL, err := GetStreamURLAndDuration(ctx, videoID, coreDepsPath.YtDlp)
 		if err != nil || streamURL == nil {
 			if ctx.Err() != nil {
 				return nil
@@ -227,36 +228,58 @@ type StreamAndDuration struct {
 	Duration string
 }
 
-var (
-	ytClient     *youtube.Client
-	ytClientOnce sync.Once
-)
+func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath string) (*StreamAndDuration, error) {
+	cookiePath := cookie.EnsureCookieFile()
+	targetURL := "https://www.youtube.com/watch?v=" + videoID
 
-func GetSharedClient() *youtube.Client {
-	ytClientOnce.Do(func() {
-		ytClient = &youtube.Client{}
-	})
-	return ytClient
-}
+	args := []string{"-j", "--no-warnings"}
+	if cookiePath != "" {
+		args = append(args, "--cookies", cookiePath)
+	}
+	args = append(args, "-f", "bestaudio[abr>=120][abr<=250]/bestaudio/best", targetURL)
 
-func GetStreamURLAndDuration(videoID string) (*StreamAndDuration, error) {
-	client := GetSharedClient()
-	video, err := client.GetVideo(videoID)
+	cmd, err := command.ExecCommand(ctx, ytdlpPath, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch video metadata: %w", err)
+		slog.Error(err.Error())
+		return nil, err
 	}
-	formats := video.Formats.WithAudioChannels()
-	if len(formats) == 0 {
-		return nil, fmt.Errorf("no audio format found for video: %s", videoID)
-	}
-	formats.Sort()
-	streamURL, err := client.GetStreamURL(video, &formats[0])
+	outBytes, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get stream url: %w", err)
+		slog.Error(err.Error())
+		fallbackArgs := []string{"-j", "--no-warnings"}
+		if cookiePath != "" {
+			fallbackArgs = append(fallbackArgs, "--cookies", cookiePath)
+		}
+		fallbackArgs = append(fallbackArgs, targetURL)
+		cmd, err = command.ExecCommand(ctx, ytdlpPath, fallbackArgs...)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		outBytes, err = cmd.Output()
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, fmt.Errorf("failed to fetch metadata using yt-dlp: %w", err)
+		}
 	}
-	durationInSeconds := int64(video.Duration.Seconds())
+
+	var data struct {
+		URL      string  `json:"url"`
+		Duration float64 `json:"duration"`
+	}
+	if err := json.Unmarshal(outBytes, &data); err != nil {
+		slog.Error(err.Error())
+		return nil, fmt.Errorf("failed to parse yt-dlp metadata: %w", err)
+	}
+
+	if data.URL == "" {
+		slog.Error(err.Error())
+		return nil, fmt.Errorf("empty stream url returned by yt-dlp for video: %s", videoID)
+	}
+
+	durationInSeconds := int64(data.Duration)
 	return &StreamAndDuration{
-		URL:      streamURL,
+		URL:      data.URL,
 		Duration: strconv.FormatInt(durationInSeconds, 10),
 	}, nil
 }

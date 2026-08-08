@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -266,10 +265,12 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 		if dep.ToolName == FFmpeg {
 			coreDepsPath.FFmpeg = dep.Path
 		}
+		if dep.ToolName == YTDlp {
+			coreDepsPath.YtDlp = dep.Path
+		}
 	}
 
 	ins, messageChan, err := mpris.GetDbusInstance()
-
 	if err != nil {
 		slog.Error(err.Error())
 	}
@@ -402,6 +403,7 @@ type CoreDependency string
 const (
 	FFmpeg  CoreDependency = "ffmpeg"
 	FFprobe CoreDependency = "ffprobe"
+	YTDlp   CoreDependency = "yt-dlp"
 )
 
 type DebsCheckResult struct {
@@ -411,37 +413,16 @@ type DebsCheckResult struct {
 }
 
 func doAllDepsInstalled() []DebsCheckResult {
-	ffmpegName := "ffmpeg"
-	ffprobeName := "ffprobe"
-	if runtime.GOOS == "windows" {
-		ffmpegName = "ffmpeg.exe"
-		ffprobeName = "ffprobe.exe"
-	}
-	debsInCacheDirCheckPath := map[CoreDependency]string{
-		FFmpeg:  filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", ffmpegName),
-		FFprobe: filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", ffprobeName),
-	}
-	toolNames := []CoreDependency{FFmpeg, FFprobe}
+	toolNames := []CoreDependency{FFmpeg, FFprobe, YTDlp}
 	results := []DebsCheckResult{}
 	for _, toolName := range toolNames {
 		pathFound, err := exec.LookPath(string(toolName))
 		if err != nil {
-			isInstalledInCacheDir, err := checkDepInCacheDir(debsInCacheDirCheckPath[toolName])
-			if err != nil {
-				results = append(results, DebsCheckResult{
-					ToolName:  toolName,
-					Installed: false,
-					Path:      "",
-				})
-				continue
-			}
-			if isInstalledInCacheDir {
-				results = append(results, DebsCheckResult{
-					ToolName:  toolName,
-					Installed: true,
-					Path:      debsInCacheDirCheckPath[toolName],
-				})
-			}
+			results = append(results, DebsCheckResult{
+				ToolName:  toolName,
+				Installed: false,
+				Path:      "",
+			})
 			continue
 		}
 		results = append(results, DebsCheckResult{
@@ -451,22 +432,6 @@ func doAllDepsInstalled() []DebsCheckResult {
 		})
 	}
 	return results
-}
-
-func checkDepInCacheDir(path string) (bool, error) {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		slog.Error(err.Error())
-		return false, err
-	}
-
-	if fileInfo.IsDir() {
-		err := errors.New("the provided path is not a valid file")
-		slog.Error(err.Error())
-		return false, err
-	}
-
-	return true, nil
 }
 
 var (
