@@ -3,6 +3,7 @@ package cookie
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -150,9 +151,30 @@ func ConvertToNetscapeCookies(cookieText string) string {
 	return strings.Join(netscapeLines, "\n")
 }
 
-func EnsureCookieFile() string {
+func GetCookieFilePath() string {
 	configDir := config.GetConfigDir(runtime.GOOS)
-	cookiePath := filepath.Join(configDir, "cookie.txt")
+	return filepath.Join(configDir, "cookie.txt")
+}
+
+func SaveCookieFile(cookieText string) (string, error) {
+	cookiePath := GetCookieFilePath()
+	netscapeContent := ConvertToNetscapeCookies(cookieText)
+
+	if err := os.WriteFile(cookiePath, []byte(netscapeContent), 0600); err != nil {
+		slog.Error("failed to write cookie.txt", "err", err)
+		return "", err
+	}
+
+	if err := os.Chmod(cookiePath, 0600); err != nil {
+		slog.Error("failed to set permissions on cookie.txt", "err", err)
+	}
+
+	return cookiePath, nil
+}
+
+func EnsureCookieFile() string {
+	cookiePath := GetCookieFilePath()
+	configDir := config.GetConfigDir(runtime.GOOS)
 	browserPath := filepath.Join(configDir, "browser.json")
 
 	browserData, err := os.ReadFile(browserPath)
@@ -163,9 +185,9 @@ func EnsureCookieFile() string {
 		return ""
 	}
 
-	netscapeContent := ConvertToNetscapeCookies(string(browserData))
-	if err := os.WriteFile(cookiePath, []byte(netscapeContent), 0600); err != nil {
+	path, err := SaveCookieFile(string(browserData))
+	if err != nil {
 		return ""
 	}
-	return cookiePath
+	return path
 }

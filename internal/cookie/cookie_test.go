@@ -3,8 +3,11 @@ package cookie
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/kumneger0/ytmusic-tui/internal/config"
 )
 
 func TestConvertToNetscapeCookies_Empty(t *testing.T) {
@@ -66,7 +69,8 @@ func TestEnsureCookieFile(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	t.Setenv("HOME", tmpDir)
 
-	browserPath := filepath.Join(tmpDir, "ytmusic-tui", "browser.json")
+	configDir := config.GetConfigDir(runtime.GOOS)
+	browserPath := filepath.Join(configDir, "browser.json")
 	if err := os.MkdirAll(filepath.Dir(browserPath), 0755); err != nil {
 		t.Fatal(err)
 	}

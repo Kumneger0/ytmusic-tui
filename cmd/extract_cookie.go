@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -88,9 +89,9 @@ func saveAuthJSON(authJSON string) (string, error) {
 	if err := os.WriteFile(path, []byte(authJSON), 0600); err != nil {
 		return "", fmt.Errorf("failed to write browser.json: %w", err)
 	}
-	cookiePath := filepath.Join(dir, "cookie.txt")
-	netscapeContent := cookie.ConvertToNetscapeCookies(authJSON)
-	_ = os.WriteFile(cookiePath, []byte(netscapeContent), 0600)
+	if _, err := cookie.SaveCookieFile(authJSON); err != nil {
+		slog.Error("failed to write cookie.txt", "err", err)
+	}
 	return path, nil
 }
 
