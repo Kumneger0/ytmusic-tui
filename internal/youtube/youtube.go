@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ebitengine/oto/v3"
@@ -228,7 +230,22 @@ type StreamAndDuration struct {
 	Duration string
 }
 
+func logYtDlpErr(err error) {
+	if err == nil {
+		return
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+		slog.Error("yt-dlp error", "stderr", string(exitErr.Stderr), "err", err)
+	} else {
+		slog.Error(err.Error())
+	}
+}
+
 func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath string) (*StreamAndDuration, error) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+
 	cookiePath := cookie.EnsureCookieFile()
 	targetURL := "https://www.youtube.com/watch?v=" + videoID
 
@@ -238,27 +255,27 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 	}
 	args = append(args, "-f", "bestaudio[abr>=120][abr<=250]/bestaudio/best", targetURL)
 
-	cmd, err := command.ExecCommand(ctx, ytdlpPath, args...)
+	cmd, err := command.ExecCommand(timeoutCtx, ytdlpPath, args...)
 	if err != nil {
-		slog.Error(err.Error())
+		logYtDlpErr(err)
 		return nil, err
 	}
 	outBytes, err := cmd.Output()
 	if err != nil {
-		slog.Error(err.Error())
+		logYtDlpErr(err)
 		fallbackArgs := []string{"-j", "--no-warnings"}
 		if cookiePath != "" {
 			fallbackArgs = append(fallbackArgs, "--cookies", cookiePath)
 		}
 		fallbackArgs = append(fallbackArgs, targetURL)
-		cmd, err = command.ExecCommand(ctx, ytdlpPath, fallbackArgs...)
+		cmd, err = command.ExecCommand(timeoutCtx, ytdlpPath, fallbackArgs...)
 		if err != nil {
-			slog.Error(err.Error())
+			logYtDlpErr(err)
 			return nil, err
 		}
 		outBytes, err = cmd.Output()
 		if err != nil {
-			slog.Error(err.Error())
+			logYtDlpErr(err)
 			return nil, fmt.Errorf("failed to fetch metadata using yt-dlp: %w", err)
 		}
 	}
@@ -268,13 +285,13 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 		Duration float64 `json:"duration"`
 	}
 	if err := json.Unmarshal(outBytes, &data); err != nil {
-		slog.Error(err.Error())
+		logYtDlpErr(err)
 		return nil, fmt.Errorf("failed to parse yt-dlp metadata: %w", err)
 	}
 
 	if data.URL == "" {
 		err := fmt.Errorf("empty stream url returned by yt-dlp for video: %s", videoID)
-		slog.Error(err.Error())
+		logYtDlpErr(err)
 		return nil, err
 	}
 
