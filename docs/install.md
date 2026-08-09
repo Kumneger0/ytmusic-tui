@@ -2,49 +2,72 @@
 
 ## Prerequisites
 
-Before building ytmusic-tui from source, ensure you have the following prerequisites installed:
+Before building `ytmusic-tui` from source, ensure you have the following installed:
 
-- [Go](https://go.dev/dl/) version 1.25 or higher
-- Git
+- **[Go](https://go.dev/dl/)** (v1.26 or higher)
+- **[Python](https://www.python.org/downloads/)** (v3.13 or higher) & **[uv](https://docs.astral.sh/uv/)** (recommended Python package manager)
+- **`yt-dlp`** (required for extracting YouTube Music audio stream URLs)
+- **`ffmpeg`** (required for audio stream decoding and playback)
+---
 
 ## Installation Steps
 
-1. Clone the repository:
+### 1. Clone the Repository
 
-   ```bash
-   git clone https://github.com/kumneger0/ytmusic-tui.git
-   cd ytmusic-tui
-   ```
+```bash
+git clone https://github.com/kumneger0/ytmusic-tui.git
+cd ytmusic-tui
+```
 
-2. Create a Spotify Application:
+### 2. Set Up Python Environment
 
-   1. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/applications) and log in.
-   2. Click on **"Create an app"**.
-   3. Give your application a name and description.
-   4. Find the **"Redirect URIs"** section and add the following URI:
-      ```
-      http://127.0.0.1:9292
-      ```
-   5. Save your changes.
-   6. Now, view your application's settings and find your **Client ID** and **Client Secret**.
-   7. Set them as environment variables. For example, you can add the following lines to your shell's configuration file (e.g., `.bashrc`, `.zshrc`):
-      ```bash
-      export SPOTIFY_CLIENT_ID="<your-client-id>"
-      export SPOTIFY_CLIENT_SECRET="<your-client-secret>"
-      ```
-   8. Remember to replace `<your-client-id>` and `<your-client-secret>` with the actual credentials from your Spotify application.
+Initialize the Python virtual environment and install backend dependencies:
 
-3. Build the project with your Spotify credentials:
+```bash
+uv sync
+```
 
-   ```bash
-   make build
-   ```
+### 3. Build the Go Application
 
-   > **Note for Linux Users:**
-   > You must have a C compiler installed (e.g., `gcc`) and enable CGO to build the project successfully on Linux, as the audio library depends on C libraries. This is not required for Windows or macOS.
-   > ```bash
-   > CGO_ENABLED=1 make build
-   > ```
+Build the application binary:
 
-If you encounter any issues during installation:  
-For additional help, please [open an issue](https://github.com/kumneger0/ytmusic-tui/issues/new) on GitHub.
+```bash
+make build
+```
+
+> **Note for Linux Users:**
+> Ensure `gcc` is installed on your system to support CGO audio bindings:
+> ```bash
+> CGO_ENABLED=1 make build
+> ```
+
+### 4. Install & Launch
+
+To install `ytmusic-tui` to `/usr/local/bin`:
+
+```bash
+make install
+```
+
+Or run the built binary directly:
+
+```bash
+./ytmusic-tui
+```
+
+### 5. Authenticate with YouTube Music
+
+To access your playlists, liked songs, and library, extract session cookies from your browser:
+
+```bash
+ytmusic-tui extract-cookies
+```
+
+---
+
+## Support & Troubleshooting
+
+If you encounter issues during installation or build:
+- Ensure `yt-dlp` and `ffmpeg` are in your system `PATH`.
+- Check application logs via `ytmusic-tui log`.
+- Open an issue on [GitHub Issues](https://github.com/kumneger0/ytmusic-tui/issues).

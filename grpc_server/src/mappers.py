@@ -1,8 +1,8 @@
 import base64
 from typing import cast
 
-from grpc_server.gen import music_pb2
-from grpc_server.src.client.types import (
+from grpc_server.gen import music_pb2  # pyright: ignore[reportImplicitRelativeImport]
+from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]
     YTLibraryAlbum,
     YTLibraryArtist,
     YTLibraryChannel,
