@@ -1436,6 +1436,36 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 			}
 		}
 
+		if m.FocusedOn == QueueList {
+			selectedIdx := m.QueueList.Index()
+			inQueue := false
+			if m.Queue != nil && m.Queue.Len() > 0 {
+				userQueueTracks := m.Queue.AllTracks()
+				trackIdx := selectedIdx - 1
+				if trackIdx >= 0 && trackIdx < len(userQueueTracks) {
+					inQueue = true
+					for i := 0; i <= trackIdx; i++ {
+						m.Queue.PopFirst()
+					}
+					m.SyncQueueList()
+				}
+			}
+
+			if !inQueue && len(m.PlaybackContext) > 0 {
+				for idx, ctxTrack := range m.PlaybackContext {
+					if ctxTrack != nil && ctxTrack.Track != nil && selectedItem.Track != nil && ctxTrack.Track.VideoId == selectedItem.Track.VideoId {
+						m.PlaylistContextIndex = idx
+						m.SyncQueueList()
+						break
+					}
+				}
+			}
+
+			appendToPlayHistory(&m, &selectedItem)
+			m, cmd := m.PlaySelectedMusic(selectedItem)
+			return m, tea.Batch(cmd, relatedSongsCmd)
+		}
+
 		m, cmd := m.playTrackFromList(selectedItem)
 		return m, tea.Batch(cmd, relatedSongsCmd)
 

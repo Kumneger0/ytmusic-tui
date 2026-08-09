@@ -349,6 +349,72 @@ func TestUpdate_QueueList_RemovalAndNavigation(t *testing.T) {
 	}
 }
 
+func TestUpdate_QueueList_MultiTrackRemovalAndPlayback(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = QueueList
+	m.RightColumnMode = RightColumnQueue
+
+	t1 := types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "song1", Title: "Song 1"}}
+	t2 := types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "song2", Title: "Song 2"}}
+	t3 := types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "song3", Title: "Song 3"}}
+
+	m.Queue = queue.NewRingQueue()
+	m.Queue.AddTrack(&t1)
+	m.Queue.AddTrack(&t2)
+	m.Queue.AddTrack(&t3)
+	m.SyncQueueList()
+
+	// Select row 2 (which is track 2, since row 0 is header "Queue", row 1 is track 1, row 2 is track 2)
+	m.QueueList.Select(2)
+
+	// Press 'r' to remove selected row 2 (Song 2)
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	updated := result.(Model)
+
+	if updated.Queue.Len() != 2 {
+		t.Fatalf("Queue items: want 2 after removal of middle track, got %d", updated.Queue.Len())
+	}
+
+	tracks := updated.Queue.AllTracks()
+	if len(tracks) == 2 && (tracks[0].Track.VideoId != "song1" || tracks[1].Track.VideoId != "song3") {
+		t.Errorf("Remaining tracks want [song1, song3], got [%s, %s]", tracks[0].Track.VideoId, tracks[1].Track.VideoId)
+	}
+
+	// Select row 1 (song1) and press Enter
+	updated.QueueList.Select(1)
+	resEnter, _ := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	mPlayed := resEnter.(Model)
+	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track == nil || mPlayed.SelectedTrack.Track.Track.VideoId != "song1" {
+		t.Errorf("Played track: want song1, got %v", mPlayed.SelectedTrack)
+	}
+}
+
+func TestUpdate_QueueList_ContextItemSelection(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = QueueList
+	m.RightColumnMode = RightColumnQueue
+
+	t1 := &types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "ctx1", Title: "Context 1"}}
+	t2 := &types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "ctx2", Title: "Context 2"}}
+	t3 := &types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "ctx3", Title: "Context 3"}}
+
+	m.SetPlaybackContext([]*types.PlaylistTrackObject{t1, t2, t3}, "My Playlist", 0)
+	m.SyncQueueList()
+
+	// Select row 2 in QueueList (row 0 is header "Next from My Playlist", row 1 is ctx1, row 2 is ctx2)
+	m.QueueList.Select(2)
+
+	resEnter, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	mPlayed := resEnter.(Model)
+
+	if mPlayed.PlaylistContextIndex != 1 {
+		t.Errorf("PlaylistContextIndex: want 1 for ctx2, got %d", mPlayed.PlaylistContextIndex)
+	}
+	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track.Track.VideoId != "ctx2" {
+		t.Errorf("Played track: want ctx2, got %v", mPlayed.SelectedTrack)
+	}
+}
+
 func TestUpdate_PlayerActions(t *testing.T) {
 	m := newTestModel()
 	m.FocusedOn = Player
