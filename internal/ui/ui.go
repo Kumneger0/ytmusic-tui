@@ -99,6 +99,7 @@ type Model struct {
 	QueueList            list.Model
 	PlaybackContext      []*types.PlaylistTrackObject
 	PlaybackContextName  string
+	PendingContextName   string
 	PlaylistContextIndex int
 	PlayHistory          []*types.PlaylistTrackObject
 	PlayHistoryIndex     int

@@ -280,6 +280,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			dims := CalculateLayoutDimensions(&m)
 			m.SelectedPlayListItems = list.New(items, CustomDelegate{Model: &m}, dims.MainWidth, dims.ContentHeight-4)
+			m.SelectedPlayListItems.Title = "Library"
 			m.SelectedPlayListItems.SetShowTitle(false)
 			removeListDefaults(&m.SelectedPlayListItems)
 			m.MainViewMode = NormalMode
@@ -501,6 +502,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.IsSearchLoading = false
 			var cmd tea.Cmd
 			cmd = m.SelectedPlayListItems.SetItems(playListItemSongs)
+			if m.PendingContextName != "" {
+				m.SelectedPlayListItems.Title = m.PendingContextName
+			}
 			if msg.PaginationInfo != nil {
 				m.PaginationInfo = msg.PaginationInfo
 			} else {
@@ -1159,6 +1163,7 @@ func (m Model) handleSidebarEnter() (Model, tea.Cmd) {
 	}
 
 	if itemName == "library" {
+		m.PendingContextName = "Library"
 		libraryCmd := func() tea.Msg {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -1196,8 +1201,11 @@ func (m Model) playTrackFromList(track types.PlaylistTrackObject) (Model, tea.Cm
 	}
 
 	contextName := m.SelectedPlayListItems.Title
-	if contextName == "" && len(m.BreadcrumbItems) > 0 {
-		contextName = m.BreadcrumbItems[len(m.BreadcrumbItems)-1].Name
+	if contextName == "" {
+		contextName = m.PendingContextName
+	}
+	if contextName == "" {
+		contextName = "Playlist"
 	}
 
 	selectedIdx := m.SelectedPlayListItems.Index()
@@ -1249,12 +1257,14 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 			if browseID == "" {
 				browseID = item.PlaylistID
 			}
+			m.PendingContextName = item.ItemTitle
 			return m.navigateToDetailView(m.getAlbumTracks(browseID))
 		}
 		playlistID := item.PlaylistID
 		if playlistID == "" {
 			playlistID = item.BrowseID
 		}
+		m.PendingContextName = item.ItemTitle
 		playlistDetailMsg := func() tea.Msg {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -1364,15 +1374,27 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 		return m, tea.Batch(cmd, relatedSongsCmd)
 
 	case types.SearchResultPlaylistItem:
+		if selectedItem.SearchResultPlaylist != nil {
+			m.PendingContextName = selectedItem.SearchResultPlaylist.Title
+		}
 		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.BrowseId))
 
 	case types.SearchResultAlbumItem:
+		if selectedItem.SearchResultAlbum != nil {
+			m.PendingContextName = selectedItem.SearchResultAlbum.Title
+		}
 		return m.navigateToDetailView(m.getAlbumTracks(selectedItem.BrowseId))
 
 	case types.SearchResultArtistItem:
+		if selectedItem.SearchResultArtist != nil {
+			m.PendingContextName = selectedItem.SearchResultArtist.Name
+		}
 		return m.navigateToDetailView(m.getArtistTracks(selectedItem.BrowseId))
 
 	case types.SearchResultPodcastItem:
+		if selectedItem.SearchResultPodcast != nil {
+			m.PendingContextName = selectedItem.SearchResultPodcast.Title
+		}
 		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.BrowseId))
 
 	case types.SearchResultEpisodeItem:
@@ -1384,24 +1406,45 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 		})
 
 	case types.PlaylistItem:
+		if selectedItem.Playlist != nil {
+			m.PendingContextName = selectedItem.Playlist.Title
+		}
 		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.PlaylistId))
 
 	case types.AlbumItem:
+		if selectedItem.Album != nil {
+			m.PendingContextName = selectedItem.Album.Title
+		}
 		return m.navigateToDetailView(m.getAlbumTracks(selectedItem.BrowseId))
 
 	case types.ArtistItem:
+		if selectedItem.Artist != nil {
+			m.PendingContextName = selectedItem.Artist.Name
+		}
 		return m.navigateToDetailView(m.getArtistTracks(selectedItem.Id))
 
 	case types.FollowedArtistItem:
+		if selectedItem.FollowedArtist != nil {
+			m.PendingContextName = selectedItem.FollowedArtist.Name
+		}
 		return m.navigateToDetailView(m.getArtistTracks(selectedItem.ChannelId))
 
 	case types.LibraryChannelItem:
+		if selectedItem.LibraryChannel != nil {
+			m.PendingContextName = selectedItem.LibraryChannel.Name
+		}
 		return m.navigateToDetailView(m.getArtistTracks(selectedItem.BrowseId))
 
 	case types.PodcastItem:
+		if selectedItem.Podcast != nil {
+			m.PendingContextName = selectedItem.Podcast.Title
+		}
 		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.PodcastId))
 
 	case types.SongRelatedContentItem:
+		if selectedItem.SongRelatedContent != nil {
+			m.PendingContextName = selectedItem.SongRelatedContent.Title
+		}
 		if selectedItem.VideoId != "" || selectedItem.ContentType == "song" || selectedItem.ContentType == "video" {
 			playlistTrack := types.PlaylistTrackObject{
 				Track: &musicpb.Song{

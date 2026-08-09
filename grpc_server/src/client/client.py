@@ -202,17 +202,21 @@ class MusicClient:
             return []
 
     def get_lyrics(self, browse_id: str, timestamps: bool = False)  -> Lyrics | TimedLyrics | None:
-        if timestamps:
-            try:
-                res = self.execute(lambda c: c.get_lyrics(browseId=browse_id, timestamps=timestamps))
-                if res is not None:
-                    return res
-            except Exception as e:
-                print(f"failed to fetch timed lyrics via web API: {e}")
+        try:
+            res = self.execute(lambda c: c.get_lyrics(browseId=browse_id, timestamps=timestamps))
+            if res is not None:
+                return res
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"failed to fetch timed lyrics via web API: {e}")
 
         try:
             return self.execute(lambda c: c.get_lyrics(browseId=browse_id, timestamps=not timestamps))
         except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print("oops failed to fetch lyrics", str)
             return None
 
     def get_watch_playlist(self, video_id: str) -> dict[str, object]:
