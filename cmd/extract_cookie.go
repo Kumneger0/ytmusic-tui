@@ -131,6 +131,9 @@ func newExtractCookieCmd(serverURL string) *cobra.Command {
 				isAuthenticated = resp.Msg.Authenticated
 				break
 			}
+			if !isAuthenticated {
+				return fmt.Errorf("could not authenticate with any supported browser")
+			}
 			if isAuthenticated {
 				fmt.Println("Verification completed successfully.")
 			}
