@@ -982,21 +982,26 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 		if len(m.PlayHistory) > 0 && m.PlayHistoryIndex < len(m.PlayHistory)-1 {
 			m.PlayHistoryIndex++
 			track = m.PlayHistory[m.PlayHistoryIndex]
-		} else if m.Queue != nil && m.Queue.Len() > 0 {
-			track = m.Queue.PopFirst()
-			m.PlayHistory = append(m.PlayHistory, track)
-			m.PlayHistoryIndex = len(m.PlayHistory) - 1
-		} else if len(m.PlaybackContext) > 0 {
-			if m.Queue != nil {
-				m.Queue.Clear()
+		} else {
+			if m.Queue != nil && m.Queue.Len() > 0 {
+				track = m.Queue.PopFirst()
 			}
-			m.PlaylistContextIndex = (m.PlaylistContextIndex + 1) % len(m.PlaybackContext)
-			track = m.PlaybackContext[m.PlaylistContextIndex]
-			m.PlayHistory = append(m.PlayHistory, track)
-			m.PlayHistoryIndex = len(m.PlayHistory) - 1
-		} else if len(m.PlayHistory) > 0 {
-			m.PlayHistoryIndex = 0
-			track = m.PlayHistory[m.PlayHistoryIndex]
+			if track == nil && len(m.PlaybackContext) > 0 {
+				m.PlaylistContextIndex = (m.PlaylistContextIndex + 1) % len(m.PlaybackContext)
+				track = m.PlaybackContext[m.PlaylistContextIndex]
+			}
+			if track == nil && len(m.PlayHistory) > 0 {
+				m.PlayHistoryIndex = 0
+				track = m.PlayHistory[m.PlayHistoryIndex]
+			}
+			if track != nil {
+				m.PlayHistory = append(m.PlayHistory, track)
+				if len(m.PlayHistory) > 200 {
+					trim := len(m.PlayHistory) - 200
+					m.PlayHistory = m.PlayHistory[trim:]
+				}
+				m.PlayHistoryIndex = len(m.PlayHistory) - 1
+			}
 		}
 	} else {
 		if len(m.PlayHistory) > 0 && m.PlayHistoryIndex > 0 {
@@ -1190,6 +1195,22 @@ func (m Model) navigateToDetailView(cmd tea.Cmd) (Model, tea.Cmd) {
 	return m, tea.Batch(cmd, SendLoadingCmd())
 }
 
+func (m Model) playStandaloneTrack(track types.PlaylistTrackObject) (Model, tea.Cmd) {
+	m.PlaybackContext = nil
+	m.PlaybackContextName = ""
+	m.PlaylistContextIndex = 0
+
+	trackCopy := track
+	m.PlayHistory = append(m.PlayHistory, &trackCopy)
+	if len(m.PlayHistory) > 200 {
+		trim := len(m.PlayHistory) - 200
+		m.PlayHistory = m.PlayHistory[trim:]
+	}
+	m.PlayHistoryIndex = len(m.PlayHistory) - 1
+
+	return m.PlaySelectedMusic(track)
+}
+
 func (m Model) playTrackFromList(track types.PlaylistTrackObject) (Model, tea.Cmd) {
 	playlistItems := m.SelectedPlayListItems.Items()
 	var contextTracks []*types.PlaylistTrackObject
@@ -1213,6 +1234,10 @@ func (m Model) playTrackFromList(track types.PlaylistTrackObject) (Model, tea.Cm
 
 	trackCopy := track
 	m.PlayHistory = append(m.PlayHistory, &trackCopy)
+	if len(m.PlayHistory) > 200 {
+		trim := len(m.PlayHistory) - 200
+		m.PlayHistory = m.PlayHistory[trim:]
+	}
 	m.PlayHistoryIndex = len(m.PlayHistory) - 1
 
 	return m.PlaySelectedMusic(track)
@@ -1251,7 +1276,7 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 					Title:   item.ItemTitle,
 				},
 			}
-			return m.playTrackFromList(playlistTrack)
+			return m.playStandaloneTrack(playlistTrack)
 		} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseID, "MPRE") {
 			browseID := item.BrowseID
 			if browseID == "" {
@@ -1370,7 +1395,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				Err:     err,
 			}
 		}
-		m, cmd := m.PlaySelectedMusic(playlistTrack)
+		m, cmd := m.playStandaloneTrack(playlistTrack)
 		return m, tea.Batch(cmd, relatedSongsCmd)
 
 	case types.SearchResultPlaylistItem:
@@ -1398,7 +1423,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 		return m.navigateToDetailView(m.getPlaylistItems(selectedItem.BrowseId))
 
 	case types.SearchResultEpisodeItem:
-		return m.PlaySelectedMusic(types.PlaylistTrackObject{
+		return m.playStandaloneTrack(types.PlaylistTrackObject{
 			Track: &musicpb.Song{
 				VideoId: selectedItem.VideoId,
 				Title:   selectedItem.Title,

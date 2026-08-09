@@ -99,7 +99,7 @@ server-watch:
 .PHONY: server-run
 server-run: ## run the python Connect RPC server
 	@echo "Starting Connect RPC server..."
-	@nodemon -e py --exec ".venv/bin/python -m grpc_server.main"
+	@nodemon --watch grpc_server -e py --exec ".venv/bin/python -m grpc_server.main"
 
 .PHONY: server-login
 server-login: ## spin up http server for login

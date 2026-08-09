@@ -216,7 +216,7 @@ class MusicClient:
         except Exception as e:
             import traceback
             traceback.print_exc()
-            print("oops failed to fetch lyrics", str)
+            print(f"oops failed to fetch lyrics: {e}")
             return None
 
     def get_watch_playlist(self, video_id: str) -> dict[str, object]:

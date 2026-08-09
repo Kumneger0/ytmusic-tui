@@ -328,10 +328,12 @@ func (m *Model) SyncQueueList() {
 
 		n := len(m.PlaybackContext)
 		startIdx := m.PlaylistContextIndex
+		limit := n
 		if m.SelectedTrack != nil {
 			startIdx++
+			limit = n - 1
 		}
-		for i := 0; i < n; i++ {
+		for i := 0; i < limit; i++ {
 			idx := (startIdx + i) % n
 			if m.PlaybackContext[idx] != nil {
 				items = append(items, *m.PlaybackContext[idx])
