@@ -97,7 +97,11 @@ type Model struct {
 	Search               textinput.Model
 	Queue                *queue.RingQueue
 	QueueList            list.Model
+	PlaybackContext      []*types.PlaylistTrackObject
+	PlaybackContextName  string
 	PlaylistContextIndex int
+	PlayHistory          []*types.PlaylistTrackObject
+	PlayHistoryIndex     int
 	YtMusicClient        genconnect.MusicServiceClient
 	DBusConn             *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
@@ -295,17 +299,54 @@ func (m *Model) UpdateListDimensions() {
 	}
 }
 
+func (m *Model) SetPlaybackContext(tracks []*types.PlaylistTrackObject, name string, currentIndex int) {
+	m.PlaybackContext = tracks
+	m.PlaybackContextName = name
+	m.PlaylistContextIndex = currentIndex
+}
+
 func (m *Model) SyncQueueList() {
-	if m.Queue == nil {
-		return
-	}
-	tracks := m.Queue.AllTracks()
 	var items []list.Item
-	for _, t := range tracks {
-		if t != nil {
-			items = append(items, *t)
+
+	if m.Queue != nil && m.Queue.Len() > 0 {
+		userQueueTracks := m.Queue.AllTracks()
+		items = append(items, types.HomePageSectionItem{SectionTitle: "Queue"})
+		for _, t := range userQueueTracks {
+			if t != nil {
+				items = append(items, *t)
+			}
 		}
 	}
+
+	if len(m.PlaybackContext) > 0 {
+		contextName := m.PlaybackContextName
+		if contextName == "" {
+			contextName = "Playlist"
+		}
+		items = append(items, types.HomePageSectionItem{SectionTitle: "Next from " + contextName})
+
+		n := len(m.PlaybackContext)
+		startIdx := m.PlaylistContextIndex
+		if m.SelectedTrack != nil {
+			startIdx++
+		}
+		for i := 0; i < n; i++ {
+			idx := (startIdx + i) % n
+			if m.PlaybackContext[idx] != nil {
+				items = append(items, *m.PlaybackContext[idx])
+			}
+		}
+	}
+
+	if len(items) == 0 && len(m.PlayHistory) > 0 {
+		items = append(items, types.HomePageSectionItem{SectionTitle: "Recently Played"})
+		for i := len(m.PlayHistory) - 1; i >= 0; i-- {
+			if m.PlayHistory[i] != nil {
+				items = append(items, *m.PlayHistory[i])
+			}
+		}
+	}
+
 	m.QueueList.SetItems(items)
 }
 

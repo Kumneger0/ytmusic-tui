@@ -111,6 +111,27 @@ func (rq *RingQueue) SetTracks(tracks []*types.PlaylistTrackObject) {
 	rq.current = r
 }
 
+func (rq *RingQueue) PopFirst() *types.PlaylistTrackObject {
+	rq.mu.Lock()
+	defer rq.mu.Unlock()
+
+	if rq.current == nil {
+		return nil
+	}
+
+	track, _ := rq.current.Value.(*types.PlaylistTrackObject)
+
+	if rq.current.Len() == 1 {
+		rq.current = nil
+	} else {
+		prev := rq.current.Prev()
+		prev.Unlink(1)
+		rq.current = prev.Next()
+	}
+
+	return track
+}
+
 func (rq *RingQueue) AllTracks() []*types.PlaylistTrackObject {
 	rq.mu.RLock()
 	defer rq.mu.RUnlock()
@@ -145,4 +166,10 @@ func (rq *RingQueue) RemoveCurrent() {
 	prev := rq.current.Prev()
 	prev.Unlink(1)
 	rq.current = prev.Next()
+}
+
+func (rq *RingQueue) Clear() {
+	rq.mu.Lock()
+	defer rq.mu.Unlock()
+	rq.current = nil
 }

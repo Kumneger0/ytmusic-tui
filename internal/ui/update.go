@@ -972,56 +972,39 @@ func (m *Model) updateLyricsView() {
 }
 
 func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
-	if m.Queue != nil && m.Queue.Len() > 0 {
-		var track *types.PlaylistTrackObject
-		if isForward {
-			track = m.Queue.Next()
-		} else {
-			track = m.Queue.Prev()
-		}
-		if track != nil {
-			m.SyncQueueList()
-			model, cmd := m.PlaySelectedMusic(*track)
-			m = model
-			return m, cmd
-		}
-	}
-
-	items := m.SelectedPlayListItems.Items()
-	if len(items) == 0 {
-		return m, nil
-	}
+	var track *types.PlaylistTrackObject
 
 	if isForward {
-		m.PlaylistContextIndex++
-		if m.PlaylistContextIndex >= len(items) {
-			m.PlaylistContextIndex = 0
+		if len(m.PlayHistory) > 0 && m.PlayHistoryIndex < len(m.PlayHistory)-1 {
+			m.PlayHistoryIndex++
+			track = m.PlayHistory[m.PlayHistoryIndex]
+		} else if m.Queue != nil && m.Queue.Len() > 0 {
+			track = m.Queue.PopFirst()
+			m.PlayHistory = append(m.PlayHistory, track)
+			m.PlayHistoryIndex = len(m.PlayHistory) - 1
+		} else if len(m.PlaybackContext) > 0 {
+			if m.Queue != nil {
+				m.Queue.Clear()
+			}
+			m.PlaylistContextIndex = (m.PlaylistContextIndex + 1) % len(m.PlaybackContext)
+			track = m.PlaybackContext[m.PlaylistContextIndex]
+			m.PlayHistory = append(m.PlayHistory, track)
+			m.PlayHistoryIndex = len(m.PlayHistory) - 1
+		} else if len(m.PlayHistory) > 0 {
+			m.PlayHistoryIndex = 0
+			track = m.PlayHistory[m.PlayHistoryIndex]
 		}
 	} else {
-		m.PlaylistContextIndex--
-		if m.PlaylistContextIndex < 0 {
-			m.PlaylistContextIndex = len(items) - 1
+		if len(m.PlayHistory) > 0 && m.PlayHistoryIndex > 0 {
+			m.PlayHistoryIndex--
+			track = m.PlayHistory[m.PlayHistoryIndex]
 		}
 	}
 
-	for i := 0; i < len(items); i++ {
-		var idx int
-		if isForward {
-			idx = (m.PlaylistContextIndex + i) % len(items)
-		} else {
-			idx = m.PlaylistContextIndex - i
-			if idx < 0 {
-				idx = len(items) + idx
-			}
-		}
-		playlistTrack, ok := items[idx].(types.PlaylistTrackObject)
-		if ok {
-			m.PlaylistContextIndex = idx
-			m.SelectedPlayListItems.Select(idx)
-			model, cmd := m.PlaySelectedMusic(playlistTrack)
-			m = model
-			return m, cmd
-		}
+	if track != nil {
+		model, cmd := m.PlaySelectedMusic(*track)
+		m = model
+		return m, cmd
 	}
 
 	return m, nil
@@ -1202,8 +1185,28 @@ func (m Model) navigateToDetailView(cmd tea.Cmd) (Model, tea.Cmd) {
 	return m, tea.Batch(cmd, SendLoadingCmd())
 }
 
-func (m Model) playTrackFromList(track types.PlaylistTrackObject, rawItems []list.Item) (Model, tea.Cmd) {
-	m.PlaylistContextIndex = m.SelectedPlayListItems.Index()
+func (m Model) playTrackFromList(track types.PlaylistTrackObject) (Model, tea.Cmd) {
+	playlistItems := m.SelectedPlayListItems.Items()
+	var contextTracks []*types.PlaylistTrackObject
+	for _, item := range playlistItems {
+		if pt, ok := item.(types.PlaylistTrackObject); ok {
+			copy := pt
+			contextTracks = append(contextTracks, &copy)
+		}
+	}
+
+	contextName := m.SelectedPlayListItems.Title
+	if contextName == "" && len(m.BreadcrumbItems) > 0 {
+		contextName = m.BreadcrumbItems[len(m.BreadcrumbItems)-1].Name
+	}
+
+	selectedIdx := m.SelectedPlayListItems.Index()
+	m.SetPlaybackContext(contextTracks, contextName, selectedIdx)
+
+	trackCopy := track
+	m.PlayHistory = append(m.PlayHistory, &trackCopy)
+	m.PlayHistoryIndex = len(m.PlayHistory) - 1
+
 	return m.PlaySelectedMusic(track)
 }
 
@@ -1240,7 +1243,7 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 					Title:   item.ItemTitle,
 				},
 			}
-			return m.playTrackFromList(playlistTrack, m.HomePageList.Items())
+			return m.playTrackFromList(playlistTrack)
 		} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseID, "MPRE") {
 			browseID := item.BrowseID
 			if browseID == "" {
@@ -1304,7 +1307,8 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				Err:     err,
 			}
 		}
-		m, cmd := m.playTrackFromList(selectedItem, listItemToChooseMusicFrom.Items())
+
+		m, cmd := m.playTrackFromList(selectedItem)
 		return m, tea.Batch(cmd, relatedSongsCmd)
 
 	case types.SongItem:
@@ -1324,7 +1328,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				Err:     err,
 			}
 		}
-		m, cmd := m.playTrackFromList(playlistTrack, listItemToChooseMusicFrom.Items())
+		m, cmd := m.playTrackFromList(playlistTrack)
 		return m, tea.Batch(cmd, relatedSongsCmd)
 
 	case types.SearchResultSongItem:
@@ -1659,6 +1663,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		Track:   &selectedMusic,
 	}
 
+	m.SyncQueueList()
 	return m, tea.Batch(cmds...)
 }
 
