@@ -1029,43 +1029,91 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) addMusicToQueue() (Model, tea.Cmd) {
-	var itemToAdd list.Item
-	if m.FocusedOn != MainView {
-		return m, nil
+func extractTrackObject(item list.Item) *types.PlaylistTrackObject {
+	if item == nil {
+		return nil
 	}
-
-	if m.MainViewMode == NormalMode {
-		itemToAdd = m.SelectedPlayListItems.SelectedItem()
-	}
-	if m.MainViewMode == SearchResultMode {
-		if len(m.SearchResult.Items()) > 0 {
-			if song, ok := m.SearchResult.SelectedItem().(types.SongItem); ok {
-				itemToAdd = types.PlaylistTrackObject{Track: song.Song}
-			} else if srSong, ok := m.SearchResult.SelectedItem().(types.SearchResultSongItem); ok {
-				song := &musicpb.Song{
-					VideoId:         srSong.VideoId,
-					Title:           srSong.Title,
-					Artists:         srSong.Artists,
-					Album:           srSong.Album,
-					AlbumId:         srSong.AlbumId,
-					DurationSeconds: srSong.DurationSeconds,
-					Liked:           srSong.Liked,
-					Thumbnails:      srSong.Thumbnails,
-					IsExplicit:      srSong.IsExplicit,
-					Url:             srSong.Url,
-				}
-				itemToAdd = types.PlaylistTrackObject{Track: song}
+	switch v := item.(type) {
+	case types.PlaylistTrackObject:
+		if v.Track != nil {
+			return &v
+		}
+	case types.SongItem:
+		if v.Song != nil {
+			return &types.PlaylistTrackObject{Track: v.Song}
+		}
+	case types.SearchResultSongItem:
+		if v.SearchResultSong != nil {
+			song := &musicpb.Song{
+				VideoId:         v.VideoId,
+				Title:           v.Title,
+				Artists:         v.Artists,
+				Album:           v.Album,
+				AlbumId:         v.AlbumId,
+				DurationSeconds: v.DurationSeconds,
+				Liked:           v.Liked,
+				Thumbnails:      v.Thumbnails,
+				IsExplicit:      v.IsExplicit,
+				Url:             v.Url,
+			}
+			return &types.PlaylistTrackObject{Track: song}
+		}
+	case types.HomePageContentItem:
+		vID := v.VideoID
+		if vID == "" {
+			vID = v.PlaylistID
+		}
+		if vID != "" {
+			return &types.PlaylistTrackObject{
+				Track: &musicpb.Song{
+					VideoId: vID,
+					Title:   v.ItemTitle,
+				},
+			}
+		}
+	case types.SongRelatedContentItem:
+		if v.SongRelatedContent != nil && v.VideoId != "" {
+			return &types.PlaylistTrackObject{
+				Track: &musicpb.Song{
+					VideoId: v.VideoId,
+					Title:   v.Title,
+					Artists: v.Artists,
+				},
 			}
 		}
 	}
+	return nil
+}
 
-	track, ok := itemToAdd.(types.PlaylistTrackObject)
-	if !ok {
+func (m Model) addMusicToQueue() (Model, tea.Cmd) {
+	var selectedItem list.Item
+
+	switch m.FocusedOn {
+	case MainView:
+		switch m.MainViewMode {
+		case NormalMode:
+			selectedItem = m.SelectedPlayListItems.SelectedItem()
+		case SearchResultMode:
+			if len(m.SearchResult.Items()) > 0 {
+				selectedItem = m.SearchResult.SelectedItem()
+			}
+		case HomePageMode:
+			if m.HomePageViewMode == HomePageContentView && len(m.HomePageList.Items()) > 0 {
+				selectedItem = m.HomePageList.SelectedItem()
+			}
+		}
+	case QueueList:
+		if len(m.RelatedList.Items()) > 0 {
+			selectedItem = m.RelatedList.SelectedItem()
+		}
+	}
+
+	track := extractTrackObject(selectedItem)
+	if track == nil || track.Track == nil {
 		return m, nil
 	}
 
-	m.Queue.AddTrack(&track)
+	m.Queue.AddTrack(track)
 	m.SyncQueueList()
 
 	toastCmd := m.Alert.NewAlertCmd(bubbleup.InfoKey, fmt.Sprintf("Added \"%s\" to queue", track.Title()))
