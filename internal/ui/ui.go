@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"math"
 	"strings"
-	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -19,6 +18,7 @@ import (
 	"github.com/godbus/dbus/v5/prop"
 	musicpb "github.com/kumneger0/ytmusic-tui/gen"
 	"github.com/kumneger0/ytmusic-tui/gen/genconnect"
+	"github.com/kumneger0/ytmusic-tui/internal/queue"
 	"github.com/kumneger0/ytmusic-tui/internal/types"
 	"github.com/kumneger0/ytmusic-tui/internal/youtube"
 	"go.dalton.dog/bubbleup"
@@ -84,19 +84,26 @@ type Model struct {
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
 	MainViewMode
-	PlayerProcess       *types.Player
-	playbackCancel      context.CancelFunc
-	SelectedTrack       *SelectedTrack
-	PlayedSeconds       float64
-	Height              int
-	Width               int
-	LibraryWidth        int
-	MainViewWidth       int
-	PlayerSectionHeight int
-	Search              textinput.Model
-	MusicQueueList      *MusicQueueList
-	YtMusicClient       genconnect.MusicServiceClient
-	DBusConn            *Instance
+	PlayerProcess        *types.Player
+	playbackCancel       context.CancelFunc
+	SelectedTrack        *SelectedTrack
+	PlayedSeconds        float64
+	Height               int
+	Width                int
+	LibraryWidth         int
+	MainViewWidth        int
+	PlayerSectionHeight  int
+	Search               textinput.Model
+	Queue                *queue.RingQueue
+	QueueList            list.Model
+	PlaybackContext      []*types.PlaylistTrackObject
+	PlaybackContextName  string
+	PendingContextName   string
+	PlaylistContextIndex int
+	PlayHistory          []*types.PlaylistTrackObject
+	PlayHistoryIndex     int
+	YtMusicClient        genconnect.MusicServiceClient
+	DBusConn             *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
 	//at that time when he selects artist or playlist the search were hidden from mainView
 	//so that if search again we can show the previous result by comparing the query
@@ -119,11 +126,6 @@ type Model struct {
 type Instance struct {
 	Props *prop.Properties
 	Conn  *dbus.Conn
-}
-
-type SafeModel struct {
-	Mu sync.RWMutex
-	*Model
 }
 
 func (m Model) Init() tea.Cmd {
@@ -227,8 +229,8 @@ func (m Model) View() string {
 	showRelated := m.RightColumnMode == RightColumnRelated
 	if showRelated {
 		rightColumnView = m.RelatedList.View()
-	} else if m.MusicQueueList != nil {
-		rightColumnView = m.MusicQueueList.View()
+	} else {
+		rightColumnView = m.QueueList.View()
 	}
 	queueList := getStyle(&m, dimensions.ContentHeight, dimensions.SidebarWidth, QueueList, false).Render(rightColumnView)
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
@@ -284,12 +286,63 @@ func (m *Model) UpdateListDimensions() {
 	m.SelectedPlayListItems.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
 	m.SearchResult.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
 	m.HomePageList.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
+	m.QueueList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
 	if len(m.RelatedList.Items()) > 0 {
 		m.RelatedList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
 	}
-	if m.MusicQueueList != nil {
-		m.MusicQueueList.Model.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
+}
+
+func (m *Model) SetPlaybackContext(tracks []*types.PlaylistTrackObject, name string, currentIndex int) {
+	m.PlaybackContext = tracks
+	m.PlaybackContextName = name
+	m.PlaylistContextIndex = currentIndex
+}
+
+func (m *Model) SyncQueueList() {
+	var items []list.Item
+
+	if m.Queue != nil && m.Queue.Len() > 0 {
+		userQueueTracks := m.Queue.AllTracks()
+		items = append(items, types.HomePageSectionItem{SectionTitle: "Queue"})
+		for _, t := range userQueueTracks {
+			if t != nil {
+				items = append(items, *t)
+			}
+		}
 	}
+
+	if len(m.PlaybackContext) > 0 {
+		contextName := m.PlaybackContextName
+		if contextName == "" {
+			contextName = "Playlist"
+		}
+		items = append(items, types.HomePageSectionItem{SectionTitle: "Next from " + contextName})
+
+		n := len(m.PlaybackContext)
+		startIdx := m.PlaylistContextIndex
+		limit := n
+		if m.SelectedTrack != nil {
+			startIdx++
+			limit = n - 1
+		}
+		for i := 0; i < limit; i++ {
+			idx := (startIdx + i) % n
+			if m.PlaybackContext[idx] != nil {
+				items = append(items, *m.PlaybackContext[idx])
+			}
+		}
+	}
+
+	if len(items) == 0 && len(m.PlayHistory) > 0 {
+		items = append(items, types.HomePageSectionItem{SectionTitle: "Recently Played"})
+		for i := len(m.PlayHistory) - 1; i >= 0; i-- {
+			if m.PlayHistory[i] != nil {
+				items = append(items, *m.PlayHistory[i])
+			}
+		}
+	}
+
+	m.QueueList.SetItems(items)
 }
 
 func RemoveListDefaults(listToRemoveDefaults *list.Model) {

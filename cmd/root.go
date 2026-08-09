@@ -16,8 +16,8 @@ import (
 
 	"github.com/gofrs/flock"
 	"github.com/kumneger0/ytmusic-tui/internal/config"
-	"github.com/kumneger0/ytmusic-tui/internal/headless"
 	logSetup "github.com/kumneger0/ytmusic-tui/internal/logger"
+	"github.com/kumneger0/ytmusic-tui/internal/queue"
 	"github.com/kumneger0/ytmusic-tui/internal/youtube"
 	ytMusicClient "github.com/kumneger0/ytmusic-tui/internal/yt-music-client"
 	"go.dalton.dog/bubbleup"
@@ -224,18 +224,11 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 		ytDlpArgs.Cookies = &cookiesFile
 	}
 
-	isHeadlessMode, err := cmd.Flags().GetBool("headless")
-
-	if err != nil {
-		slog.Error(err.Error())
-	}
-
 	config.SetConfig(&config.Config{
 		DebugDir:      &debugDir,
 		CacheDisabled: isCacheDisabled,
 		CacheDir:      &cacheDir,
 		YtDlpArgs:     &ytDlpArgs,
-		HeadlessMode:  isHeadlessMode,
 		SkipOnNoMatch: configFromFile.SkipOnNoMatch,
 	})
 
@@ -276,15 +269,11 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	}
 
 	client := ytMusicClient.GetYtMusicClient(serverURL)
-	var termWidth, termHeight int
-
-	if !isHeadlessMode {
-		termWidth, termHeight, err = term.GetSize(int(os.Stdout.Fd()))
-		if err != nil {
-			fmt.Println(err.Error())
-			slog.Error(err.Error())
-			os.Exit(1)
-		}
+	termWidth, termHeight, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		fmt.Println(err.Error())
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 
 	model := ui.Model{
@@ -302,6 +291,7 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	model.LibraryWidth = dims.SidebarWidth
 	model.MainViewWidth = dims.MainWidth
 	model.PlayerSectionHeight = dims.InputHeight
+	model.Queue = queue.NewRingQueue()
 
 	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.MainWidth, dims.ContentHeight)
 	model.SearchResult.SetShowTitle(false)
@@ -315,13 +305,6 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	model.RelatedList.Title = "Related"
 	ui.RemoveListDefaults(&model.RelatedList)
 
-	if isHeadlessMode {
-		safeModel := ui.SafeModel{
-			Model: &model,
-		}
-		headless.StartServer(&safeModel, messageChan)
-		return nil
-	}
 	sideBarItems := []struct{ name, icon string }{{name: "Home", icon: "⌂"}, {name: "Library", icon: "🔖"}}
 	var SideBarMenuList []list.Item
 	for _, item := range sideBarItems {
@@ -342,19 +325,18 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	model.Alert = *bubbleup.NewAlertModel(80, true, 10*time.Second)
 
 	model.Search = input
-	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
-	musicQueueList.Title = "Queue"
-	ui.RemoveListDefaults(&musicQueueList)
 
 	model.SideBarList = list.New(SideBarMenuList, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
 	model.SideBarList.Title = "Youtube Music tui"
 	ui.RemoveListDefaults(&model.SideBarList)
 
+	queueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, dims.SidebarWidth, dims.ContentHeight)
+	queueList.Title = "Queue"
+	ui.RemoveListDefaults(&queueList)
+	model.QueueList = queueList
+
 	model.SelectedPlayListItems = playlistItems
-	model.MusicQueueList = &ui.MusicQueueList{
-		Model:          musicQueueList,
-		PaginationInfo: nil,
-	}
+	model.Queue = queue.NewRingQueue()
 	model.UpdateListDimensions()
 
 	fgModel := ui.NewForegroundModel()
@@ -464,7 +446,7 @@ func Execute(version string, debug bool, serverURL string) error {
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
 	cmd.Flags().StringP("cache-dir", "c", config.GetCacheDir(runtime.GOOS), "a path to store app cache")
 	cmd.Flags().Bool("disable-cache", false, "disable cache")
-	cmd.Flags().Bool("headless", false, "Headless mode which provides api endpoint to build custom ui")
+
 	cmd.Flags().String("cookies-from-browser", "", "The name of the browser to load cookies from this option is used by yt-dlp see yt-dlp docs to see supported browsers")
 	cmd.Flags().String("cookies", "", "cookies file the option you pass for this flag will be passed to yt-dlp checkout yt-dlp docs to learn more about this flag")
 
