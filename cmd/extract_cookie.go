@@ -119,7 +119,6 @@ func newExtractCookieCmd(serverURL string) *cobra.Command {
 				defer cancel()
 				resp, err := client.Login(rpcCtx, connect.NewRequest(&musicpb.LoginRequest{AuthJson: jsonStr}))
 				if err != nil || !resp.Msg.Authenticated {
-					fmt.Println("err", err)
 					continue
 				}
 				path, err := saveAuthJSON(jsonStr)
