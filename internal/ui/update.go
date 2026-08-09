@@ -641,7 +641,7 @@ func (m Model) handlePagination(listModel *list.Model, ShouldAppendQueue bool, c
 		m.IsOnPagination = true
 		var paginationInfo *types.PaginationInfo
 		paginationInfo = m.PaginationInfo
-		return m, getNextPageItems(&m, paginationInfo, ShouldAppendQueue)
+		return m, getNextPageItems(&m, paginationInfo)
 	}
 	return m, nil
 }
@@ -850,7 +850,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppendQueue bool) tea.Cmd {
+func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo) tea.Cmd {
 	switch paginationInfo.NextPageURLType {
 	case types.NextPageURLTypePlaylistTracks:
 		return func() tea.Msg {
@@ -1329,18 +1329,14 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 		if !ok {
 			return m, nil
 		}
-		if item.VideoID != "" || item.ContentType == "song" || item.ContentType == "video" {
+		if item.VideoID != "" {
 			var contextTracks []*types.PlaylistTrackObject
 			for _, hpItem := range m.HomePageList.Items() {
 				if contentItem, ok := hpItem.(types.HomePageContentItem); ok {
-					vID := contentItem.VideoID
-					if vID == "" {
-						vID = contentItem.PlaylistID
-					}
-					if vID != "" {
+					if contentItem.VideoID != "" {
 						contextTracks = append(contextTracks, &types.PlaylistTrackObject{
 							Track: &musicpb.Song{
-								VideoId: vID,
+								VideoId: contentItem.VideoID,
 								Title:   contentItem.ItemTitle,
 							},
 						})
@@ -1349,9 +1345,6 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 			}
 
 			trackID := item.VideoID
-			if trackID == "" {
-				trackID = item.PlaylistID
-			}
 			playlistTrack := types.PlaylistTrackObject{
 				Track: &musicpb.Song{
 					VideoId: trackID,
@@ -1448,6 +1441,9 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 						m.Queue.PopFirst()
 					}
 					m.SyncQueueList()
+					if len(m.QueueList.Items()) > 0 {
+						m.QueueList.Select(0)
+					}
 				}
 			}
 
@@ -1456,6 +1452,9 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 					if ctxTrack != nil && ctxTrack.Track != nil && selectedItem.Track != nil && ctxTrack.Track.VideoId == selectedItem.Track.VideoId {
 						m.PlaylistContextIndex = idx
 						m.SyncQueueList()
+						if len(m.QueueList.Items()) > 0 {
+							m.QueueList.Select(0)
+						}
 						break
 					}
 				}
