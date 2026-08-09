@@ -992,11 +992,13 @@ func (m *Model) updateLyricsView() {
 
 func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 	var track *types.PlaylistTrackObject
+	fromHistory := false
 
 	if isForward {
 		if len(m.PlayHistory) > 0 && m.PlayHistoryIndex < len(m.PlayHistory)-1 {
 			m.PlayHistoryIndex++
 			track = m.PlayHistory[m.PlayHistoryIndex]
+			fromHistory = true
 		} else {
 			if m.Queue != nil && m.Queue.Len() > 0 {
 				track = m.Queue.PopFirst()
@@ -1008,15 +1010,11 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 			if track == nil && len(m.PlayHistory) > 0 {
 				m.PlayHistoryIndex = 0
 				track = m.PlayHistory[m.PlayHistoryIndex]
+				fromHistory = true
 			}
-			if track != nil {
-				m.PlayHistory = append(m.PlayHistory, track)
-				if len(m.PlayHistory) > 200 {
-					trim := len(m.PlayHistory) - 200
-					m.PlayHistory = m.PlayHistory[trim:]
-				}
-				m.PlayHistoryIndex = len(m.PlayHistory) - 1
-			}
+		}
+		if track != nil && !fromHistory {
+			appendToPlayHistory(&m, track)
 		}
 	} else {
 		if len(m.PlayHistory) > 0 && m.PlayHistoryIndex > 0 {
@@ -1210,19 +1208,32 @@ func (m Model) navigateToDetailView(cmd tea.Cmd) (Model, tea.Cmd) {
 	return m, tea.Batch(cmd, SendLoadingCmd())
 }
 
-func (m Model) playStandaloneTrack(track types.PlaylistTrackObject) (Model, tea.Cmd) {
-	m.PlaybackContext = nil
-	m.PlaybackContextName = ""
-	m.PlaylistContextIndex = 0
-
-	trackCopy := track
+func appendToPlayHistory(m *Model, track *types.PlaylistTrackObject) {
+	if track == nil || track.Track == nil {
+		return
+	}
+	if len(m.PlayHistory) > 0 {
+		lastTrack := m.PlayHistory[len(m.PlayHistory)-1]
+		if lastTrack != nil && lastTrack.Track != nil && lastTrack.Track.VideoId == track.Track.VideoId {
+			m.PlayHistoryIndex = len(m.PlayHistory) - 1
+			return
+		}
+	}
+	trackCopy := *track
 	m.PlayHistory = append(m.PlayHistory, &trackCopy)
 	if len(m.PlayHistory) > 200 {
 		trim := len(m.PlayHistory) - 200
 		m.PlayHistory = m.PlayHistory[trim:]
 	}
 	m.PlayHistoryIndex = len(m.PlayHistory) - 1
+}
 
+func (m Model) playStandaloneTrack(track types.PlaylistTrackObject) (Model, tea.Cmd) {
+	m.PlaybackContext = nil
+	m.PlaybackContextName = ""
+	m.PlaylistContextIndex = 0
+
+	appendToPlayHistory(&m, &track)
 	return m.PlaySelectedMusic(track)
 }
 
@@ -1247,14 +1258,7 @@ func (m Model) playTrackFromList(track types.PlaylistTrackObject) (Model, tea.Cm
 	selectedIdx := m.SelectedPlayListItems.Index()
 	m.SetPlaybackContext(contextTracks, contextName, selectedIdx)
 
-	trackCopy := track
-	m.PlayHistory = append(m.PlayHistory, &trackCopy)
-	if len(m.PlayHistory) > 200 {
-		trim := len(m.PlayHistory) - 200
-		m.PlayHistory = m.PlayHistory[trim:]
-	}
-	m.PlayHistoryIndex = len(m.PlayHistory) - 1
-
+	appendToPlayHistory(&m, &track)
 	return m.PlaySelectedMusic(track)
 }
 
@@ -1281,6 +1285,24 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 			return m, nil
 		}
 		if item.VideoID != "" || item.ContentType == "song" || item.ContentType == "video" {
+			var contextTracks []*types.PlaylistTrackObject
+			for _, hpItem := range m.HomePageList.Items() {
+				if contentItem, ok := hpItem.(types.HomePageContentItem); ok {
+					vID := contentItem.VideoID
+					if vID == "" {
+						vID = contentItem.PlaylistID
+					}
+					if vID != "" {
+						contextTracks = append(contextTracks, &types.PlaylistTrackObject{
+							Track: &musicpb.Song{
+								VideoId: vID,
+								Title:   contentItem.ItemTitle,
+							},
+						})
+					}
+				}
+			}
+
 			trackID := item.VideoID
 			if trackID == "" {
 				trackID = item.PlaylistID
@@ -1291,7 +1313,18 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 					Title:   item.ItemTitle,
 				},
 			}
-			return m.playStandaloneTrack(playlistTrack)
+
+			contextName := m.HomePageList.Title
+			if contextName == "" {
+				contextName = "Home"
+			}
+			selectedIdx := m.HomePageList.Index()
+			if len(contextTracks) > 0 {
+				m.SetPlaybackContext(contextTracks, contextName, selectedIdx)
+			}
+
+			appendToPlayHistory(&m, &playlistTrack)
+			return m.PlaySelectedMusic(playlistTrack)
 		} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseID, "MPRE") {
 			browseID := item.BrowseID
 			if browseID == "" {
