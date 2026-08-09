@@ -152,6 +152,34 @@ func (rq *RingQueue) AllTracks() []*types.PlaylistTrackObject {
 	return tracks
 }
 
+func (rq *RingQueue) RemoveTrackAtIndex(index int) {
+	rq.mu.Lock()
+	defer rq.mu.Unlock()
+
+	if rq.current == nil || index < 0 || index >= rq.current.Len() {
+		return
+	}
+
+	if rq.current.Len() == 1 {
+		rq.current = nil
+		return
+	}
+
+	target := rq.current
+	for i := 0; i < index; i++ {
+		target = target.Next()
+	}
+
+	if target == rq.current {
+		prev := rq.current.Prev()
+		prev.Unlink(1)
+		rq.current = prev.Next()
+	} else {
+		prev := target.Prev()
+		prev.Unlink(1)
+	}
+}
+
 func (rq *RingQueue) RemoveCurrent() {
 	rq.mu.Lock()
 	defer rq.mu.Unlock()

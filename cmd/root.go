@@ -16,7 +16,6 @@ import (
 
 	"github.com/gofrs/flock"
 	"github.com/kumneger0/ytmusic-tui/internal/config"
-	"github.com/kumneger0/ytmusic-tui/internal/headless"
 	logSetup "github.com/kumneger0/ytmusic-tui/internal/logger"
 	"github.com/kumneger0/ytmusic-tui/internal/queue"
 	"github.com/kumneger0/ytmusic-tui/internal/youtube"
@@ -225,18 +224,11 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 		ytDlpArgs.Cookies = &cookiesFile
 	}
 
-	isHeadlessMode, err := cmd.Flags().GetBool("headless")
-
-	if err != nil {
-		slog.Error(err.Error())
-	}
-
 	config.SetConfig(&config.Config{
 		DebugDir:      &debugDir,
 		CacheDisabled: isCacheDisabled,
 		CacheDir:      &cacheDir,
 		YtDlpArgs:     &ytDlpArgs,
-		HeadlessMode:  isHeadlessMode,
 		SkipOnNoMatch: configFromFile.SkipOnNoMatch,
 	})
 
@@ -277,15 +269,11 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	}
 
 	client := ytMusicClient.GetYtMusicClient(serverURL)
-	var termWidth, termHeight int
-
-	if !isHeadlessMode {
-		termWidth, termHeight, err = term.GetSize(int(os.Stdout.Fd()))
-		if err != nil {
-			fmt.Println(err.Error())
-			slog.Error(err.Error())
-			os.Exit(1)
-		}
+	termWidth, termHeight, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		fmt.Println(err.Error())
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 
 	model := ui.Model{
@@ -317,13 +305,6 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	model.RelatedList.Title = "Related"
 	ui.RemoveListDefaults(&model.RelatedList)
 
-	if isHeadlessMode {
-		safeModel := ui.SafeModel{
-			Model: &model,
-		}
-		headless.StartServer(&safeModel, messageChan)
-		return nil
-	}
 	sideBarItems := []struct{ name, icon string }{{name: "Home", icon: "⌂"}, {name: "Library", icon: "🔖"}}
 	var SideBarMenuList []list.Item
 	for _, item := range sideBarItems {
@@ -465,7 +446,7 @@ func Execute(version string, debug bool, serverURL string) error {
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
 	cmd.Flags().StringP("cache-dir", "c", config.GetCacheDir(runtime.GOOS), "a path to store app cache")
 	cmd.Flags().Bool("disable-cache", false, "disable cache")
-	cmd.Flags().Bool("headless", false, "Headless mode which provides api endpoint to build custom ui")
+
 	cmd.Flags().String("cookies-from-browser", "", "The name of the browser to load cookies from this option is used by yt-dlp see yt-dlp docs to see supported browsers")
 	cmd.Flags().String("cookies", "", "cookies file the option you pass for this flag will be passed to yt-dlp checkout yt-dlp docs to learn more about this flag")
 

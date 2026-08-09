@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"math"
 	"strings"
-	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -127,11 +126,6 @@ type Model struct {
 type Instance struct {
 	Props *prop.Properties
 	Conn  *dbus.Conn
-}
-
-type SafeModel struct {
-	Mu sync.RWMutex
-	*Model
 }
 
 func (m Model) Init() tea.Cmd {
@@ -292,9 +286,7 @@ func (m *Model) UpdateListDimensions() {
 	m.SelectedPlayListItems.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
 	m.SearchResult.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
 	m.HomePageList.SetSize(dimensions.MainWidth, dimensions.ContentHeight-4)
-	if m.QueueList.Items() != nil {
-		m.QueueList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
-	}
+	m.QueueList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
 	if len(m.RelatedList.Items()) > 0 {
 		m.RelatedList.SetSize(dimensions.SidebarWidth, dimensions.ContentHeight)
 	}

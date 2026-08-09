@@ -17,7 +17,6 @@ type Config struct {
 	CacheDisabled bool       `json:"disable-cache"`
 	CacheDir      *string    `json:"cache-dir"`
 	YtDlpArgs     *YtDlpArgs `json:"yt-dlp-args"`
-	HeadlessMode  bool       `json:"headless-mode"`
 	SkipOnNoMatch bool       `json:"skip-on-no-match"`
 }
 
@@ -81,7 +80,6 @@ func GetDefaultConfig(goos string) *Config {
 		CacheDisabled: true,
 		CacheDir:      &defaultCacheDir,
 		YtDlpArgs:     &YtDlpArgs{},
-		HeadlessMode:  false,
 		SkipOnNoMatch: true,
 	}
 }

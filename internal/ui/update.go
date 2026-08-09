@@ -501,7 +501,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.MainViewMode = NormalMode
 			m.IsSearchLoading = false
 			var cmd tea.Cmd
-			cmd = m.SelectedPlayListItems.SetItems(playListItemSongs)
+			if m.IsOnPagination {
+				m.IsOnPagination = false
+				existingItems := m.SelectedPlayListItems.Items()
+				allItems := append(existingItems, playListItemSongs...)
+				cmd = m.SelectedPlayListItems.SetItems(allItems)
+			} else {
+				cmd = m.SelectedPlayListItems.SetItems(playListItemSongs)
+			}
 			if m.PendingContextName != "" {
 				m.SelectedPlayListItems.Title = m.PendingContextName
 			}
@@ -513,6 +520,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if msg.Err != nil {
+			m.IsOnPagination = false
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
 			return m, alertCmd
 		}
@@ -753,7 +761,14 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 					m.RelatedList.RemoveItem(m.RelatedList.Index())
 				}
 			} else if m.Queue != nil && m.Queue.Len() > 0 {
-				m.Queue.RemoveCurrent()
+				selectedIdx := m.QueueList.Index()
+				userQueueTracks := m.Queue.AllTracks()
+				trackIdx := selectedIdx - 1
+				if trackIdx >= 0 && trackIdx < len(userQueueTracks) {
+					m.Queue.RemoveTrackAtIndex(trackIdx)
+				} else {
+					m.Queue.RemoveCurrent()
+				}
 				m.SyncQueueList()
 			}
 		}
