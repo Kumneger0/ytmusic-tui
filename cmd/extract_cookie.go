@@ -102,12 +102,13 @@ func newExtractCookieCmd(serverURL string) *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
-			var authJSON string
+			var isAuthenticated bool
 			for _, b := range supportedBrowsers {
 				cookies, err := extractFromBrowserStore(ctx, b)
 				if err != nil || len(cookies) == 0 {
 					continue
 				}
+
 				jsonStr, err := buildAuthJSON(cookies)
 				if err != nil {
 					continue
@@ -118,6 +119,7 @@ func newExtractCookieCmd(serverURL string) *cobra.Command {
 				defer cancel()
 				resp, err := client.Login(rpcCtx, connect.NewRequest(&musicpb.LoginRequest{AuthJson: jsonStr}))
 				if err != nil || !resp.Msg.Authenticated {
+					fmt.Println("err", err)
 					continue
 				}
 				path, err := saveAuthJSON(jsonStr)
@@ -126,14 +128,12 @@ func newExtractCookieCmd(serverURL string) *cobra.Command {
 				}
 				fmt.Printf("Authenticated as: %s (%s)\n", resp.Msg.UserName, b)
 				fmt.Printf("Saved credentials to: %s\n", path)
-				authJSON = jsonStr
+				isAuthenticated = resp.Msg.Authenticated
 				break
 			}
-			if authJSON == "" {
-				return fmt.Errorf("could not find valid YouTube Music cookies in any supported browser")
+			if isAuthenticated {
+				fmt.Println("Verification completed successfully.")
 			}
-
-			fmt.Println("Verification completed successfully.")
 			return nil
 		},
 	}
