@@ -7,8 +7,8 @@ env:
 
 before:
   hooks:
-    - ./scripts/manpages.sh
-    - ./scripts/completions.sh
+    - ./scripts/manpages.sh {{ .Env.SERVER_URL }}
+    - ./scripts/completions.sh {{ .Env.SERVER_URL }}
 
 builds:
   - id: ytmusic-tui
