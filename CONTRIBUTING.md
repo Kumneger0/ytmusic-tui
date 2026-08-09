@@ -21,7 +21,9 @@ Before starting, ensure you have the following installed:
 - **uv**: Fast Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
 - **Protobuf Compiler (`protoc`)**: Required if modifying `.proto` files
   - Go plugins: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` and `go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest`
-- **System Dependencies**: `ffmpeg` (for audio playback support)
+- **System Dependencies**:
+  - **`yt-dlp`**: Required for extracting and fetching YouTube Music audio stream URLs
+  - **`ffmpeg`**: Required for audio stream decoding and playback
 
 ---
 
