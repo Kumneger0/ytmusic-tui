@@ -4,6 +4,7 @@ import os
 import sys
 from typing import Any, cast
 
+
 try:
     from dotenv import load_dotenv
 
@@ -20,12 +21,9 @@ from .gen import music_pb2
 from .gen.music_connect import (
     MusicServiceASGIApplication,
 )
-from .src.auth import (
-    get_ytmusic_client,
-    run_login_flow,
-)
 from .src.client.client import (
     MusicClient,
+    get_ytmusic_client,
 )
 from .src.client.types import (
     YTHomeSection,
@@ -33,9 +31,7 @@ from .src.client.types import (
     YTSearchResult,
     YTThumbnail,
 )
-from .src.cookie_extractor import (
-    run_cookie_extraction,
-)
+
 from .src.mappers import (
     coerce_int,
     coerce_str,
@@ -70,7 +66,7 @@ class MusicService:
 
         if cache_key not in self._clients:
             if len(self._clients) >= 100:
-                self._clients.pop(next(iter(self._clients)))
+                _ = self._clients.pop(next(iter(self._clients)))
             self._clients[cache_key] = MusicClient(auth=auth_data if auth_data else None)
         return self._clients[cache_key]
 
@@ -742,21 +738,4 @@ def serve() -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and "--login" in sys.argv:
-        file_arg = None
-        args = sys.argv[1:]
-        login_idx = args.index("--login")
-        if login_idx + 1 < len(args) and not args[login_idx + 1].startswith("-"):
-            file_arg = args[login_idx + 1]
-        run_login_flow(file_path=file_arg)
-    elif len(sys.argv) > 1 and "--extract-cookie" in sys.argv:
-        args = sys.argv[1:]
-        idx = args.index("--extract-cookie")
-        if idx + 1 < len(args) and not args[idx + 1].startswith("-"):
-            browser_name = args[idx + 1]
-        else:
-            print("Error: --extract-cookie requires a browser name argument", file=sys.stderr)
-            sys.exit(1)
-        run_cookie_extraction(browser_name)
-    else:
         serve()
