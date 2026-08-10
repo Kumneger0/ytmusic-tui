@@ -10,9 +10,23 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/kumneger0/ytmusic-tui/internal/config"
 )
+
+var (
+	cachedCookieHeader string
+	cookieHeaderOnce   sync.Once
+	cookieHeaderMu     sync.RWMutex
+)
+
+func ResetCookieHeaderCache() {
+	cookieHeaderMu.Lock()
+	defer cookieHeaderMu.Unlock()
+	cachedCookieHeader = ""
+	cookieHeaderOnce = sync.Once{}
+}
 
 func ConvertToNetscapeCookies(cookieText string) string {
 	cookieText = strings.TrimSpace(cookieText)
@@ -157,6 +171,7 @@ func GetCookieFilePath() string {
 }
 
 func SaveCookieFile(cookieText string) (string, error) {
+	ResetCookieHeaderCache()
 	cookiePath := GetCookieFilePath()
 	netscapeContent := ConvertToNetscapeCookies(cookieText)
 
@@ -190,4 +205,45 @@ func EnsureCookieFile() string {
 		return ""
 	}
 	return path
+}
+
+func GetCookieHeader() string {
+	cookieHeaderMu.RLock()
+	header := cachedCookieHeader
+	cookieHeaderMu.RUnlock()
+	if header != "" {
+		return header
+	}
+
+	cookieHeaderMu.Lock()
+	defer cookieHeaderMu.Unlock()
+
+	cookieHeaderOnce.Do(func() {
+		configDir := config.GetConfigDir(runtime.GOOS)
+		browserPath := filepath.Join(configDir, "browser.json")
+		if browserData, err := os.ReadFile(browserPath); err == nil && len(browserData) > 0 {
+			var rawData map[string]interface{}
+			if err := json.Unmarshal(browserData, &rawData); err == nil {
+				if c, ok := rawData["Cookie"].(string); ok && c != "" {
+					cachedCookieHeader = c
+					return
+				}
+				if c, ok := rawData["cookie"].(string); ok && c != "" {
+					cachedCookieHeader = c
+					return
+				}
+				if headersObj, ok := rawData["headers"].(map[string]interface{}); ok {
+					if c, ok := headersObj["Cookie"].(string); ok && c != "" {
+						cachedCookieHeader = c
+						return
+					}
+					if c, ok := headersObj["cookie"].(string); ok && c != "" {
+						cachedCookieHeader = c
+						return
+					}
+				}
+			}
+		}
+	})
+	return cachedCookieHeader
 }

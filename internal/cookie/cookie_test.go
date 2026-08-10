@@ -68,6 +68,7 @@ func TestEnsureCookieFile(t *testing.T) {
 
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	t.Setenv("HOME", tmpDir)
+	ResetCookieHeaderCache()
 
 	configDir := config.GetConfigDir(runtime.GOOS)
 	browserPath := filepath.Join(configDir, "browser.json")
@@ -89,5 +90,10 @@ func TestEnsureCookieFile(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "TEST\t123") {
 		t.Fatalf("unexpected cookie file content: %s", string(content))
+	}
+
+	header := GetCookieHeader()
+	if header != "TEST=123" {
+		t.Fatalf("expected 'TEST=123', got %q", header)
 	}
 }

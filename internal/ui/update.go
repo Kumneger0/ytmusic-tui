@@ -1638,8 +1638,13 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 func (m Model) handleSearchBarEnter() (Model, tea.Cmd) {
 	query := m.Search.Value()
 	if query == m.SearchQuery && len(m.SearchResult.Items()) > 0 {
-		m.MainViewMode = SearchResultMode
-		return m, nil
+		if query == m.SearchQuery && len(m.SearchResult.Items()) > 0 {
+			m.MainViewMode = SearchResultMode
+			m.Search.Blur()
+			m.FocusedOn = MainView
+			updateDelegate(&m)
+			return m, nil
+		}
 	}
 
 	loadingCmd := SendLoadingCmd()

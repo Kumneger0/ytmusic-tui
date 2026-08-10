@@ -47,15 +47,8 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 				isSelected = m.Index() == index
 			}
 		case QueueList:
-			showRelated := (d.Model.RightColumnMode == RightColumnRelated || d.Model.RightColumnMode == "") && len(d.Model.RelatedList.Items()) > 0
-			if showRelated {
-				if m.Title == "Related" {
-					isSelected = m.Index() == index
-				}
-			} else {
-				if m.Title == "Queue" {
-					isSelected = m.Index() == index
-				}
+			if m.Title == "Related" || m.Title == "Queue" {
+				isSelected = m.Index() == index
 			}
 		}
 	}

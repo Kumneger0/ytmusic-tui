@@ -254,8 +254,6 @@ type LayoutDimensions struct {
 	InputHeight   int
 }
 
-type layoutDimensions = LayoutDimensions
-
 func CalculateLayoutDimensions(m *Model) LayoutDimensions {
 	if m.Width <= 0 || m.Height <= 0 {
 		m.Width = 100

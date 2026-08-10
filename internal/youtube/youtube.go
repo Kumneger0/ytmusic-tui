@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -91,19 +92,32 @@ func SearchAndDownloadMusic(
 			}
 		}
 
-		ff, err := command.ExecCommand(ctx,
-			coreDepsPath.FFmpeg,
+		var headersBuf strings.Builder
+		if streamURL.HTTPHeaders != nil {
+			for k, v := range streamURL.HTTPHeaders {
+				fmt.Fprintf(&headersBuf, "%s: %s\r\n", k, v)
+			}
+		}
+
+		ffArgs := []string{
 			"-reconnect", "1",
 			"-reconnect_streamed", "1",
 			"-reconnect_delay_max", "5",
 			"-reconnect_on_network_error", "1",
 			"-reconnect_on_http_error", "1",
+		}
+		if h := headersBuf.String(); h != "" {
+			ffArgs = append(ffArgs, "-headers", h)
+		}
+		ffArgs = append(ffArgs,
 			"-i", streamURL.URL,
 			"-f", "s16le",
 			"-ac", "2",
 			"-ar", "44100",
 			"pipe:1",
 		)
+
+		ff, err := command.ExecCommand(ctx, coreDepsPath.FFmpeg, ffArgs...)
 
 		if err != nil {
 			_ = ffStderr.Close()
@@ -226,8 +240,9 @@ func SearchAndDownloadMusic(
 }
 
 type StreamAndDuration struct {
-	URL      string
-	Duration string
+	URL         string
+	Duration    string
+	HTTPHeaders map[string]string
 }
 
 func logYtDlpErr(err error) {
@@ -281,8 +296,9 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 	}
 
 	var data struct {
-		URL      string  `json:"url"`
-		Duration float64 `json:"duration"`
+		URL         string            `json:"url"`
+		Duration    float64           `json:"duration"`
+		HTTPHeaders map[string]string `json:"http_headers"`
 	}
 	if err := json.Unmarshal(outBytes, &data); err != nil {
 		logYtDlpErr(err)
@@ -295,9 +311,29 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 		return nil, err
 	}
 
+	if data.HTTPHeaders == nil {
+		data.HTTPHeaders = make(map[string]string)
+	}
+	cookieHeader := ""
+	for key, value := range data.HTTPHeaders {
+		if strings.EqualFold(key, "Cookie") {
+			delete(data.HTTPHeaders, key)
+			if cookieHeader == "" && strings.TrimSpace(value) != "" {
+				cookieHeader = value
+			}
+		}
+	}
+	if cookieHeader == "" {
+		cookieHeader = cookie.GetCookieHeader()
+	}
+	if cookieHeader != "" {
+		data.HTTPHeaders["Cookie"] = cookieHeader
+	}
+
 	durationInSeconds := int64(data.Duration)
 	return &StreamAndDuration{
-		URL:      data.URL,
-		Duration: strconv.FormatInt(durationInSeconds, 10),
+		URL:         data.URL,
+		Duration:    strconv.FormatInt(durationInSeconds, 10),
+		HTTPHeaders: data.HTTPHeaders,
 	}, nil
 }
