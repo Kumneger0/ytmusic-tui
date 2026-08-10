@@ -1639,6 +1639,7 @@ func (m Model) handleSearchBarEnter() (Model, tea.Cmd) {
 	query := m.Search.Value()
 	if query == m.SearchQuery && len(m.SearchResult.Items()) > 0 {
 		m.MainViewMode = SearchResultMode
+		m.FocusedOn = MainView
 		return m, nil
 	}
 
