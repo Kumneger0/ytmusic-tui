@@ -18,9 +18,12 @@ import (
 var (
 	cachedCookieHeader string
 	cookieHeaderOnce   sync.Once
+	cookieHeaderMu     sync.RWMutex
 )
 
 func ResetCookieHeaderCache() {
+	cookieHeaderMu.Lock()
+	defer cookieHeaderMu.Unlock()
 	cachedCookieHeader = ""
 	cookieHeaderOnce = sync.Once{}
 }
@@ -205,6 +208,16 @@ func EnsureCookieFile() string {
 }
 
 func GetCookieHeader() string {
+	cookieHeaderMu.RLock()
+	header := cachedCookieHeader
+	cookieHeaderMu.RUnlock()
+	if header != "" {
+		return header
+	}
+
+	cookieHeaderMu.Lock()
+	defer cookieHeaderMu.Unlock()
+
 	cookieHeaderOnce.Do(func() {
 		configDir := config.GetConfigDir(runtime.GOOS)
 		browserPath := filepath.Join(configDir, "browser.json")
