@@ -772,9 +772,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if shouldIRemoveFromPlaybackContext {
 				itemIndex := -1
 				if selectedTrack, ok := m.QueueList.SelectedItem().(types.PlaylistTrackObject); ok {
-					for i, track := range m.QueueList.Items() {
-						if t, ok := track.(types.PlaylistTrackObject); ok {
-							if t.Track.VideoId == selectedTrack.Track.VideoId {
+					if selectedTrack.Track != nil {
+						for i, track := range m.PlaybackContext {
+							if track != nil && track.Track != nil &&
+								track.Track.VideoId == selectedTrack.Track.VideoId {
 								itemIndex = i
 								break
 							}
