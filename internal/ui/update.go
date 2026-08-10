@@ -754,22 +754,40 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "a":
 		return m.addMusicToQueue()
 	case "r":
-		if m.FocusedOn == QueueList {
-			showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
-			if showRelated {
-				if len(m.RelatedList.Items()) > 0 {
-					m.RelatedList.RemoveItem(m.RelatedList.Index())
-				}
-			} else if m.Queue != nil && m.Queue.Len() > 0 {
+		showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
+		if m.FocusedOn == QueueList && !showRelated {
+			shouldIRemoveFromPlaybackContext := true
+			if m.Queue != nil && m.Queue.Len() > 0 {
 				selectedIdx := m.QueueList.Index()
 				userQueueTracks := m.Queue.AllTracks()
 				trackIdx := selectedIdx - 1
 				if trackIdx >= 0 && trackIdx < len(userQueueTracks) {
+					shouldIRemoveFromPlaybackContext = false
 					m.Queue.RemoveTrackAtIndex(trackIdx)
-				} else {
-					m.Queue.RemoveCurrent()
 				}
 				m.SyncQueueList()
+			}
+
+			if shouldIRemoveFromPlaybackContext {
+				itemIndex := -1
+				if selectedTrack, ok := m.QueueList.SelectedItem().(types.PlaylistTrackObject); ok {
+					for i, track := range m.QueueList.Items() {
+						if t, ok := track.(types.PlaylistTrackObject); ok {
+							if t.Track.VideoId == selectedTrack.Track.VideoId {
+								itemIndex = i
+								break
+							}
+						}
+					}
+				}
+				if itemIndex != -1 {
+					itemsToKeep := m.PlaybackContext[:itemIndex]
+					if itemIndex+1 < len(m.PlaybackContext) {
+						itemsToKeep = append(itemsToKeep, m.PlaybackContext[itemIndex+1:]...)
+					}
+					m.PlaybackContext = itemsToKeep
+					m.SyncQueueList()
+				}
 			}
 		}
 	case "ctrl+l":
