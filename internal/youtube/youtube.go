@@ -314,12 +314,20 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 	if data.HTTPHeaders == nil {
 		data.HTTPHeaders = make(map[string]string)
 	}
-	if _, ok := data.HTTPHeaders["Cookie"]; !ok {
-		if _, okLower := data.HTTPHeaders["cookie"]; !okLower {
-			if cookieStr := cookie.GetCookieHeader(); cookieStr != "" {
-				data.HTTPHeaders["Cookie"] = cookieStr
+	cookieHeader := ""
+	for key, value := range data.HTTPHeaders {
+		if strings.EqualFold(key, "Cookie") {
+			delete(data.HTTPHeaders, key)
+			if cookieHeader == "" && strings.TrimSpace(value) != "" {
+				cookieHeader = value
 			}
 		}
+	}
+	if cookieHeader == "" {
+		cookieHeader = cookie.GetCookieHeader()
+	}
+	if cookieHeader != "" {
+		data.HTTPHeaders["Cookie"] = cookieHeader
 	}
 
 	durationInSeconds := int64(data.Duration)
