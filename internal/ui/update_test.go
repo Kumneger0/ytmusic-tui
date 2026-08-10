@@ -329,6 +329,8 @@ func TestUpdate_QueueList_RemovalAndNavigation(t *testing.T) {
 	trackObj := types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "song1", Title: "Song 1"}}
 	m.Queue = queue.NewRingQueue()
 	m.Queue.AddTrack(&trackObj)
+	m.SyncQueueList()
+	m.QueueList.Select(1)
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	updated := result.(Model)

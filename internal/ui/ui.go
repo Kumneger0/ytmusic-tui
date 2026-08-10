@@ -296,9 +296,8 @@ func (m *Model) SetPlaybackContext(tracks []*types.PlaylistTrackObject, name str
 	m.PlaylistContextIndex = currentIndex
 }
 
-func (m *Model) SyncQueueList() {
+func (m *Model) SyncQueueList() tea.Cmd {
 	var items []list.Item
-
 	if m.Queue != nil && m.Queue.Len() > 0 {
 		userQueueTracks := m.Queue.AllTracks()
 		items = append(items, types.HomePageSectionItem{SectionTitle: "Queue"})
@@ -339,8 +338,7 @@ func (m *Model) SyncQueueList() {
 			}
 		}
 	}
-
-	m.QueueList.SetItems(items)
+	return m.QueueList.SetItems(items)
 }
 
 func RemoveListDefaults(listToRemoveDefaults *list.Model) {

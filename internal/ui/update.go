@@ -754,6 +754,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "a":
 		return m.addMusicToQueue()
 	case "r":
+		var cmd tea.Cmd
 		showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
 		if m.FocusedOn == QueueList && !showRelated {
 			shouldIRemoveFromPlaybackContext := true
@@ -765,7 +766,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 					shouldIRemoveFromPlaybackContext = false
 					m.Queue.RemoveTrackAtIndex(trackIdx)
 				}
-				m.SyncQueueList()
+				cmd = m.SyncQueueList()
 			}
 
 			if shouldIRemoveFromPlaybackContext {
@@ -780,15 +781,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 						}
 					}
 				}
-				if itemIndex != -1 {
+				if itemIndex != -1 && itemIndex < len(m.PlaybackContext) {
 					itemsToKeep := m.PlaybackContext[:itemIndex]
 					if itemIndex+1 < len(m.PlaybackContext) {
 						itemsToKeep = append(itemsToKeep, m.PlaybackContext[itemIndex+1:]...)
 					}
 					m.PlaybackContext = itemsToKeep
-					m.SyncQueueList()
+					cmd = m.SyncQueueList()
 				}
 			}
+			return m, cmd
 		}
 	case "ctrl+l":
 		if m.MainViewMode == LyricsMode {
@@ -1028,7 +1030,7 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 			fromHistory = true
 		}
 
-		if track != nil && !fromHistory {
+		if track != nil && !fromHistory && m.PlayedSeconds > 30000 {
 			appendToPlayHistory(&m, track)
 		}
 	} else {
@@ -1121,7 +1123,8 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 			}
 		}
 	case QueueList:
-		if len(m.RelatedList.Items()) > 0 {
+		showRelated := (m.RightColumnMode == RightColumnRelated || m.RightColumnMode == "") && len(m.RelatedList.Items()) > 0
+		if len(m.RelatedList.Items()) > 0 && showRelated {
 			selectedItem = m.RelatedList.SelectedItem()
 		}
 	}
@@ -1132,17 +1135,8 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 	}
 
 	m.Queue.AddTrack(track)
-	m.SyncQueueList()
-
 	toastCmd := m.Alert.NewAlertCmd(bubbleup.InfoKey, fmt.Sprintf("Added \"%s\" to queue", track.Title()))
-
-	if m.SelectedTrack == nil {
-		model, playCmd := m.handleMusicChange(true)
-		m = model
-		return m, tea.Batch(playCmd, toastCmd)
-	}
-
-	return m, toastCmd
+	return m, tea.Batch(toastCmd, m.SyncQueueList())
 }
 
 func (m Model) HandleMusicPausePlay() (Model, tea.Cmd) {
@@ -1296,7 +1290,6 @@ func (m Model) playStandaloneTrack(track types.PlaylistTrackObject) (Model, tea.
 	m.PlaybackContextName = ""
 	m.PlaylistContextIndex = 0
 
-	appendToPlayHistory(&m, &track)
 	return m.PlaySelectedMusic(track)
 }
 
@@ -1321,7 +1314,6 @@ func (m Model) playTrackFromList(track types.PlaylistTrackObject) (Model, tea.Cm
 	selectedIdx := m.SelectedPlayListItems.Index()
 	m.SetPlaybackContext(contextTracks, contextName, selectedIdx)
 
-	appendToPlayHistory(&m, &track)
 	return m.PlaySelectedMusic(track)
 }
 
@@ -1379,7 +1371,6 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 				m.SetPlaybackContext(contextTracks, contextName, selectedIdx)
 			}
 
-			appendToPlayHistory(&m, &playlistTrack)
 			return m.PlaySelectedMusic(playlistTrack)
 		} else if item.ContentType == "album" || strings.HasPrefix(item.BrowseID, "MPRE") {
 			browseID := item.BrowseID
@@ -1447,6 +1438,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 			}
 		}
 
+		var queueListUpdateCmd tea.Cmd
 		if m.FocusedOn == QueueList {
 			selectedIdx := m.QueueList.Index()
 			inQueue := false
@@ -1458,7 +1450,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 					for i := 0; i <= trackIdx; i++ {
 						m.Queue.PopFirst()
 					}
-					m.SyncQueueList()
+					queueListUpdateCmd = m.SyncQueueList()
 					if len(m.QueueList.Items()) > 0 {
 						m.QueueList.Select(0)
 					}
@@ -1469,7 +1461,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				for idx, ctxTrack := range m.PlaybackContext {
 					if ctxTrack != nil && ctxTrack.Track != nil && selectedItem.Track != nil && ctxTrack.Track.VideoId == selectedItem.Track.VideoId {
 						m.PlaylistContextIndex = idx
-						m.SyncQueueList()
+						queueListUpdateCmd = m.SyncQueueList()
 						if len(m.QueueList.Items()) > 0 {
 							m.QueueList.Select(0)
 						}
@@ -1478,13 +1470,12 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				}
 			}
 
-			appendToPlayHistory(&m, &selectedItem)
 			m, cmd := m.PlaySelectedMusic(selectedItem)
-			return m, tea.Batch(cmd, relatedSongsCmd)
+			return m, tea.Batch(cmd, relatedSongsCmd, queueListUpdateCmd)
 		}
 
 		m, cmd := m.playTrackFromList(selectedItem)
-		return m, tea.Batch(cmd, relatedSongsCmd)
+		return m, tea.Batch(cmd, relatedSongsCmd, queueListUpdateCmd)
 
 	case types.SongItem:
 		playlistTrack := types.PlaylistTrackObject{Track: selectedItem.Song}
@@ -1876,7 +1867,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		Track:   &selectedMusic,
 	}
 
-	m.SyncQueueList()
+	cmds = append(cmds, m.SyncQueueList())
 	return m, tea.Batch(cmds...)
 }
 
