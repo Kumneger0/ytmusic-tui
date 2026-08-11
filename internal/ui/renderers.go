@@ -182,7 +182,8 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		icon = "♫"
 		if item.Track != nil {
 			title = item.Track.Title
-			if d.Model != nil && d.Model.SelectedTrack != nil && item.Track.VideoId == d.Model.SelectedTrack.Track.VideoId {
+			if d.Model != nil && d.Model.SelectedTrack != nil && d.Model.SelectedTrack.Track != nil &&
+				item.Track.VideoId == d.Model.SelectedTrack.Track.VideoId {
 				title += " (current)"
 			}
 			if len(item.Track.Artists) > 0 {
@@ -307,7 +308,7 @@ func renderSearchBar(m *Model, width int) string {
 
 func renderNowPlaying(m *Model, currentPosition, TotalDuration time.Duration) string {
 	selectedTrack := m.SelectedTrack
-	if selectedTrack == nil {
+	if selectedTrack == nil || selectedTrack.Track == nil {
 		return ""
 	}
 	var artistNames []string

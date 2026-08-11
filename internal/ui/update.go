@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/charmbracelet/bubbles/list"
@@ -372,7 +373,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Player == nil {
 			return m, nil
 		}
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && msg.VideoID != m.SelectedTrack.Track.VideoId {
+		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
+			_ = msg.Player.Close()
+			return m, nil
+		}
+		if msg.VideoID != m.SelectedTrack.Track.VideoId {
 			_ = msg.Player.Close()
 			return m, nil
 		}
@@ -932,6 +937,15 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo) tea.Cmd {
 	}
 	return nil
 }
+
+type lrclibQuery struct {
+	videoID     string
+	trackName   string
+	albumName   string
+	artistName  string
+	durationSec int32
+}
+
 func (m Model) getMusicLyrics() (Model, tea.Cmd) {
 	if m.MainViewMode == LyricsMode {
 		m.MainViewMode = NormalMode
@@ -940,31 +954,46 @@ func (m Model) getMusicLyrics() (Model, tea.Cmd) {
 		m.FocusedOn = MainView
 	}
 
-	if m.SelectedTrack == nil || m.SelectedTrack.Track == nil ||
-		m.SelectedTrack.Track.DurationSeconds == 0 {
+	if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
 		return m, nil
 	}
 
 	m.LyricsView.SetContent("  ⟳ Loading lyrics...")
-	selectedTrack := m.SelectedTrack
+
+	q := lrclibQuery{
+		videoID:     m.SelectedTrack.Track.VideoId,
+		trackName:   m.SelectedTrack.Track.Title,
+		albumName:   m.SelectedTrack.Track.Album,
+		durationSec: m.SelectedTrack.Track.DurationSeconds,
+	}
+	if len(m.SelectedTrack.Track.Artists) > 0 {
+		q.artistName = m.SelectedTrack.Track.Artists[0].Name
+	}
+
+	ytClient := m.YtMusicClient
+
 	lyricsCmd := func() tea.Msg {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		var backendResp *musicpb.GetLyricsResponse
-		lyricsResponse, err := m.YtMusicClient.GetLyrics(ctx, connect.NewRequest(&musicpb.GetLyricsRequest{
-			VideoId:    selectedTrack.Track.VideoId,
+		lyricsResponse, err := ytClient.GetLyrics(ctx, connect.NewRequest(&musicpb.GetLyricsRequest{
+			VideoId:    q.videoID,
 			Timestamps: true,
 		}))
 		if err == nil && lyricsResponse != nil {
 			backendResp = lyricsResponse.Msg
 		}
 
+		if err != nil {
+			slog.Debug("backend GetLyrics failed", "videoId", q.videoID, "err", err)
+		}
+
 		if backendResp != nil && backendResp.HasTimestamps && len(backendResp.Lines) > 0 {
 			return types.LyricsMsg{LyricsResponse: backendResp}
 		}
 
-		lrclibResp := fetchLrclib(ctx, selectedTrack)
+		lrclibResp := fetchLrclib(ctx, q)
 
 		if lrclibResp != nil && lrclibResp.SyncedLyrics != "" {
 			lines := parseSyncedLyrics(lrclibResp.SyncedLyrics)
@@ -1003,40 +1032,51 @@ type lrclibResponse struct {
 	PlainLyrics  string `json:"plainLyrics"`
 }
 
-func fetchLrclib(ctx context.Context, track *SelectedTrack) *lrclibResponse {
+func fetchLrclib(ctx context.Context, q lrclibQuery) *lrclibResponse {
 	params := url.Values{}
-	params.Add("track_name", track.Track.Title)
-	if track.Track.Album != "" {
-		params.Add("album_name", track.Track.Album)
+	params.Add("track_name", q.trackName)
+	if q.albumName != "" {
+		params.Add("album_name", q.albumName)
 	}
-	if len(track.Track.Artists) > 0 {
-		params.Add("artist_name", track.Track.Artists[0].Name)
+	if q.artistName != "" {
+		params.Add("artist_name", q.artistName)
 	}
-	params.Add("duration", strconv.FormatInt(int64(track.Track.DurationSeconds), 10))
+	if q.durationSec > 0 {
+		params.Add("duration", strconv.FormatInt(int64(q.durationSec), 10))
+	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://lrclib.net/api/get?"+params.Encode(), nil)
+	reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer reqCancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "GET", "https://lrclib.net/api/get?"+params.Encode(), nil)
 	if err != nil {
+		slog.Debug("lrclib NewRequest error", "err", err)
 		return nil
 	}
 	req.Header.Set("User-Agent", "ytmusic-tui/1.0")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		slog.Debug("lrclib request failed", "err", err)
 		return nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		slog.Debug("lrclib non-200 status code", "status", resp.StatusCode)
 		return nil
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	limitedReader := io.LimitReader(resp.Body, 512*1024)
+	data, err := io.ReadAll(limitedReader)
 	if err != nil {
+		slog.Debug("lrclib read body error", "err", err)
 		return nil
 	}
 
 	var result lrclibResponse
 	if err := json.Unmarshal(data, &result); err != nil {
+		slog.Debug("lrclib unmarshal error", "err", err)
 		return nil
 	}
 	return &result
@@ -1081,28 +1121,30 @@ func parseLRCTimestamp(ts string) (int32, bool) {
 		return 0, false
 	}
 	secParts := strings.Split(parts[1], ".")
-	if len(secParts) != 2 {
+	if len(secParts) > 2 {
 		return 0, false
 	}
 	seconds, err := strconv.Atoi(secParts[0])
 	if err != nil {
 		return 0, false
 	}
-	frac := secParts[1]
-	fracVal, err := strconv.Atoi(frac)
-	if err != nil {
-		return 0, false
-	}
 	var fracMs int
-	switch len(frac) {
-	case 1:
-		fracMs = fracVal * 100
-	case 2:
-		fracMs = fracVal * 10
-	case 3:
-		fracMs = fracVal
-	default:
-		fracMs = fracVal
+	if len(secParts) == 2 {
+		frac := secParts[1]
+		fracVal, err := strconv.Atoi(frac)
+		if err != nil {
+			return 0, false
+		}
+		switch len(frac) {
+		case 1:
+			fracMs = fracVal * 100
+		case 2:
+			fracMs = fracVal * 10
+		case 3:
+			fracMs = fracVal
+		default:
+			fracMs = fracVal
+		}
 	}
 
 	return int32(minutes*60000 + seconds*1000 + fracMs), true
@@ -1988,6 +2030,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	m.playbackCancel = cancel
 	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.VideoId, m.CoreDepsPath)
 	m.CurrentLyrics = nil
+	m.LyricsView.SetContent("")
 
 	cmds = append(cmds, cmd)
 	metadata := getMusicMetadata(MusicMetadata{
