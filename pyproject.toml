@@ -13,7 +13,7 @@ dependencies = [
     "protoc-gen-connect-python>=0.9.0",
     "python-dotenv>=1.2.2",
     "uvicorn>=0.34.0",
-    "ytmusicapi>=1.12.1",
+    "ytmusicapi>=1.12.2",
 ]
 
 [dependency-groups]
