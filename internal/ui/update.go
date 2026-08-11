@@ -582,6 +582,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.CurrentLyrics = nil
 			return m, nil
 		}
+		m.MainViewMode = LyricsMode
 		m.CurrentLyrics = msg.LyricsResponse
 		m.updateLyricsView()
 		return m, nil
@@ -947,19 +948,15 @@ type lrclibQuery struct {
 }
 
 func (m Model) getMusicLyrics() (Model, tea.Cmd) {
-	if m.MainViewMode == LyricsMode {
-		m.MainViewMode = NormalMode
-	} else {
-		m.MainViewMode = LyricsMode
-		m.FocusedOn = MainView
-	}
-
+	m.MainViewMode = LyricsMode
+	m.FocusedOn = MainView
 	if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
+		noLyricsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#71717A")).Italic(true)
+		m.LyricsView.SetContent(noLyricsStyle.Render("No track selected."))
 		return m, nil
 	}
 
 	m.LyricsView.SetContent("  ⟳ Loading lyrics...")
-
 	q := lrclibQuery{
 		videoID:     m.SelectedTrack.Track.VideoId,
 		trackName:   m.SelectedTrack.Track.Title,
@@ -2066,6 +2063,11 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	}
 
 	cmds = append(cmds, m.SyncQueueList())
+	if m.MainViewMode == LyricsMode {
+		model, cmd := m.getMusicLyrics()
+		m = model
+		cmds = append(cmds, cmd)
+	}
 	return m, tea.Batch(cmds...)
 }
 
