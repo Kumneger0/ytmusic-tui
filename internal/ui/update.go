@@ -2,9 +2,13 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -368,13 +372,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Player == nil {
 			return m, nil
 		}
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && msg.VideoID != m.SelectedTrack.Track.Track.VideoId {
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && msg.VideoID != m.SelectedTrack.Track.VideoId {
 			_ = msg.Player.Close()
 			return m, nil
 		}
-		if m.SelectedTrack.Track.Track.DurationSeconds == 0 && msg.Duration != "" {
+		if m.SelectedTrack.Track.DurationSeconds == 0 && msg.Duration != "" {
 			if duration, err := strconv.ParseInt(msg.Duration, 10, 64); err == nil {
-				m.SelectedTrack.Track.Track.DurationSeconds = int32(duration)
+				m.SelectedTrack.Track.DurationSeconds = int32(duration)
 			} else {
 				slog.Error(err.Error())
 			}
@@ -456,11 +460,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
 			return m, alertCmd
 		}
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil && m.SelectedTrack.Track.Track.VideoId == msg.TrackID {
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.VideoId == msg.TrackID {
 			m.SelectedTrack.isLiked = msg.Liked
 		}
 	case types.PlayedSecondsUpdateMsg:
-		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil || m.SelectedTrack.Track.Track == nil {
+		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
 			return m, nil
 		}
 		oldSec := int(m.PlayedSeconds)
@@ -472,7 +476,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.CurrentLyrics != nil {
 			m.updateLyricsView()
 		}
-		totalDurationInSeconds := m.SelectedTrack.Track.Track.DurationSeconds
+		totalDurationInSeconds := m.SelectedTrack.Track.DurationSeconds
 		if totalDurationInSeconds > 0 && (float64(totalDurationInSeconds)-m.PlayedSeconds) < 1 {
 			m.PlayedSeconds = 0
 			model, cmd := m.handleMusicChange(true)
@@ -625,7 +629,7 @@ func (m Model) handleDbusMessage(msg types.MessageType) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handlePagination(listModel *list.Model, ShouldAppendQueue bool, currentIndex *int) (Model, tea.Cmd) {
+func (m Model) handlePagination(listModel *list.Model, currentIndex *int) (Model, tea.Cmd) {
 	if listModel == nil {
 		return m, nil
 	}
@@ -710,7 +714,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, cmd
 		}
 		listModel := getListItemForMusicToChoose(&m, m.FocusedOn)
-		return m.handlePagination(listModel, m.FocusedOn == QueueList, nil)
+		return m.handlePagination(listModel, nil)
 	case "up", "k":
 		if m.MainViewMode == LyricsMode && m.FocusedOn == MainView {
 			var cmd tea.Cmd
@@ -798,10 +802,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.MainViewMode = NormalMode
 			return m, nil
 		}
-		return m.getMusicLyrics(m.SelectedTrack)
+
+		return m.getMusicLyrics()
 	case "l":
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
-			trackID := m.SelectedTrack.Track.Track.VideoId
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+			trackID := m.SelectedTrack.Track.VideoId
 			shouldRemove := m.SelectedTrack.isLiked
 			targetLikedState := !shouldRemove
 
@@ -927,14 +932,180 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo) tea.Cmd {
 	}
 	return nil
 }
-func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
+func (m Model) getMusicLyrics() (Model, tea.Cmd) {
 	if m.MainViewMode == LyricsMode {
 		m.MainViewMode = NormalMode
 	} else {
 		m.MainViewMode = LyricsMode
 		m.FocusedOn = MainView
 	}
-	return m, nil
+
+	if m.SelectedTrack == nil || m.SelectedTrack.Track == nil ||
+		m.SelectedTrack.Track.DurationSeconds == 0 {
+		return m, nil
+	}
+
+	m.LyricsView.SetContent("  ⟳ Loading lyrics...")
+	selectedTrack := m.SelectedTrack
+	lyricsCmd := func() tea.Msg {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var backendResp *musicpb.GetLyricsResponse
+		lyricsResponse, err := m.YtMusicClient.GetLyrics(ctx, connect.NewRequest(&musicpb.GetLyricsRequest{
+			VideoId:    selectedTrack.Track.VideoId,
+			Timestamps: true,
+		}))
+		if err == nil && lyricsResponse != nil {
+			backendResp = lyricsResponse.Msg
+		}
+
+		if backendResp != nil && backendResp.HasTimestamps && len(backendResp.Lines) > 0 {
+			return types.LyricsMsg{LyricsResponse: backendResp}
+		}
+
+		lrclibResp := fetchLrclib(ctx, selectedTrack)
+
+		if lrclibResp != nil && lrclibResp.SyncedLyrics != "" {
+			lines := parseSyncedLyrics(lrclibResp.SyncedLyrics)
+			if len(lines) > 0 {
+				return types.LyricsMsg{
+					LyricsResponse: &musicpb.GetLyricsResponse{
+						HasTimestamps: true,
+						Lines:         lines,
+						Source:        "lrclib.net",
+					},
+				}
+			}
+		}
+
+		if backendResp != nil && backendResp.Lyrics != "" {
+			return types.LyricsMsg{LyricsResponse: backendResp}
+		}
+
+		if lrclibResp != nil && lrclibResp.PlainLyrics != "" {
+			return types.LyricsMsg{
+				LyricsResponse: &musicpb.GetLyricsResponse{
+					Lyrics: lrclibResp.PlainLyrics,
+					Source: "lrclib.net",
+				},
+			}
+		}
+
+		return types.LyricsMsg{LyricsResponse: nil, Err: err}
+	}
+
+	return m, lyricsCmd
+}
+
+type lrclibResponse struct {
+	SyncedLyrics string `json:"syncedLyrics"`
+	PlainLyrics  string `json:"plainLyrics"`
+}
+
+func fetchLrclib(ctx context.Context, track *SelectedTrack) *lrclibResponse {
+	params := url.Values{}
+	params.Add("track_name", track.Track.Title)
+	if track.Track.Album != "" {
+		params.Add("album_name", track.Track.Album)
+	}
+	if len(track.Track.Artists) > 0 {
+		params.Add("artist_name", track.Track.Artists[0].Name)
+	}
+	params.Add("duration", strconv.FormatInt(int64(track.Track.DurationSeconds), 10))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://lrclib.net/api/get?"+params.Encode(), nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", "ytmusic-tui/1.0")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	var result lrclibResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
+	}
+	return &result
+}
+
+func parseSyncedLyrics(synced string) []*musicpb.LyricLine {
+	var lines []*musicpb.LyricLine
+	for _, rawLine := range strings.Split(synced, "\n") {
+		rawLine = strings.TrimSpace(rawLine)
+		if rawLine == "" || !strings.HasPrefix(rawLine, "[") {
+			continue
+		}
+		closeBracket := strings.Index(rawLine, "]")
+		if closeBracket == -1 {
+			continue
+		}
+		timestamp := rawLine[1:closeBracket]
+		text := strings.TrimSpace(rawLine[closeBracket+1:])
+
+		ms, ok := parseLRCTimestamp(timestamp)
+		if !ok {
+			continue
+		}
+		lines = append(lines, &musicpb.LyricLine{
+			Text:      text,
+			StartTime: ms,
+		})
+	}
+	for i := 0; i < len(lines)-1; i++ {
+		lines[i].EndTime = lines[i+1].StartTime
+	}
+	return lines
+}
+
+func parseLRCTimestamp(ts string) (int32, bool) {
+	parts := strings.Split(ts, ":")
+	if len(parts) != 2 {
+		return 0, false
+	}
+	minutes, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, false
+	}
+	secParts := strings.Split(parts[1], ".")
+	if len(secParts) != 2 {
+		return 0, false
+	}
+	seconds, err := strconv.Atoi(secParts[0])
+	if err != nil {
+		return 0, false
+	}
+	frac := secParts[1]
+	fracVal, err := strconv.Atoi(frac)
+	if err != nil {
+		return 0, false
+	}
+	var fracMs int
+	switch len(frac) {
+	case 1:
+		fracMs = fracVal * 100
+	case 2:
+		fracMs = fracVal * 10
+	case 3:
+		fracMs = fracVal
+	default:
+		fracMs = fracVal
+	}
+
+	return int32(minutes*60000 + seconds*1000 + fracMs), true
 }
 
 func (m *Model) toggleRightColumnMode() {
@@ -1033,7 +1204,7 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 
 		if !fromHistory && m.PlayedSeconds > 30 &&
 			m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
-			appendToPlayHistory(&m, m.SelectedTrack.Track)
+			appendToPlayHistory(&m, &m.SelectedTrack.PlaylistTrackObject)
 		}
 	} else {
 		if len(m.PlayHistory) > 0 && m.PlayHistoryIndex > 0 {
@@ -1817,26 +1988,8 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	m.playbackCancel = cancel
 	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.VideoId, m.CoreDepsPath)
 	m.CurrentLyrics = nil
-	m.LyricsView.SetContent("  ⟳ Loading lyrics...")
 
-	lyricsCmd := func() tea.Msg {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		lyricsResponse, err := m.YtMusicClient.GetLyrics(ctx, connect.NewRequest(&musicpb.GetLyricsRequest{
-			VideoId:    selectedMusic.Track.VideoId,
-			Timestamps: true,
-		}))
-		var lyricsResp *musicpb.GetLyricsResponse
-		if lyricsResponse != nil {
-			lyricsResp = lyricsResponse.Msg
-		}
-		return types.LyricsMsg{
-			LyricsResponse: lyricsResp,
-			Err:            err,
-		}
-	}
-
-	cmds = append(cmds, cmd, lyricsCmd)
+	cmds = append(cmds, cmd)
 	metadata := getMusicMetadata(MusicMetadata{
 		artistName: strings.Join(artistNames, ","),
 		length:     int64(selectedMusic.Track.DurationSeconds * 1000),
@@ -1865,8 +2018,8 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	}
 	m.PlayedSeconds = 0
 	m.SelectedTrack = &SelectedTrack{
-		isLiked: false,
-		Track:   &selectedMusic,
+		isLiked:             false,
+		PlaylistTrackObject: selectedMusic,
 	}
 
 	cmds = append(cmds, m.SyncQueueList())
@@ -1965,8 +2118,8 @@ func SendLoadingCmd() tea.Cmd {
 
 func (m Model) getCurrentSelectedTrack() (string, string) {
 	if m.FocusedOn == Player {
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
-			return m.SelectedTrack.Track.Track.VideoId, m.SelectedTrack.Track.Track.Title
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+			return m.SelectedTrack.Track.VideoId, m.SelectedTrack.Track.Title
 		}
 		return "", ""
 	}
@@ -2000,8 +2153,8 @@ func (m Model) getCurrentSelectedTrack() (string, string) {
 		}
 	}
 
-	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
-		return m.SelectedTrack.Track.Track.VideoId, m.SelectedTrack.Track.Track.Title
+	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+		return m.SelectedTrack.Track.VideoId, m.SelectedTrack.Track.Title
 	}
 
 	return "", ""

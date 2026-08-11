@@ -83,7 +83,7 @@ func TestUpdate_PlayedSecondsUpdateMsg_NilTrack(t *testing.T) {
 func TestUpdate_PlayedSecondsUpdateMsg_UpdatesSeconds(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{DurationSeconds: 200},
 		},
 	}
@@ -100,7 +100,7 @@ func TestUpdate_LikeUnlikeTrackMsg(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
@@ -117,7 +117,7 @@ func TestUpdate_LikeUnlikeTrackMsg_DifferentID(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
@@ -134,7 +134,7 @@ func TestUpdate_CheckUserSavedTrackMsg(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
@@ -386,7 +386,7 @@ func TestUpdate_QueueList_MultiTrackRemovalAndPlayback(t *testing.T) {
 	updated.QueueList.Select(1)
 	resEnter, _ := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	mPlayed := resEnter.(Model)
-	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track == nil || mPlayed.SelectedTrack.Track.Track.VideoId != "song1" {
+	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track == nil || mPlayed.SelectedTrack.Track.VideoId != "song1" {
 		t.Errorf("Played track: want song1, got %v", mPlayed.SelectedTrack)
 	}
 }
@@ -412,7 +412,7 @@ func TestUpdate_QueueList_ContextItemSelection(t *testing.T) {
 	if mPlayed.PlaylistContextIndex != 1 {
 		t.Errorf("PlaylistContextIndex: want 1 for ctx2, got %d", mPlayed.PlaylistContextIndex)
 	}
-	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track.Track.VideoId != "ctx2" {
+	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track.VideoId != "ctx2" {
 		t.Errorf("Played track: want ctx2, got %v", mPlayed.SelectedTrack)
 	}
 }
@@ -421,7 +421,7 @@ func TestUpdate_PlayerActions(t *testing.T) {
 	m := newTestModel()
 	m.FocusedOn = Player
 	m.SelectedTrack = &SelectedTrack{
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{VideoId: "v1", Title: "Test Song"},
 		},
 	}

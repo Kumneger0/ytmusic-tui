@@ -67,8 +67,8 @@ type SpotifySearchResult struct {
 }
 
 type SelectedTrack struct {
+	types.PlaylistTrackObject
 	isLiked bool
-	Track   *types.PlaylistTrackObject
 }
 
 type MusicQueueList struct {
@@ -193,8 +193,8 @@ func (m Model) View() string {
 		)
 	} else if m.MainViewMode == LyricsMode {
 		trackName := ""
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
-			trackName = " • " + m.SelectedTrack.Track.Track.Title
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+			trackName = " • " + m.SelectedTrack.Track.Title
 		}
 		lyricsHeader := titleStyle.Render("  📝 Lyrics" + trackName)
 		lyricsPadded := lipgloss.NewStyle().Padding(1, 2).Render(m.LyricsView.View())
@@ -212,10 +212,10 @@ func (m Model) View() string {
 
 	var playingView string
 
-	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && m.SelectedTrack.Track.Track != nil {
+	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
 		playedSeconds := int(m.PlayedSeconds)
 		currentPosition := time.Second * time.Duration(playedSeconds)
-		total := time.Duration(m.SelectedTrack.Track.Track.DurationSeconds) * time.Second
+		total := time.Duration(m.SelectedTrack.Track.DurationSeconds) * time.Second
 		playingView = renderNowPlaying(&m, currentPosition, total)
 	}
 
