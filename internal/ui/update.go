@@ -1031,8 +1031,9 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 			fromHistory = true
 		}
 
-		if track != nil && !fromHistory && m.PlayedSeconds > 30000 {
-			appendToPlayHistory(&m, track)
+		if !fromHistory && m.PlayedSeconds > 30 &&
+			m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+			appendToPlayHistory(&m, m.SelectedTrack.Track)
 		}
 	} else {
 		if len(m.PlayHistory) > 0 && m.PlayHistoryIndex > 0 {
