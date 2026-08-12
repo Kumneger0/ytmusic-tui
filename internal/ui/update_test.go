@@ -521,6 +521,10 @@ func TestParseLRCTimestamp(t *testing.T) {
 		{"invalid format", "invalid", 0, false},
 		{"invalid minutes", "xx:10.00", 0, false},
 		{"invalid seconds", "01:yy.00", 0, false},
+		{"negative minutes", "-01:10.00", 0, false},
+		{"seconds equal to 60", "01:60.00", 0, false},
+		{"seconds above 60", "01:75.00", 0, false},
+		{"fraction longer than 3 digits", "01:10.1234", 0, false},
 	}
 
 	for _, tt := range tests {

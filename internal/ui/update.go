@@ -1113,23 +1113,32 @@ func parseLRCTimestamp(ts string) (int32, bool) {
 	if len(parts) != 2 {
 		return 0, false
 	}
+	if strings.HasPrefix(parts[0], "-") {
+		return 0, false
+	}
 	minutes, err := strconv.Atoi(parts[0])
-	if err != nil {
+	if err != nil || minutes < 0 {
 		return 0, false
 	}
 	secParts := strings.Split(parts[1], ".")
 	if len(secParts) > 2 {
 		return 0, false
 	}
+	if strings.HasPrefix(secParts[0], "-") {
+		return 0, false
+	}
 	seconds, err := strconv.Atoi(secParts[0])
-	if err != nil {
+	if err != nil || seconds < 0 || seconds >= 60 {
 		return 0, false
 	}
 	var fracMs int
 	if len(secParts) == 2 {
 		frac := secParts[1]
+		if len(frac) == 0 || len(frac) > 3 || strings.HasPrefix(frac, "-") {
+			return 0, false
+		}
 		fracVal, err := strconv.Atoi(frac)
-		if err != nil {
+		if err != nil || fracVal < 0 {
 			return 0, false
 		}
 		switch len(frac) {
@@ -1138,8 +1147,6 @@ func parseLRCTimestamp(ts string) (int32, bool) {
 		case 2:
 			fracMs = fracVal * 10
 		case 3:
-			fracMs = fracVal
-		default:
 			fracMs = fracVal
 		}
 	}
