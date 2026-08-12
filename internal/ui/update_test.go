@@ -83,7 +83,7 @@ func TestUpdate_PlayedSecondsUpdateMsg_NilTrack(t *testing.T) {
 func TestUpdate_PlayedSecondsUpdateMsg_UpdatesSeconds(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{DurationSeconds: 200},
 		},
 	}
@@ -100,7 +100,7 @@ func TestUpdate_LikeUnlikeTrackMsg(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
@@ -117,7 +117,7 @@ func TestUpdate_LikeUnlikeTrackMsg_DifferentID(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
@@ -134,7 +134,7 @@ func TestUpdate_CheckUserSavedTrackMsg(t *testing.T) {
 	m := newTestModel()
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{VideoId: "vid1"},
 		},
 	}
@@ -386,7 +386,7 @@ func TestUpdate_QueueList_MultiTrackRemovalAndPlayback(t *testing.T) {
 	updated.QueueList.Select(1)
 	resEnter, _ := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	mPlayed := resEnter.(Model)
-	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track == nil || mPlayed.SelectedTrack.Track.Track.VideoId != "song1" {
+	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track == nil || mPlayed.SelectedTrack.Track.VideoId != "song1" {
 		t.Errorf("Played track: want song1, got %v", mPlayed.SelectedTrack)
 	}
 }
@@ -412,7 +412,7 @@ func TestUpdate_QueueList_ContextItemSelection(t *testing.T) {
 	if mPlayed.PlaylistContextIndex != 1 {
 		t.Errorf("PlaylistContextIndex: want 1 for ctx2, got %d", mPlayed.PlaylistContextIndex)
 	}
-	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track.Track.VideoId != "ctx2" {
+	if mPlayed.SelectedTrack == nil || mPlayed.SelectedTrack.Track.VideoId != "ctx2" {
 		t.Errorf("Played track: want ctx2, got %v", mPlayed.SelectedTrack)
 	}
 }
@@ -421,7 +421,7 @@ func TestUpdate_PlayerActions(t *testing.T) {
 	m := newTestModel()
 	m.FocusedOn = Player
 	m.SelectedTrack = &SelectedTrack{
-		Track: &types.PlaylistTrackObject{
+		PlaylistTrackObject: types.PlaylistTrackObject{
 			Track: &musicpb.Song{VideoId: "v1", Title: "Test Song"},
 		},
 	}
@@ -504,5 +504,61 @@ func TestUpdate_SongRelatedContent_ArtistSelection(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Error("cmd should not be nil when selecting related artist")
+	}
+}
+
+func TestParseLRCTimestamp(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		wantMs int32
+		wantOK bool
+	}{
+		{"1-digit fraction", "01:19.6", 79600, true},
+		{"2-digit fraction", "00:19.67", 19670, true},
+		{"3-digit fraction", "02:10.123", 130123, true},
+		{"no fraction", "01:30", 90000, true},
+		{"invalid format", "invalid", 0, false},
+		{"invalid minutes", "xx:10.00", 0, false},
+		{"invalid seconds", "01:yy.00", 0, false},
+		{"negative minutes", "-01:10.00", 0, false},
+		{"seconds equal to 60", "01:60.00", 0, false},
+		{"seconds above 60", "01:75.00", 0, false},
+		{"fraction longer than 3 digits", "01:10.1234", 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotMs, gotOK := parseLRCTimestamp(tt.input)
+			if gotOK != tt.wantOK {
+				t.Errorf("parseLRCTimestamp(%q) ok = %v, want %v", tt.input, gotOK, tt.wantOK)
+			}
+			if gotMs != tt.wantMs {
+				t.Errorf("parseLRCTimestamp(%q) ms = %d, want %d", tt.input, gotMs, tt.wantMs)
+			}
+		})
+	}
+}
+
+func TestParseSyncedLyrics(t *testing.T) {
+	synced := `[ar: Rick Astley]
+[ti: Never Gonna Give You Up]
+[00:19.67] Line 1
+[00:23.56] Line 2
+[00:27.92] Line 3
+`
+	lines := parseSyncedLyrics(synced)
+	if len(lines) != 3 {
+		t.Fatalf("parseSyncedLyrics lines length: want 3, got %d", len(lines))
+	}
+
+	if lines[0].Text != "Line 1" || lines[0].StartTime != 19670 || lines[0].EndTime != 23560 {
+		t.Errorf("Line 0: got text=%q, start=%d, end=%d", lines[0].Text, lines[0].StartTime, lines[0].EndTime)
+	}
+	if lines[1].Text != "Line 2" || lines[1].StartTime != 23560 || lines[1].EndTime != 27920 {
+		t.Errorf("Line 1: got text=%q, start=%d, end=%d", lines[1].Text, lines[1].StartTime, lines[1].EndTime)
+	}
+	if lines[2].Text != "Line 3" || lines[2].StartTime != 27920 || lines[2].EndTime != 0 {
+		t.Errorf("Line 2 (last): got text=%q, start=%d, end=%d (want end=0)", lines[2].Text, lines[2].StartTime, lines[2].EndTime)
 	}
 }
