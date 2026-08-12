@@ -6,9 +6,10 @@ Before building `ytmusic-tui` from source, ensure you have the following install
 
 - **[Go](https://go.dev/dl/)** (v1.26 or higher)
 - **[Python](https://www.python.org/downloads/)** (v3.13 or higher) & **[uv](https://docs.astral.sh/uv/)** (recommended Python package manager)
-- **`yt-dlp`** (required for extracting YouTube Music audio stream URLs)
-- **`ffmpeg`** (required for audio stream decoding and playback)
----
+
+- **System Dependencies**:
+  - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)**: Required for extracting and fetching YouTube Music audio stream URLs
+  - **[ffmpeg](https://ffmpeg.org/)**: Required for audio stream decoding and playback
 
 ## Installation Steps
 
