@@ -1,6 +1,6 @@
 # ytmusic-tui
 
-listen to youtube music in ur terminal no cap
+listen to youtube music in your terminal
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-ytmusic--tui.kumneger.dev-blue.svg)](https://ytmusic-tui.kumneger.dev)
@@ -30,7 +30,7 @@ check the [docs](https://ytmusic-tui.kumneger.dev) for the full lowdown on how t
 - [x] Queue management & playback control
 - [x] Synced lyrics support
 - [x] Library support & like/unlike songs
-- [x] Playlist creation & management
+- [x] Playlist management
 - [ ] More browsing features
 
 ## 🤝 Contributing
