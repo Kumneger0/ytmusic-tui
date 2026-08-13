@@ -36,7 +36,8 @@ func getMusicMetadata(music MusicMetadata) map[string]any {
 		"mpris:trackid": "/org/mpris/MediaPlayer2/" + music.title,
 		"xesam:title":   music.title,
 		"xesam:artist":  music.artistName,
-		"xesam:album":   dbus.MakeVariant(music.albumName),
+		"xesam:length":  music.length,
+		"xesam:album":   music.albumName,
 	}
 	return metadata
 }
