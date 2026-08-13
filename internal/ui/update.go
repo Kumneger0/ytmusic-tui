@@ -25,17 +25,19 @@ import (
 )
 
 type MusicMetadata struct {
-	artistName string
+	artistName []string
 	title      string
 	length     int64
+	albumName  string
 }
 
 func getMusicMetadata(music MusicMetadata) map[string]any {
 	var metadata = map[string]any{
 		"mpris:trackid": "/org/mpris/MediaPlayer2/" + music.title,
-		"mpris:length":  music.length,
 		"xesam:title":   music.title,
 		"xesam:artist":  music.artistName,
+		"xesam:length":  music.length,
+		"xesam:album":   music.albumName,
 	}
 	return metadata
 }
@@ -429,6 +431,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model, cmd := m.getSearchResultModel(msg.Result)
 			m = model
 			m.IsSearchLoading = false
+			m.Search.Blur()
 			return m, cmd
 		}
 	case types.HomePageResponseMsg:
@@ -2038,9 +2041,10 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 
 	cmds = append(cmds, cmd)
 	metadata := getMusicMetadata(MusicMetadata{
-		artistName: strings.Join(artistNames, ","),
+		artistName: artistNames,
 		length:     int64(selectedMusic.Track.DurationSeconds * 1000),
 		title:      selectedMusic.Track.Title,
+		albumName:  selectedMusic.Track.Album,
 	})
 
 	if m.DBusConn != nil {
