@@ -32,7 +32,7 @@ jobs:
       - name: Sync Python dependencies
         run: uv sync
 
-      - name: Install buf Proto Compiler s
+      - name: Install buf Proto Compiler
         run: npm install -g @bufbuild/buf
 
       - name: Generate Go Protobuf files

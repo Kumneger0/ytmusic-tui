@@ -26,7 +26,7 @@ jobs:
         with:
           go-version: '1.26.x'
 
-      - name: Install buf Proto Compiler s
+      - name: Install buf Proto Compiler
         run: npm install -g @bufbuild/buf
 
       - name: Generate Go Protobuf files
