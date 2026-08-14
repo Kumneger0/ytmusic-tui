@@ -2,7 +2,8 @@ syntax = "proto3";
 
 package ytmusic_tui.music.v1;
 
-option go_package = "github.com/kumneger0/ytmusic-tui/gen";
+option go_package = "github.com/kumneger0/ytmusic-tui/gen;gen";
+
 
 service MusicService {
   rpc Login(LoginRequest) returns (LoginResponse);
@@ -370,7 +371,7 @@ message HomePageContent {
 }
 
 message GetVideoStreamURLAndDurationRequest {
-  string videoId = 1;
+  string video_id = 1;
 }
 
 message GetVideoStreamURLAndDurationResponse {
@@ -379,7 +380,7 @@ message GetVideoStreamURLAndDurationResponse {
 }
 
 message GetSongRelatedRequest {
-  string videoId = 1;
+  string video_id = 1;
   string browse_id = 2;
 }
 
@@ -410,7 +411,7 @@ message SongRelatedContent {
 }
 
 message GetLyricsRequest {
-  string videoId = 1;
+  string video_id = 1;
   bool timestamps = 2;
 }
 

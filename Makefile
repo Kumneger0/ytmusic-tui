@@ -57,39 +57,10 @@ hooks: ## install git commit-msg hook for commitlint (local)
 	@git config core.hooksPath scripts/hooks
 	@echo "--> Git hooks installed (commit-msg)."
 
-
-
 .PHONY: proto
-proto: proto-python proto-go ## generate protobuf files for both python and go
-
-.PHONY: proto-python
-proto-python:
-	@echo "Generating Python protobuf files..."
-	@mkdir -p grpc_server/gen
-	@touch grpc_server/gen/__init__.py
-
-	.venv/bin/python -m grpc_tools.protoc \
-		-Iproto \
-		--python_out=grpc_server/gen \
-		--pyi_out=grpc_server/gen \
-		--plugin=protoc-gen-connect-python=.venv/bin/protoc-gen-connect-python \
-		--connect-python_out=grpc_server/gen \
-		--connect-python_opt=protobuf=google \
-		proto/music.proto
-
-	@sed -i 's/^import music_pb2 as/from . import music_pb2 as/' grpc_server/gen/music_connect.py
-	@sed -i 's/from connectrpc.compression import Compression/from connectrpc.codec import Codec\nfrom connectrpc.compression import Compression/' grpc_server/gen/music_connect.py
-	@sed -i 's/compressions: Iterable\[Compression\] | None = None) -> None:/compressions: Iterable[Compression] | None = None, codecs: Iterable[Codec] | None = None) -> None:/' grpc_server/gen/music_connect.py
-	@sed -i 's/compressions=compressions,/compressions=compressions,\n            codecs=codecs,/' grpc_server/gen/music_connect.py
-
-	@echo "Generated Python files successfully."
-
-.PHONY: proto-go
-proto-go: 
-	@echo "Generating Go protobuf files..."
-	@mkdir -p gen
-	protoc -Iproto --go_out=gen --go_opt=module=github.com/kumneger0/ytmusic-tui/gen --connect-go_out=gen --connect-go_opt=module=github.com/kumneger0/ytmusic-tui/gen proto/music.proto
-	@echo "Generated Go files successfully."
+proto:
+	@buf generate --template buf.gen.go.yaml
+	@echo "compiled proto files successfully."
 
 .PHONY: server-watch
 server-watch: 

@@ -17,7 +17,6 @@ import (
 	"github.com/kumneger0/ytmusic-tui/internal/cookie"
 	ytMusicClient "github.com/kumneger0/ytmusic-tui/internal/yt-music-client"
 
-	"connectrpc.com/connect"
 	"github.com/browserutils/kooky"
 	_ "github.com/browserutils/kooky/browser/all"
 	"github.com/spf13/cobra"
@@ -117,17 +116,17 @@ func newExtractCookieCmd(serverURL string) *cobra.Command {
 				client := ytMusicClient.GetYtMusicClient(serverURL)
 				rpcCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
-				resp, err := client.Login(rpcCtx, connect.NewRequest(&musicpb.LoginRequest{AuthJson: jsonStr}))
-				if err != nil || !resp.Msg.Authenticated {
+				resp, err := client.Login(rpcCtx, &musicpb.LoginRequest{AuthJson: jsonStr})
+				if err != nil || !resp.Authenticated {
 					continue
 				}
 				path, err := saveAuthJSON(jsonStr)
 				if err != nil {
 					return fmt.Errorf("failed to save credentials: %w", err)
 				}
-				fmt.Printf("Authenticated as: %s (%s)\n", resp.Msg.UserName, b)
+				fmt.Printf("Authenticated as: %s (%s)\n", resp.UserName, b)
 				fmt.Printf("Saved credentials to: %s\n", path)
-				isAuthenticated = resp.Msg.Authenticated
+				isAuthenticated = resp.Authenticated
 				break
 			}
 			if !isAuthenticated {
