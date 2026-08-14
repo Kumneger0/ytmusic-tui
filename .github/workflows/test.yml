@@ -32,15 +32,11 @@ jobs:
       - name: Sync Python dependencies
         run: uv sync
 
-      - name: Install Go protobuf plugins
-        run: |
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.10
-          go install connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.18.1
+      - name: Install buf Proto Compiler s
+        run: npm install -g @bufbuild/buf
 
-      - name: generate protobuf files
-        run: |
-          export PATH="$(go env GOPATH)/bin:$PATH"
+      - name: Generate Go Protobuf files
+        run: | 
           make proto
           make build
 
