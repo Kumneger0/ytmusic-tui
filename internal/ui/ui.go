@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"connectrpc.com/connect"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -132,7 +131,7 @@ func (m Model) Init() tea.Cmd {
 	homePageFeed := func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		homePage, err := m.YtMusicClient.GetHomePage(ctx, connect.NewRequest(&musicpb.GetHomePageRequest{}))
+		homePage, err := m.YtMusicClient.GetHomePage(ctx, &musicpb.GetHomePageRequest{})
 		if err != nil {
 			slog.Error(err.Error())
 			return types.HomePageResponseMsg{
@@ -141,7 +140,7 @@ func (m Model) Init() tea.Cmd {
 			}
 		}
 		return types.HomePageResponseMsg{
-			Response: homePage.Msg,
+			Response: homePage,
 			Err:      nil,
 		}
 	}
