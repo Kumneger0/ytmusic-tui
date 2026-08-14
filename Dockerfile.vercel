@@ -15,8 +15,10 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY . .
 
 FROM bufbuild/buf:latest AS buf
-
-RUN buf generate
+WORKDIR /app
+COPY buf.yaml buf.gen.python.yaml ./
+COPY proto ./proto
+RUN buf generate --template buf.gen.python.yaml
 
 FROM python:3.13-slim AS runner
 
@@ -30,6 +32,7 @@ ENV PYTHONUNBUFFERED=1 \
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/grpc_server /app/grpc_server
 COPY --from=builder /app/proto /app/proto
+COPY --from=buf /app/grpc_server/gen /app/grpc_server/gen
 
 RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
 USER appuser

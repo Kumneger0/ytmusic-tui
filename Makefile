@@ -59,7 +59,7 @@ hooks: ## install git commit-msg hook for commitlint (local)
 
 .PHONY: proto
 proto:
-	@buf generate
+	@buf generate --template buf.gen.go.yaml
 	@echo "compiled proto files successfully."
 
 .PHONY: server-watch

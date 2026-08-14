@@ -19,7 +19,7 @@ from connectrpc.method import REQ, RES
 import uvicorn
 from connectrpc.request import RequestContext
 from .gen import music_pb2
-from gen.music_connect import MusicService, MusicServiceASGIApplication
+from .gen.music_connect import MusicService, MusicServiceASGIApplication
 from .src.client.client import (
     MusicClient,
     get_ytmusic_client,
