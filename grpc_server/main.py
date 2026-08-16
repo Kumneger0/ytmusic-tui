@@ -28,7 +28,9 @@ from .src.client.types import (
     YTHomeSection,
     YTSearchFilter,
     YTSearchResult,
+    YTSong,
     YTThumbnail,
+    YTWatchPlaylistResponse
 )
 
 from .src.mappers import (
@@ -165,10 +167,8 @@ class Service(MusicService):
     @override
     async def get_track(self, request, ctx) -> music_pb2.GetTrackResponse:
         client = self._get_client_for_request(ctx)
-        raw_auth = ctx.request_headers.get("x-auth-json")
-        auth_data = parse_auth_metadata(raw_auth) if raw_auth else None
         track_details = await asyncio.to_thread(
-            client.get_track, video_id=request.video_id, user_cookie=auth_data
+            client.get_track, video_id=request.video_id
         )
         if not track_details:
             return music_pb2.GetTrackResponse()
@@ -223,7 +223,24 @@ class Service(MusicService):
             response.tracks.append(to_proto_song(track))
 
         return response
+    @override
+    async def get_watch_playlist_items(self, request, ctx) -> music_pb2.GetWatchPlaylistItemsResponse:
+        limit = request.limit if request.limit > 0 else 100
+        client = self._get_client_for_request(ctx)
+        playlist_data: YTWatchPlaylistResponse = (
+                    await asyncio.to_thread(
+                        client.get_watch_playlist_items, video_id=request.video_id, limit=limit
+                    )
+                ) or {}
+        response = music_pb2.GetWatchPlaylistItemsResponse(
+        )
 
+        for track in (playlist_data.get('tracks') or []):
+            isAvailable = track.get('isAvailable')
+            if isAvailable:
+                response.tracks.append(to_proto_song(track))
+
+        return response
     @override
     async def get_playlist_items(self, request, ctx) -> music_pb2.GetPlaylistItemsResponse:
         limit = request.limit if request.limit > 0 else 100
@@ -233,6 +250,7 @@ class Service(MusicService):
                 client.get_playlist_items, playlist_id=request.playlist_id, limit=limit
             )
         ) or {}
+
 
         author_name = ""
         author_val = playlist_data.get("author")
@@ -251,7 +269,9 @@ class Service(MusicService):
         for thumbnail in playlist_data.get("thumbnails") or []:
             response.thumbnails.append(to_proto_thumbnail(thumbnail))
         for track in playlist_data.get("tracks") or []:
-            response.tracks.append(to_proto_song(track))
+            isAvailable = track.get('isAvailable')
+            if isAvailable:
+                response.tracks.append(to_proto_song(track))
 
         return response
 
@@ -386,7 +406,9 @@ class Service(MusicService):
         songs_sec = artist_data.get("songs") or {}
         if songs_sec:
             for song in songs_sec.get("results") or []:
-                response.tracks.append(to_proto_song(song))
+                isAvailable = song.get('isAvailable')
+                if isAvailable:
+                    response.tracks.append(to_proto_song(song))
 
         return response
 
@@ -452,7 +474,6 @@ class Service(MusicService):
     async def get_home_page(self, request, ctx) -> music_pb2.GetHomePageResponse:
         client = self._get_client_for_request(ctx)
         home_sections: list[YTHomeSection] = await asyncio.to_thread(client.get_home)
-
         response = music_pb2.GetHomePageResponse()
 
         for section in home_sections:
@@ -487,6 +508,15 @@ class Service(MusicService):
                         content_type=content_type,
                         description=str(content_map.get("description") or ""),
                     )
+
+                    if content_type == "song":
+                        try:
+                            track = cast(YTSong, cast(object, content))
+                            for artist in (track.get('artists') or []):
+                                content_msg.artists.append(to_proto_artist(artist))
+                            content_msg.duration_seconds = track.get('duration_seconds') or 0
+                        except:
+                            pass
 
                     thumbnails = content_map.get("thumbnails")
                     if isinstance(thumbnails, list):

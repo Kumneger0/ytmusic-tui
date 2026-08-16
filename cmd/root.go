@@ -99,7 +99,6 @@ func newRootCmd(version string, debug bool, serverURL string) *cobra.Command {
 	cmd.AddCommand(newVersionCmd(version))
 	cmd.AddCommand(ytmusicTuiLog())
 	cmd.AddCommand(ManCmd(cmd))
-	cmd.AddCommand(installDeps())
 	cmd.AddCommand(newExtractCookieCmd(serverURL))
 	return cmd
 }
