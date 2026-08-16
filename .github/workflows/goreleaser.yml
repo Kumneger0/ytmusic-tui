@@ -30,7 +30,7 @@ jobs:
         run: npm install -g @bufbuild/buf
 
       - name: Generate Go Protobuf files
-        run: make proto
+        run: buf generate --template buf.gen.go.yaml
 
       - name: Install ALSA & cross-compile dependencies
         run: |
