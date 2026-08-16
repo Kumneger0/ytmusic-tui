@@ -51,6 +51,9 @@ class YTLikedSongsResponse(TypedDict, total=False):
     thumbnails: list[YTThumbnail]
     tracks: list[YTSong]
 
+class YTWatchPlaylistResponse(TypedDict, total=False):
+    tracks: list[YTSong]    
+
 
 class YTLibraryAlbum(TypedDict, total=False):
     """An album item as returned by get_library_albums."""

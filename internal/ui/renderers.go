@@ -206,7 +206,15 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			icon = "☰"
 		}
 		title = item.ItemTitle
-		subtitle = item.Description
+		if len(item.Artists) > 0 {
+			var names []string
+			for _, a := range item.Artists {
+				names = append(names, a.Name)
+			}
+			subtitle = strings.Join(names, ", ")
+		} else {
+			subtitle = item.Description
+		}
 	case types.HomePageSectionItem:
 		icon = "▸"
 		title = item.SectionTitle

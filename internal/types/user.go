@@ -1,18 +1,8 @@
 package types // nolint:revive
 
-type UserTokenInfo struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	RefreshToken string `json:"refresh_token"`
-	Scope        string `json:"scope"`
-	ExpiresAt    int64  `json:"expires_at,omitempty"`
-}
-
-type InstallStep struct {
-	Command string
-	Args    []string
-}
+import (
+	musicpb "github.com/kumneger0/ytmusic-tui/gen"
+)
 
 type UserSavedTracksListItem struct {
 	Name string
@@ -40,8 +30,10 @@ func (h SidebarItem) Title() string {
 }
 
 type HomePageSectionItem struct {
-	SectionTitle string
-	Index        int
+	SectionTitle    string
+	Index           int
+	Artists         []*musicpb.Artist
+	DurationSeconds int32
 }
 
 func (h HomePageSectionItem) FilterValue() string {
@@ -53,12 +45,14 @@ func (h HomePageSectionItem) Title() string {
 }
 
 type HomePageContentItem struct {
-	ItemTitle   string
-	PlaylistID  string
-	VideoID     string
-	BrowseID    string
-	ContentType string
-	Description string
+	ItemTitle       string
+	PlaylistID      string
+	VideoID         string
+	BrowseID        string
+	ContentType     string
+	Description     string
+	Artists         []*musicpb.Artist
+	DurationSeconds int32
 }
 
 func (h HomePageContentItem) FilterValue() string {

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -51,6 +52,25 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case types.WatchPlaylistItemsMsg:
+		if msg.Err != nil {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			return m, alertCmd
+		}
+		if msg.WatchPlaylistItems == nil {
+			slog.Error("Failed to fetch watch playlist items")
+			return m, nil
+		}
+		var wg sync.WaitGroup
+		for _, song := range msg.WatchPlaylistItems.Tracks {
+			wg.Go(func() {
+				m.Queue.AddTrack(&types.PlaylistTrackObject{
+					Track: song,
+				})
+			})
+		}
+		wg.Wait()
+		return m, m.SyncQueueList()
 	case types.CreatePlaylistMsg:
 		cmd := func() tea.Msg {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -348,12 +368,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		for _, content := range contents.Contents {
 			items = append(items, types.HomePageContentItem{
-				ItemTitle:   content.Title,
-				PlaylistID:  content.PlaylistId,
-				VideoID:     content.VideoId,
-				BrowseID:    content.BrowseId,
-				ContentType: content.ContentType,
-				Description: content.Description,
+				ItemTitle:       content.Title,
+				PlaylistID:      content.PlaylistId,
+				VideoID:         content.VideoId,
+				BrowseID:        content.BrowseId,
+				ContentType:     content.ContentType,
+				Description:     content.Description,
+				Artists:         content.Artists,
+				DurationSeconds: content.DurationSeconds,
 			})
 		}
 		dims := CalculateLayoutDimensions(&m)
@@ -485,7 +507,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		totalDurationInSeconds := m.SelectedTrack.Track.DurationSeconds
 		if totalDurationInSeconds > 0 && (float64(totalDurationInSeconds)-m.PlayedSeconds) < 1 {
-			m.PlayedSeconds = 0
 			model, cmd := m.handleMusicChange(true)
 			m = model
 			return m, cmd
@@ -1262,6 +1283,7 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 	}
 
 	if track != nil {
+		m.PlayedSeconds = 0
 		model, cmd := m.PlaySelectedMusic(*track)
 		m = model
 		return m, cmd
@@ -1569,6 +1591,7 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 							Track: &musicpb.Song{
 								VideoId: contentItem.VideoID,
 								Title:   contentItem.ItemTitle,
+								Artists: contentItem.Artists,
 							},
 						})
 					}
@@ -1580,6 +1603,7 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 				Track: &musicpb.Song{
 					VideoId: trackID,
 					Title:   item.ItemTitle,
+					Artists: item.Artists,
 				},
 			}
 
@@ -1732,23 +1756,21 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 			Url:             selectedItem.Url,
 		}
 		playlistTrack := types.PlaylistTrackObject{Track: song}
-		relatedSongsCmd := func() tea.Msg {
+
+		watchPlaylistCmd := func() tea.Msg {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			relatedSongs, err := m.YtMusicClient.GetSongRelated(ctx, &musicpb.GetSongRelatedRequest{
+			watchPlaylistItems, err := m.YtMusicClient.GetWatchPlaylistItems(ctx, &musicpb.GetWatchPlaylistItemsRequest{
 				VideoId: selectedItem.VideoId,
+				Limit:   100,
 			})
-			var relResp *musicpb.GetSongRelatedResponse
-			if relatedSongs != nil {
-				relResp = relatedSongs
-			}
-			return types.RelatedSongsMsg{
-				Related: relResp,
-				Err:     err,
+			return types.WatchPlaylistItemsMsg{
+				WatchPlaylistItems: watchPlaylistItems,
+				Err:                err,
 			}
 		}
 		m, cmd := m.playStandaloneTrack(playlistTrack)
-		return m, tea.Batch(cmd, relatedSongsCmd)
+		return m, tea.Batch(cmd, watchPlaylistCmd)
 
 	case types.SearchResultPlaylistItem:
 		if selectedItem.SearchResultPlaylist != nil {

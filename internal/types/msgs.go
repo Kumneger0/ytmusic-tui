@@ -131,6 +131,10 @@ type RelatedSongsMsg struct {
 	Related *musicpb.GetSongRelatedResponse
 	Err     error
 }
+type WatchPlaylistItemsMsg struct {
+	WatchPlaylistItems *musicpb.GetWatchPlaylistItemsResponse
+	Err                error
+}
 
 type LyricsMsg struct {
 	LyricsResponse *musicpb.GetLyricsResponse

@@ -2,6 +2,7 @@ import json
 import os
 import threading
 from typing import TypeAlias, cast, Callable, TypeVar, Any
+from ytmusicapi.type_alias import JsonList
 from click import Path
 from ytmusicapi.models.lyrics import Lyrics, TimedLyrics
 from ytmusicapi.type_alias import JsonDict
@@ -23,7 +24,8 @@ from .types import (
     YTSongResponse,
     YTArtistResponse,
     YTSearchResult,
-    YTSearchFilter
+    YTSearchFilter,
+    YTWatchPlaylistResponse
 )
 
 JSONValue: TypeAlias = (
@@ -148,7 +150,7 @@ class MusicClient:
     def get_user_playlists(self, limit: int = 25) -> list[YTLibraryPlaylist]:
         return self.execute(lambda c: cast(list[YTLibraryPlaylist], c.get_library_playlists(limit=limit)))
 
-    def get_track(self, video_id: str, user_cookie: str | None = None) -> YTSongResponse:
+    def get_track(self, video_id: str) -> YTSongResponse:
         def _fetch(c: YTMusic) -> YTSongResponse:
             raw_song: object = c.get_song(videoId=video_id)
             song_dict = cast(dict[str, object], raw_song)
@@ -161,6 +163,10 @@ class MusicClient:
 
     def get_album_tracks(self, browse_id: str) -> YTAlbumResponse:
         return self.execute(lambda c: cast(YTAlbumResponse, cast(object, c.get_album(browseId=browse_id))))
+
+    def get_watch_playlist_items(self, video_id: str, limit:int)  -> YTWatchPlaylistResponse:
+        watch_playlist_items =  self.execute(func=lambda c: cast(YTWatchPlaylistResponse,  cast(object, c.get_watch_playlist(videoId=video_id, limit=limit))))
+        return watch_playlist_items
 
     def get_playlist_items(self, playlist_id: str, limit: int = 100) -> YTLikedSongsResponse:
         return self.execute(lambda c: cast(YTLikedSongsResponse, cast(object, c.get_playlist(playlistId=playlist_id, limit=limit))))

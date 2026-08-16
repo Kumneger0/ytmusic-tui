@@ -248,6 +248,10 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 	timeoutCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 
+	appConfig := config.GetConfig()
+	logPathName := appConfig.DebugDir
+	ytDlpError, err := os.Create(filepath.Join(*logPathName, "yt-dlp-error.log"))
+
 	cookiePath := cookie.EnsureCookieFile()
 	targetURL := "https://www.youtube.com/watch?v=" + videoID
 
@@ -262,6 +266,7 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 		slog.Error(err.Error())
 		return nil, err
 	}
+	cmd.Stderr = ytDlpError
 	outBytes, err := cmd.Output()
 	if err != nil {
 		slog.Error(err.Error())
@@ -277,6 +282,7 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 			slog.Error(err.Error())
 			return nil, err
 		}
+		cmd.Stderr = ytDlpError
 		outBytes, err = cmd.Output()
 		if err != nil {
 			slog.Error(err.Error())

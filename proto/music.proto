@@ -16,6 +16,7 @@ service MusicService {
   rpc GetTrack(GetTrackRequest) returns (GetTrackResponse);
   rpc GetAlbumTracks(GetAlbumTracksRequest) returns (GetAlbumTracksResponse);
   rpc GetPlaylistItems(GetPlaylistItemsRequest) returns (GetPlaylistItemsResponse);
+  rpc GetWatchPlaylistItems(GetWatchPlaylistItemsRequest) returns(GetWatchPlaylistItemsResponse);
 
   rpc GetSearchResults(GetSearchResultsRequest) returns (GetSearchResultsResponse);
 
@@ -188,6 +189,14 @@ message GetAlbumTracksResponse {
 message GetPlaylistItemsRequest {
   string playlist_id = 1;
   int32 limit = 2;
+}
+message GetWatchPlaylistItemsRequest {
+  string video_id = 1;
+  int32 limit = 2;
+}
+
+message GetWatchPlaylistItemsResponse {
+  repeated Song tracks = 7;
 }
 
 message GetPlaylistItemsResponse {
@@ -368,6 +377,8 @@ message HomePageContent {
   string video_id = 5;
   string browse_id = 6;
   string content_type = 7;
+  repeated Artist artists = 8;
+  int32 duration_seconds = 9;
 }
 
 message GetVideoStreamURLAndDurationRequest {
