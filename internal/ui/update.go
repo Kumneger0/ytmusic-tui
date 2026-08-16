@@ -68,6 +68,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		for _, song := range msg.WatchPlaylistItems.Tracks {
+			if song.VideoId == currentlyPlayingTrackID {
+				continue
+			}
 			m.Queue.AddTrack(&types.PlaylistTrackObject{
 				Track: song,
 			})
@@ -1773,8 +1776,9 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				Err:                err,
 			}
 		}
+		m.Queue.Clear()
 		m, cmd := m.playStandaloneTrack(playlistTrack)
-		return m, tea.Batch(cmd, watchPlaylistCmd)
+		return m, tea.Batch(cmd, tea.Sequence(m.SyncQueueList(), watchPlaylistCmd))
 
 	case types.SearchResultPlaylistItem:
 		if selectedItem.SearchResultPlaylist != nil {
