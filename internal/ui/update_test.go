@@ -562,3 +562,189 @@ func TestParseSyncedLyrics(t *testing.T) {
 		t.Errorf("Line 2 (last): got text=%q, start=%d, end=%d (want end=0)", lines[2].Text, lines[2].StartTime, lines[2].EndTime)
 	}
 }
+
+func TestUpdate_WatchPlaylistItemsMsg_Error(t *testing.T) {
+	m := newTestModel()
+
+	result, cmd := m.Update(types.WatchPlaylistItemsMsg{Err: errors.New("fetch failed")})
+	updated := result.(Model)
+
+	if cmd == nil {
+		t.Error("cmd should not be nil on error (alert expected)")
+	}
+	if updated.Queue.Len() != 0 {
+		t.Errorf("Queue items: want 0 on error, got %d", updated.Queue.Len())
+	}
+}
+
+func TestUpdate_WatchPlaylistItemsMsg_NilResponse(t *testing.T) {
+	m := newTestModel()
+
+	result, cmd := m.Update(types.WatchPlaylistItemsMsg{WatchPlaylistItems: nil})
+	updated := result.(Model)
+
+	if cmd != nil {
+		t.Error("cmd should be nil when WatchPlaylistItems is nil")
+	}
+	if updated.Queue.Len() != 0 {
+		t.Errorf("Queue items: want 0 on nil response, got %d", updated.Queue.Len())
+	}
+}
+
+func TestUpdate_WatchPlaylistItemsMsg_AddsTracks(t *testing.T) {
+	m := newTestModel()
+	m.SelectedTrack = &SelectedTrack{
+		PlaylistTrackObject: types.PlaylistTrackObject{
+			Track: &musicpb.Song{VideoId: "current-video", Title: "Current Song"},
+		},
+	}
+
+	watchResp := &musicpb.GetWatchPlaylistItemsResponse{
+		Tracks: []*musicpb.Song{
+			{VideoId: "watch1", Title: "Watch Track 1"},
+			{VideoId: "watch2", Title: "Watch Track 2"},
+			{VideoId: "watch3", Title: "Watch Track 3"},
+		},
+	}
+
+	msg := types.WatchPlaylistItemsMsg{
+		SourceID:           "current-video",
+		WatchPlaylistItems: watchResp,
+	}
+
+	result, _ := m.Update(msg)
+	updated := result.(Model)
+
+	if updated.Queue.Len() != 3 {
+		t.Fatalf("Queue items: want 3, got %d", updated.Queue.Len())
+	}
+
+	tracks := updated.Queue.AllTracks()
+	expectedIDs := []string{"watch1", "watch2", "watch3"}
+	for i, id := range expectedIDs {
+		if tracks[i].Track.VideoId != id {
+			t.Errorf("Track %d: want VideoId %q, got %q", i, id, tracks[i].Track.VideoId)
+		}
+	}
+}
+
+func TestUpdate_WatchPlaylistItemsMsg_SourceMismatch(t *testing.T) {
+	m := newTestModel()
+	m.SelectedTrack = &SelectedTrack{
+		PlaylistTrackObject: types.PlaylistTrackObject{
+			Track: &musicpb.Song{VideoId: "current-video", Title: "Current Song"},
+		},
+	}
+
+	watchResp := &musicpb.GetWatchPlaylistItemsResponse{
+		Tracks: []*musicpb.Song{
+			{VideoId: "watch1", Title: "Watch Track 1"},
+		},
+	}
+
+	msg := types.WatchPlaylistItemsMsg{
+		SourceID:           "different-video",
+		WatchPlaylistItems: watchResp,
+	}
+
+	result, cmd := m.Update(msg)
+	updated := result.(Model)
+
+	if cmd != nil {
+		t.Error("cmd should be nil when SourceID doesn't match current track")
+	}
+	if updated.Queue.Len() != 0 {
+		t.Errorf("Queue items: want 0 on source mismatch, got %d", updated.Queue.Len())
+	}
+}
+
+func TestUpdate_WatchPlaylistItemsMsg_NoSelectedTrack(t *testing.T) {
+	m := newTestModel()
+	m.SelectedTrack = nil
+
+	watchResp := &musicpb.GetWatchPlaylistItemsResponse{
+		Tracks: []*musicpb.Song{
+			{VideoId: "watch1", Title: "Watch Track 1"},
+			{VideoId: "watch2", Title: "Watch Track 2"},
+		},
+	}
+
+	msg := types.WatchPlaylistItemsMsg{
+		SourceID:           "some-video",
+		WatchPlaylistItems: watchResp,
+	}
+
+	result, _ := m.Update(msg)
+	updated := result.(Model)
+
+	if updated.Queue.Len() != 2 {
+		t.Errorf("Queue items: want 2 when no selected track, got %d", updated.Queue.Len())
+	}
+}
+
+func TestUpdate_WatchPlaylistItemsMsg_EmptyTracks(t *testing.T) {
+	m := newTestModel()
+	m.SelectedTrack = &SelectedTrack{
+		PlaylistTrackObject: types.PlaylistTrackObject{
+			Track: &musicpb.Song{VideoId: "current-video", Title: "Current Song"},
+		},
+	}
+
+	watchResp := &musicpb.GetWatchPlaylistItemsResponse{
+		Tracks: []*musicpb.Song{},
+	}
+
+	msg := types.WatchPlaylistItemsMsg{
+		SourceID:           "current-video",
+		WatchPlaylistItems: watchResp,
+	}
+
+	result, _ := m.Update(msg)
+	updated := result.(Model)
+
+	if updated.Queue.Len() != 0 {
+		t.Errorf("Queue items: want 0 with empty tracks, got %d", updated.Queue.Len())
+	}
+}
+
+func TestUpdate_WatchPlaylistItemsMsg_AppendsToExistingQueue(t *testing.T) {
+	m := newTestModel()
+	m.SelectedTrack = &SelectedTrack{
+		PlaylistTrackObject: types.PlaylistTrackObject{
+			Track: &musicpb.Song{VideoId: "current-video", Title: "Current Song"},
+		},
+	}
+
+	existing := types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "existing1", Title: "Existing Track"}}
+	m.Queue.AddTrack(&existing)
+
+	watchResp := &musicpb.GetWatchPlaylistItemsResponse{
+		Tracks: []*musicpb.Song{
+			{VideoId: "watch1", Title: "Watch Track 1"},
+			{VideoId: "watch2", Title: "Watch Track 2"},
+		},
+	}
+
+	msg := types.WatchPlaylistItemsMsg{
+		SourceID:           "current-video",
+		WatchPlaylistItems: watchResp,
+	}
+
+	result, _ := m.Update(msg)
+	updated := result.(Model)
+
+	if updated.Queue.Len() != 3 {
+		t.Fatalf("Queue items: want 3 (1 existing + 2 new), got %d", updated.Queue.Len())
+	}
+
+	tracks := updated.Queue.AllTracks()
+	if tracks[0].Track.VideoId != "existing1" {
+		t.Errorf("Track 0: want existing1, got %q", tracks[0].Track.VideoId)
+	}
+	if tracks[1].Track.VideoId != "watch1" {
+		t.Errorf("Track 1: want watch1, got %q", tracks[1].Track.VideoId)
+	}
+	if tracks[2].Track.VideoId != "watch2" {
+		t.Errorf("Track 2: want watch2, got %q", tracks[2].Track.VideoId)
+	}
+}

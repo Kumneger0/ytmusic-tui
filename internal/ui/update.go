@@ -1591,9 +1591,10 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 					if contentItem.VideoID != "" {
 						contextTracks = append(contextTracks, &types.PlaylistTrackObject{
 							Track: &musicpb.Song{
-								VideoId: contentItem.VideoID,
-								Title:   contentItem.ItemTitle,
-								Artists: contentItem.Artists,
+								VideoId:         contentItem.VideoID,
+								Title:           contentItem.ItemTitle,
+								Artists:         contentItem.Artists,
+								DurationSeconds: contentItem.DurationSeconds,
 							},
 						})
 					}
