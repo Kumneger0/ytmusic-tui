@@ -102,7 +102,7 @@ class Service(MusicService):
             try:
                 songs_data = await asyncio.to_thread(yt.get_liked_songs, limit=5)
                 tracks = songs_data.get("tracks")
-                if isinstance(tracks, list) and len(tracks) > 0:
+                if isinstance(tracks, list) and len(tracks) > 0:  # pyright: ignore[reportUnknownArgumentType]
                     return music_pb2.LoginResponse(authenticated=True, error="", user_name="")
             except Exception as e:
                 if err is None:

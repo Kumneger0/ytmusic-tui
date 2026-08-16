@@ -144,7 +144,7 @@ func (m Model) Init() tea.Cmd {
 			Err:      nil,
 		}
 	}
-	return tea.Batch(m.Alert.Init(), SendLoadingCmd(), homePageFeed)
+	return tea.Batch(m.Alert.Init(), SendLoadingCmd(), homePageFeed, tea.SetWindowTitle("YTmusic-tui"))
 }
 
 func renderBreadcrumbs(items []types.Breadcrumb) string {
