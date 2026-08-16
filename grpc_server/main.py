@@ -237,7 +237,7 @@ class Service(MusicService):
 
         for track in (playlist_data.get('tracks') or []):
             isAvailable = track.get('isAvailable')
-            if isAvailable:
+            if isAvailable or isAvailable is None:
                 response.tracks.append(to_proto_song(track))
 
         return response
@@ -270,7 +270,7 @@ class Service(MusicService):
             response.thumbnails.append(to_proto_thumbnail(thumbnail))
         for track in playlist_data.get("tracks") or []:
             isAvailable = track.get('isAvailable')
-            if isAvailable:
+            if isAvailable or isAvailable is None:
                 response.tracks.append(to_proto_song(track))
 
         return response
@@ -407,7 +407,7 @@ class Service(MusicService):
         if songs_sec:
             for song in songs_sec.get("results") or []:
                 isAvailable = song.get('isAvailable')
-                if isAvailable:
+                if isAvailable or isAvailable is None:
                     response.tracks.append(to_proto_song(song))
 
         return response
@@ -510,13 +510,10 @@ class Service(MusicService):
                     )
 
                     if content_type == "song":
-                        try:
-                            track = cast(YTSong, cast(object, content))
-                            for artist in (track.get('artists') or []):
-                                content_msg.artists.append(to_proto_artist(artist))
-                            content_msg.duration_seconds = track.get('duration_seconds') or 0
-                        except:
-                            pass
+                        track = cast(YTSong, cast(object, content))
+                        for artist in (track.get('artists') or []):
+                            content_msg.artists.append(to_proto_artist(artist))
+                        content_msg.duration_seconds = coerce_int(track.get('duration_seconds'))
 
                     thumbnails = content_map.get("thumbnails")
                     if isinstance(thumbnails, list):
