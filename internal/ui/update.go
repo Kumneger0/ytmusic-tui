@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -61,15 +60,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			slog.Error("Failed to fetch watch playlist items")
 			return m, nil
 		}
-		var wg sync.WaitGroup
+		var currentlyPlayingTrackID string
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+			currentlyPlayingTrackID = m.SelectedTrack.Track.VideoId
+		}
+		if currentlyPlayingTrackID != "" && currentlyPlayingTrackID != msg.SourceID {
+			return m, nil
+		}
 		for _, song := range msg.WatchPlaylistItems.Tracks {
-			wg.Go(func() {
-				m.Queue.AddTrack(&types.PlaylistTrackObject{
-					Track: song,
-				})
+			m.Queue.AddTrack(&types.PlaylistTrackObject{
+				Track: song,
 			})
 		}
-		wg.Wait()
 		return m, m.SyncQueueList()
 	case types.CreatePlaylistMsg:
 		cmd := func() tea.Msg {
@@ -1765,6 +1767,7 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				Limit:   100,
 			})
 			return types.WatchPlaylistItemsMsg{
+				SourceID:           selectedItem.VideoId,
 				WatchPlaylistItems: watchPlaylistItems,
 				Err:                err,
 			}

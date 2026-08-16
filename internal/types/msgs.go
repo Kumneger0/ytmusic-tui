@@ -132,6 +132,7 @@ type RelatedSongsMsg struct {
 	Err     error
 }
 type WatchPlaylistItemsMsg struct {
+	SourceID           string
 	WatchPlaylistItems *musicpb.GetWatchPlaylistItemsResponse
 	Err                error
 }
