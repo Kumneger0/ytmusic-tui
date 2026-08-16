@@ -37,7 +37,7 @@ jobs:
 
       - name: Generate Go Protobuf files
         run: | 
-          make proto
+          buf generate --template buf.gen.go.yaml
           make build
 
       - name: golangci-lint
