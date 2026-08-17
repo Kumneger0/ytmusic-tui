@@ -259,7 +259,7 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 	if cookiePath != "" {
 		args = append(args, "--cookies", cookiePath)
 	}
-	args = append(args, "-f", "ba[acodec=opus][tbr<=300]/ba[tbr<=300]/ba", targetURL)
+	args = append(args, "-f", "ba[acodec=opus][tbr<=300]/ba[tbr<=300]/ba/b", targetURL)
 
 	cmd, err := command.ExecCommand(timeoutCtx, ytdlpPath, args...)
 	if err != nil {
@@ -270,7 +270,7 @@ func GetStreamURLAndDuration(ctx context.Context, videoID string, ytdlpPath stri
 	outBytes, err := cmd.Output()
 	if err != nil {
 		slog.Error(err.Error())
-		fallbackArgs := []string{"-j", "--no-warnings", "-f", "ba[acodec=opus][tbr<=300]/ba[tbr<=300]/ba"}
+		fallbackArgs := []string{"-j", "--no-warnings", "-f", "ba[acodec=opus][tbr<=300]/ba[tbr<=300]/ba/b"}
 		if cookiePath != "" {
 			fallbackArgs = append(fallbackArgs, "--cookies", cookiePath)
 		}
