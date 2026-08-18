@@ -216,7 +216,6 @@ func SearchAndDownloadMusic(
 				_ = pr.Close()
 				if player != nil {
 					player.Pause()
-					player.Close()
 				}
 				if ffStderr != nil {
 					_ = ffStderr.Close()

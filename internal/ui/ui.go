@@ -37,14 +37,9 @@ type MainViewMode string
 
 const (
 	SearchResultMode MainViewMode = "SEARCH_RESULT_MODE"
-	//currently im showing the search result in main area which is the center one
-	//let's say the user searches for a song or playlist and sees the result and he chose the first result
-	//at this time the previous are gone b/c i was sharing  this main new to show items in playlist and the search result
-	// so by adding this MainViewMode we can switch b/c modes so that we keep the result in memory
-	// meaning we can switch b/n search result and normal mode
-	NormalMode   MainViewMode = "NORMAL_MODE"
-	LyricsMode   MainViewMode = "LYRICS_MODE"
-	HomePageMode MainViewMode = "HOME_PAGE_MODE"
+	NormalMode       MainViewMode = "NORMAL_MODE"
+	LyricsMode       MainViewMode = "LYRICS_MODE"
+	HomePageMode     MainViewMode = "HOME_PAGE_MODE"
 )
 
 type HomePageViewMode int
@@ -103,23 +98,18 @@ type Model struct {
 	PlayHistoryIndex     int
 	YtMusicClient        genconnect.MusicServiceClient
 	DBusConn             *Instance
-	//actually i need this b/c if user searches and selects playlist or artist
-	//at that time when he selects artist or playlist the search were hidden from mainView
-	//so that if search again we can show the previous result by comparing the query
-	// TODO: find a better way than this looks very ugly
-	SearchQuery string
-	// SearchResult                             *SpotifySearchResult
-	IsSearchLoading  bool
-	SearchResult     list.Model
-	PaginationInfo   *types.PaginationInfo
-	IsOnPagination   bool
-	CoreDepsPath     *youtube.CoreDepsPath
-	HomePageData     *musicpb.GetHomePageResponse
-	HomePageList     list.Model
-	HomePageViewMode HomePageViewMode
-	RelatedList      list.Model
-	RightColumnMode  RightColumnMode
-	CurrentLyrics    *musicpb.GetLyricsResponse
+	SearchQuery          string
+	IsSearchLoading      bool
+	SearchResult         list.Model
+	PaginationInfo       *types.PaginationInfo
+	IsOnPagination       bool
+	CoreDepsPath         *youtube.CoreDepsPath
+	HomePageData         *musicpb.GetHomePageResponse
+	HomePageList         list.Model
+	HomePageViewMode     HomePageViewMode
+	RelatedList          list.Model
+	RightColumnMode      RightColumnMode
+	CurrentLyrics        *musicpb.GetLyricsResponse
 }
 
 type Instance struct {
@@ -309,10 +299,12 @@ func (m *Model) SyncQueueList() tea.Cmd {
 
 	if len(m.PlaybackContext) > 0 {
 		contextName := m.PlaybackContextName
-		if contextName == "" {
-			contextName = "Playlist"
+		if contextName != "" {
+			items = append(items, types.HomePageSectionItem{SectionTitle: "Next from " + contextName})
 		}
-		items = append(items, types.HomePageSectionItem{SectionTitle: "Next from " + contextName})
+		if contextName == "" {
+			items = append(items, types.HomePageSectionItem{SectionTitle: "Next Up"})
+		}
 
 		n := len(m.PlaybackContext)
 		startIdx := m.PlaylistContextIndex

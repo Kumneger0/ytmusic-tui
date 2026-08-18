@@ -196,7 +196,8 @@ message GetWatchPlaylistItemsRequest {
 }
 
 message GetWatchPlaylistItemsResponse {
-  repeated Song tracks = 7;
+  string playlist_id = 1;
+  repeated Song tracks = 2;
 }
 
 message GetPlaylistItemsResponse {

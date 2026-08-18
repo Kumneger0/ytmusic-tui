@@ -376,6 +376,7 @@ func runRoot(cmd *cobra.Command, serverURL string) error {
 	if ins != nil {
 		ins.Conn.Close()
 	}
+
 	return nil
 }
 
