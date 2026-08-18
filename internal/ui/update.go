@@ -71,10 +71,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if song.VideoId == currentlyPlayingTrackID {
 				continue
 			}
-			m.Queue.AddTrack(&types.PlaylistTrackObject{
+			m.PlaybackContext = append(m.PlaybackContext, &types.PlaylistTrackObject{
 				Track: song,
 			})
 		}
+		m.PlaybackContextName = ""
 		return m, m.SyncQueueList()
 	case types.CreatePlaylistMsg:
 		cmd := func() tea.Msg {

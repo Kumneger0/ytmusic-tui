@@ -234,7 +234,6 @@ class Service(MusicService):
                 ) or {}
         response = music_pb2.GetWatchPlaylistItemsResponse(
         )
-
         for track in (playlist_data.get('tracks') or []):
             isAvailable = track.get('isAvailable')
             if isAvailable or isAvailable is None:

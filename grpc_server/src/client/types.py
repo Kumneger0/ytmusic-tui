@@ -52,6 +52,7 @@ class YTLikedSongsResponse(TypedDict, total=False):
     tracks: list[YTSong]
 
 class YTWatchPlaylistResponse(TypedDict, total=False):
+    playlistId:str
     tracks: list[YTSong]    
 
 
