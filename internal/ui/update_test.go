@@ -615,11 +615,11 @@ func TestUpdate_WatchPlaylistItemsMsg_AddsTracks(t *testing.T) {
 	result, _ := m.Update(msg)
 	updated := result.(Model)
 
-	if updated.Queue.Len() != 3 {
-		t.Fatalf("Queue items: want 3, got %d", updated.Queue.Len())
+	if len(updated.PlaybackContext) != 3 {
+		t.Fatalf("Queue items: want 3, got %d", len(updated.PlaybackContext))
 	}
 
-	tracks := updated.Queue.AllTracks()
+	tracks := updated.PlaybackContext
 	expectedIDs := []string{"watch1", "watch2", "watch3"}
 	for i, id := range expectedIDs {
 		if tracks[i].Track.VideoId != id {
@@ -677,8 +677,8 @@ func TestUpdate_WatchPlaylistItemsMsg_NoSelectedTrack(t *testing.T) {
 	result, _ := m.Update(msg)
 	updated := result.(Model)
 
-	if updated.Queue.Len() != 2 {
-		t.Errorf("Queue items: want 2 when no selected track, got %d", updated.Queue.Len())
+	if len(updated.PlaybackContext) != 2 {
+		t.Errorf("Queue items: want 2 when no selected track, got %d", len(updated.PlaybackContext))
 	}
 }
 
@@ -717,9 +717,11 @@ func TestUpdate_WatchPlaylistItemsMsg_AppendsToExistingQueue(t *testing.T) {
 
 	existing := types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "existing1", Title: "Existing Track"}}
 	m.Queue.AddTrack(&existing)
+	m.SyncQueueList()
 
 	watchResp := &musicpb.GetWatchPlaylistItemsResponse{
 		Tracks: []*musicpb.Song{
+			{VideoId: "current-video", Title: "Current Song"},
 			{VideoId: "watch1", Title: "Watch Track 1"},
 			{VideoId: "watch2", Title: "Watch Track 2"},
 		},
@@ -732,12 +734,20 @@ func TestUpdate_WatchPlaylistItemsMsg_AppendsToExistingQueue(t *testing.T) {
 
 	result, _ := m.Update(msg)
 	updated := result.(Model)
+	m.SyncQueueList()
 
-	if updated.Queue.Len() != 3 {
-		t.Fatalf("Queue items: want 3 (1 existing + 2 new), got %d", updated.Queue.Len())
+	items := updated.QueueList.Items()
+	var tracks []*types.PlaylistTrackObject
+	for _, item := range items {
+		if track, ok := item.(types.PlaylistTrackObject); ok {
+			tracks = append(tracks, &track)
+		}
 	}
 
-	tracks := updated.Queue.AllTracks()
+	if len(tracks) != 3 {
+		t.Fatalf("Queue items: want 3 (1 existing + 2 new), got %d", len(tracks))
+	}
+
 	if tracks[0].Track.VideoId != "existing1" {
 		t.Errorf("Track 0: want existing1, got %q", tracks[0].Track.VideoId)
 	}

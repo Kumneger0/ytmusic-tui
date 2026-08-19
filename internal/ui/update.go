@@ -1777,9 +1777,8 @@ func (m Model) handleMainViewOrQueueEnter() (Model, tea.Cmd) {
 				Err:                err,
 			}
 		}
-		m.Queue.Clear()
 		m, cmd := m.playStandaloneTrack(playlistTrack)
-		return m, tea.Batch(cmd, tea.Sequence(m.SyncQueueList(), watchPlaylistCmd))
+		return m, tea.Batch(cmd, watchPlaylistCmd)
 
 	case types.SearchResultPlaylistItem:
 		if selectedItem.SearchResultPlaylist != nil {
