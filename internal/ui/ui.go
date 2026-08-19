@@ -306,15 +306,12 @@ func (m *Model) SyncQueueList() tea.Cmd {
 			items = append(items, types.HomePageSectionItem{SectionTitle: "Next Up"})
 		}
 
-		n := len(m.PlaybackContext)
+		limit := len(m.PlaybackContext)
 		startIdx := m.PlaylistContextIndex
-		limit := n
-		if m.SelectedTrack != nil {
+		if m.SelectedTrack != nil && m.SelectedTrack.Track.VideoId == m.PlaybackContext[startIdx].Track.VideoId {
 			startIdx++
-			limit = n - 1
 		}
-		for i := 0; i < limit; i++ {
-			idx := (startIdx + i) % n
+		for idx := startIdx; idx < limit; idx++ {
 			if m.PlaybackContext[idx] != nil {
 				items = append(items, *m.PlaybackContext[idx])
 			}
