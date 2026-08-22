@@ -1269,7 +1269,14 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 			track = m.PlayHistory[m.PlayHistoryIndex]
 			fromHistory = true
 		} else if len(m.PlaybackContext) > 0 {
-			m.PlaylistContextIndex = (m.PlaylistContextIndex + 1) % len(m.PlaybackContext)
+			idx := m.PlaylistContextIndex
+			if idx >= 0 && idx < len(m.PlaybackContext) &&
+				m.SelectedTrack != nil && m.SelectedTrack.Track != nil &&
+				m.PlaybackContext[idx].Track != nil &&
+				m.SelectedTrack.Track.VideoId == m.PlaybackContext[idx].Track.VideoId {
+				idx = (idx + 1) % len(m.PlaybackContext)
+			}
+			m.PlaylistContextIndex = idx
 			track = m.PlaybackContext[m.PlaylistContextIndex]
 		} else if len(m.PlayHistory) > 0 {
 			m.PlayHistoryIndex = 0
@@ -1560,7 +1567,13 @@ func (m Model) playTrackFromList(track types.PlaylistTrackObject) (Model, tea.Cm
 		contextName = "Playlist"
 	}
 
-	selectedIdx := m.SelectedPlayListItems.Index()
+	selectedIdx := 0
+	for i, ct := range contextTracks {
+		if ct.Track != nil && ct.Track.VideoId == track.Track.VideoId {
+			selectedIdx = i
+			break
+		}
+	}
 	m.SetPlaybackContext(contextTracks, contextName, selectedIdx)
 
 	return m.PlaySelectedMusic(track)
@@ -1618,7 +1631,13 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 			if contextName == "" {
 				contextName = "Home"
 			}
-			selectedIdx := m.HomePageList.Index()
+			selectedIdx := 0
+			for i, ct := range contextTracks {
+				if ct.Track != nil && ct.Track.VideoId == trackID {
+					selectedIdx = i
+					break
+				}
+			}
 			if len(contextTracks) > 0 {
 				m.SetPlaybackContext(contextTracks, contextName, selectedIdx)
 			}

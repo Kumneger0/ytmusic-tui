@@ -758,3 +758,77 @@ func TestUpdate_WatchPlaylistItemsMsg_AppendsToExistingQueue(t *testing.T) {
 		t.Errorf("Track 2: want watch2, got %q", tracks[2].Track.VideoId)
 	}
 }
+
+func TestUpdate_WatchPlaylistItems_EmptyContext_FirstTrackSelected(t *testing.T) {
+	m := newTestModel()
+	m.PlaybackContext = nil
+	m.PlaylistContextIndex = 0
+	m.SelectedTrack = &SelectedTrack{
+		PlaylistTrackObject: types.PlaylistTrackObject{
+			Track: &musicpb.Song{VideoId: "current", Title: "Current Song"},
+		},
+	}
+
+	msg := types.WatchPlaylistItemsMsg{
+		SourceID: "current",
+		WatchPlaylistItems: &musicpb.GetWatchPlaylistItemsResponse{
+			Tracks: []*musicpb.Song{
+				{VideoId: "current", Title: "Current Song"},
+				{VideoId: "next1", Title: "Next 1"},
+				{VideoId: "next2", Title: "Next 2"},
+				{VideoId: "next3", Title: "Next 3"},
+			},
+		},
+	}
+
+	result, _ := m.Update(msg)
+	updated := result.(Model)
+
+	if len(updated.PlaybackContext) != 3 {
+		t.Fatalf("PlaybackContext length: want 3, got %d", len(updated.PlaybackContext))
+	}
+
+	if updated.PlaylistContextIndex != 0 {
+		t.Errorf("PlaylistContextIndex: want 0, got %d", updated.PlaylistContextIndex)
+	}
+	if updated.PlaybackContext[0].Track.VideoId != "next1" {
+		t.Errorf("First next track: want next1, got %s", updated.PlaybackContext[0].Track.VideoId)
+	}
+}
+
+func TestUpdate_HomePageEnter_NonVideoBeforePlayable_CorrectIndex(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = MainView
+	m.MainViewMode = HomePageMode
+	m.HomePageViewMode = HomePageContentView
+
+	dims := CalculateLayoutDimensions(&m)
+	d := CustomDelegate{Model: &m}
+	items := []list.Item{
+		types.HomePageContentItem{ItemTitle: "Some Album", BrowseID: "MPRE_album1", ContentType: "album", VideoID: ""},
+		types.HomePageContentItem{ItemTitle: "Song A", VideoID: "vidA", Artists: []*musicpb.Artist{{Name: "Artist A"}}},
+		types.HomePageContentItem{ItemTitle: "Song B", VideoID: "vidB", Artists: []*musicpb.Artist{{Name: "Artist B"}}},
+	}
+	m.HomePageList = list.New(items, d, dims.MainWidth, dims.ContentHeight)
+	m.HomePageList.Title = "Test Section"
+
+	m.HomePageList.Select(1)
+
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := result.(Model)
+
+	if len(updated.PlaybackContext) != 2 {
+		t.Fatalf("PlaybackContext length: want 2, got %d", len(updated.PlaybackContext))
+	}
+
+	if updated.PlaylistContextIndex != 0 {
+		t.Errorf("PlaylistContextIndex: want 0 (filtered position of Song A), got %d", updated.PlaylistContextIndex)
+	}
+
+	if updated.PlaybackContext[0].Track.VideoId != "vidA" {
+		t.Errorf("PlaybackContext[0]: want vidA, got %s", updated.PlaybackContext[0].Track.VideoId)
+	}
+	if updated.PlaybackContext[1].Track.VideoId != "vidB" {
+		t.Errorf("PlaybackContext[1]: want vidB, got %s", updated.PlaybackContext[1].Track.VideoId)
+	}
+}
