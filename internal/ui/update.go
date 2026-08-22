@@ -1566,12 +1566,25 @@ func (m Model) playTrackFromList(track types.PlaylistTrackObject) (Model, tea.Cm
 	if contextName == "" {
 		contextName = "Playlist"
 	}
-
+	sourceIdx := m.SelectedPlayListItems.Index()
+	occurrence := 0
+	for i, item := range playlistItems {
+		if pt, ok := item.(types.PlaylistTrackObject); ok && pt.Track != nil && pt.Track.VideoId == track.Track.VideoId {
+			occurrence++
+		}
+		if i == sourceIdx {
+			break
+		}
+	}
 	selectedIdx := 0
+	seen := 0
 	for i, ct := range contextTracks {
 		if ct.Track != nil && ct.Track.VideoId == track.Track.VideoId {
-			selectedIdx = i
-			break
+			seen++
+			if seen == occurrence {
+				selectedIdx = i
+				break
+			}
 		}
 	}
 	m.SetPlaybackContext(contextTracks, contextName, selectedIdx)
@@ -1631,11 +1644,25 @@ func (m Model) handleHomePageEnter() (Model, tea.Cmd) {
 			if contextName == "" {
 				contextName = "Home"
 			}
+			sourceIdx := m.HomePageList.Index()
+			occurrence := 0
+			for i, hpItem := range m.HomePageList.Items() {
+				if ci, ok := hpItem.(types.HomePageContentItem); ok && ci.VideoID == trackID {
+					occurrence++
+				}
+				if i == sourceIdx {
+					break
+				}
+			}
 			selectedIdx := 0
+			seen := 0
 			for i, ct := range contextTracks {
 				if ct.Track != nil && ct.Track.VideoId == trackID {
-					selectedIdx = i
-					break
+					seen++
+					if seen == occurrence {
+						selectedIdx = i
+						break
+					}
 				}
 			}
 			if len(contextTracks) > 0 {

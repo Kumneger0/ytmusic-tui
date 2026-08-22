@@ -832,3 +832,70 @@ func TestUpdate_HomePageEnter_NonVideoBeforePlayable_CorrectIndex(t *testing.T) 
 		t.Errorf("PlaybackContext[1]: want vidB, got %s", updated.PlaybackContext[1].Track.VideoId)
 	}
 }
+
+func TestUpdate_PlayTrackFromList_DuplicateVideoId(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = MainView
+	m.MainViewMode = NormalMode
+
+	dims := CalculateLayoutDimensions(&m)
+	d := CustomDelegate{Model: &m}
+	items := []list.Item{
+		types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "songA", Title: "Song A (1st)"}},
+		types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "songB", Title: "Song B"}},
+		types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "songA", Title: "Song A (2nd)"}},
+		types.PlaylistTrackObject{Track: &musicpb.Song{VideoId: "songC", Title: "Song C"}},
+	}
+	m.SelectedPlayListItems = list.New(items, d, dims.MainWidth, dims.ContentHeight)
+	m.SelectedPlayListItems.Title = "Test Playlist"
+
+	m.SelectedPlayListItems.Select(2)
+
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := result.(Model)
+
+	if len(updated.PlaybackContext) != 4 {
+		t.Fatalf("PlaybackContext length: want 4, got %d", len(updated.PlaybackContext))
+	}
+	if updated.PlaylistContextIndex != 2 {
+		t.Errorf("PlaylistContextIndex: want 2 (2nd occurrence of songA), got %d", updated.PlaylistContextIndex)
+	}
+
+	if updated.PlaybackContext[3].Track.VideoId != "songC" {
+		t.Errorf("Next track after 2nd songA: want songC at index 3, got %s", updated.PlaybackContext[3].Track.VideoId)
+	}
+}
+
+func TestUpdate_HomePageEnter_DuplicateVideoId(t *testing.T) {
+	m := newTestModel()
+	m.FocusedOn = MainView
+	m.MainViewMode = HomePageMode
+	m.HomePageViewMode = HomePageContentView
+
+	dims := CalculateLayoutDimensions(&m)
+	d := CustomDelegate{Model: &m}
+	items := []list.Item{
+		types.HomePageContentItem{ItemTitle: "Song X (1st)", VideoID: "vidX"},
+		types.HomePageContentItem{ItemTitle: "Song Y", VideoID: "vidY"},
+		types.HomePageContentItem{ItemTitle: "Song X (2nd)", VideoID: "vidX"},
+		types.HomePageContentItem{ItemTitle: "Song Z", VideoID: "vidZ"},
+	}
+	m.HomePageList = list.New(items, d, dims.MainWidth, dims.ContentHeight)
+	m.HomePageList.Title = "Test Section"
+
+	m.HomePageList.Select(2)
+
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := result.(Model)
+
+	if len(updated.PlaybackContext) != 4 {
+		t.Fatalf("PlaybackContext length: want 4, got %d", len(updated.PlaybackContext))
+	}
+	if updated.PlaylistContextIndex != 2 {
+		t.Errorf("PlaylistContextIndex: want 2 (2nd occurrence of vidX), got %d", updated.PlaylistContextIndex)
+	}
+
+	if updated.PlaybackContext[3].Track.VideoId != "vidZ" {
+		t.Errorf("Next track after 2nd vidX: want vidZ at index 3, got %s", updated.PlaybackContext[3].Track.VideoId)
+	}
+}
