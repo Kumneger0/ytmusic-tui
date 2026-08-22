@@ -308,8 +308,12 @@ func (m *Model) SyncQueueList() tea.Cmd {
 
 		limit := len(m.PlaybackContext)
 		startIdx := m.PlaylistContextIndex
-		if m.SelectedTrack != nil && m.SelectedTrack.Track.VideoId == m.PlaybackContext[startIdx].Track.VideoId {
+		if startIdx >= 0 && startIdx < limit && m.PlaybackContext[startIdx] != nil &&
+			m.SelectedTrack != nil && m.SelectedTrack.Track.VideoId == m.PlaybackContext[startIdx].Track.VideoId {
 			startIdx++
+		}
+		if startIdx < 0 || startIdx >= limit {
+			startIdx = 0
 		}
 		for idx := startIdx; idx < limit; idx++ {
 			if m.PlaybackContext[idx] != nil {
